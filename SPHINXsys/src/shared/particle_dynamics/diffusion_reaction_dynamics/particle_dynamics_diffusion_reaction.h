@@ -33,6 +33,8 @@
 #include "all_particle_dynamics.h"
 #include "diffusion_reaction_particles.h"
 #include "diffusion_reaction.h"
+#include "particle_dynamics_algorithms.h"
+
 
 namespace SPH
 {
@@ -66,6 +68,7 @@ namespace SPH
 	protected:
 		StdLargeVec<Vecd> &pos_;
 		StdVec<StdLargeVec<Real>> &species_n_;
+		StdLargeVec<Real> &heat_flux_;
 	};
 
 	/**
@@ -147,6 +150,38 @@ namespace SPH
 		void interaction(size_t index_i, Real dt = 0.0);
 	};
 
+	 /**
+	  * @class 	RelaxationOfAllDiffusionSpeciesWithBoundary
+	  * @brief 	Contact diffusion relaxation with Dirichlet and/or Neumann boundary conditions.
+	  */
+	template <class BaseParticlesType, class BaseMaterialType,
+			  class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES = 1>
+	class RelaxationOfAllDiffusionSpeciesWithBoundary
+		: public RelaxationOfAllDiffusionSpeciesComplex<BaseParticlesType, BaseMaterialType,
+														ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>
+	{
+		StdLargeVec<Vecd>& n_;
+		StdVec<BaseDiffusion*> species_diffusion_;
+		StdVec<StdLargeVec<Real>> &species_n_;
+		StdVec<StdLargeVec<Real>> &diffusion_dt_;
+		StdVec<StdLargeVec<Real> *> contact_Vol_;
+		StdVec<StdLargeVec<Real> *> contact_heat_flux_;
+		StdVec<StdLargeVec<Vecd> *> contact_n_;
+		StdVec<StdVec<StdLargeVec<Real>> *> contact_species_n_;
+
+	protected:
+		void getDiffusionChangeRateWithDirichlet(size_t particle_i, size_t particle_j, Vecd& e_ij,
+			Real surface_area_ij, const StdVec<StdLargeVec<Real>>& species_n_k);
+		void getDiffusionChangeRateWithNeumann(size_t particle_i, size_t particle_j,
+			Real surface_area_ij_Neumann, StdLargeVec<Real>& heat_flux_k);
+	public:
+		typedef ComplexRelation BodyRelationType;
+		explicit RelaxationOfAllDiffusionSpeciesWithBoundary(ComplexRelation& complex_relation);
+		virtual ~RelaxationOfAllDiffusionSpeciesWithBoundary() {};
+		void interaction(size_t index_i, Real dt = 0.0);
+	};
+
+
 	/**
 	 * @class InitializationRK
 	 * @brief initialization of a runge-kutta integration scheme
@@ -215,6 +250,17 @@ namespace SPH
 
 		virtual void exec(Real dt = 0.0) override;
 		virtual void parallel_exec(Real dt = 0.0) override;
+
+		/*void ImposePreProcess(ParticleDynamics* preprocesses)
+		{
+			rk2_1st_stage_.pre_processes_.push_back(preprocesses);
+			rk2_2nd_stage_.pre_processes_.push_back(preprocesses);
+		}
+		void ImposePostProcess(ParticleDynamics* postprocesses)
+		{
+			rk2_1st_stage_.post_processes_.push_back(postprocesses);
+			rk2_2nd_stage_.post_processes_.push_back(postprocesses);
+		}*/
 	};
 
 	struct UpdateAReactionSpecies
@@ -296,13 +342,15 @@ namespace SPH
 			  DiffusionReactionSimpleData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(identifier.getSPHBody()),
 			  diffusion_reaction_material_(this->particles_->diffusion_reaction_material_),
 			  phi_(diffusion_reaction_material_.SpeciesIndexMap()[species_name]),
-			  species_(this->particles_->species_n_[phi_]){};
+			  species_(this->particles_->species_n_[phi_]),
+			  heat_flux_(this->particles_->heat_flux_){};
 		virtual ~DiffusionReactionSpeciesConstraint(){};
 
 	protected:
 		DiffusionReaction<BaseMaterialType, NUM_SPECIES> &diffusion_reaction_material_;
 		size_t phi_;
 		StdLargeVec<Real> &species_;
+		StdLargeVec<Real> &heat_flux_;
 	};
 
 	/**
@@ -357,7 +405,28 @@ namespace SPH
 		Real reduce(size_t index_i, Real dt = 0.0)
 		{
 			return species_n_[phi_][index_i];
-		};
+		}
+	};
+
+	/**
+	 * @class 	UpdateUnitVectorNormalBoundary
+	 * @brief 	Initialize and update unit vectors normal to the Neumann boundary.
+	 */
+	template <class BaseParticlesType, class BaseMaterialType,
+		class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES = 1>
+	class UpdateUnitVectorNormalToBoundary
+		: public LocalDynamics, 
+		public DiffusionReactionInnerData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>,
+		public DiffusionReactionContactData<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>
+	{
+	protected:
+		StdLargeVec<Vecd>& n_;
+		StdVec<StdLargeVec<Real>*> contact_Vol_;
+
+	public:
+		UpdateUnitVectorNormalToBoundary(ComplexRelation& body_complex_relation);
+		virtual ~UpdateUnitVectorNormalToBoundary() {};
+		void interaction(size_t index_i, Real dt = 0.0);
 	};
 }
 #endif // PARTICLE_DYNAMICS_DIFFUSION_REACTION_H

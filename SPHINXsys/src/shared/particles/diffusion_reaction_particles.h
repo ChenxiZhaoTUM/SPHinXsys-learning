@@ -54,6 +54,10 @@ namespace SPH
 		StdVec<StdLargeVec<Real>> diffusion_dt_; /**< array of the time derivative of diffusion species */
 		DiffusionReaction<BaseMaterialType, NUM_SPECIES> &diffusion_reaction_material_;
 
+		StdLargeVec<Real> heat_flux_;               /**< heat flux used for Neumann boundary condition */
+		//StdLargeVec<Real> heat_source_;             /**< heat source used for inner heat source intensity */
+		StdLargeVec<Vecd> normal_vector_;           /**< unit vector normal used for Neumann boundary condition */
+
 		DiffusionReactionParticles(SPHBody &sph_body,
 								   DiffusionReaction<BaseMaterialType, NUM_SPECIES> *diffusion_reaction_material)
 			: BaseParticlesType(sph_body, diffusion_reaction_material),
@@ -64,6 +68,7 @@ namespace SPH
 		{
 			species_n_.resize(number_of_species_);
 			diffusion_dt_.resize(number_of_diffusion_species_);
+			heat_flux_.resize(number_of_diffusion_species_);
 		};
 		virtual ~DiffusionReactionParticles(){};
 
@@ -82,6 +87,9 @@ namespace SPH
 				this->template registerSortableVariable<Real>(itr->first);
 				/** add species to basic output particle data. */
 				this->template addVariableToWrite<Real>(itr->first);
+
+				// add species to restart output particle data
+				this->template addAVariableToRestart<Real>(itr->first);
 			}
 
 			constexpr int type_index = DataTypeIndex<Real>::value;
@@ -89,7 +97,9 @@ namespace SPH
 			{
 				// register reactive change rate terms without giving variable name
 				std::get<type_index>(this->all_particle_data_).push_back(&diffusion_dt_[m]);
+				std::get<type_index>(this->all_particle_data_).push_back(&heat_flux_);
 				diffusion_dt_[m].resize(this->real_particles_bound_, Real(0));
+				heat_flux_.resize(this->real_particles_bound_, Real(0));
 			}
 		};
 

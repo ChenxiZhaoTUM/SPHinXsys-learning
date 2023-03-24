@@ -16,12 +16,21 @@ namespace SPH
 	{
 		DirectionalDiffusion::assignBaseParticles(base_particles);
 		initializeFiberDirection();
+		initializeThermalConductivity();
 	};
 	//=================================================================================================//
 	void LocalDirectionalDiffusion::initializeFiberDirection()
 	{
 		base_particles_->registerVariable(local_bias_direction_, "Fiber");
 		base_particles_->addVariableNameToList<Vecd>(reload_local_parameters_, "Fiber");
+	}
+	//=================================================================================================//
+	void LocalDirectionalDiffusion::initializeThermalConductivity()
+	{
+		base_particles_->registerVariable<Matd>(local_transformed_diffusivity_, "TransformedDiffusivity");
+		base_particles_->registerVariable<Real>(local_thermal_conductivity_, "ThermalDiffusivity", diff_cf_);
+		base_particles_->addVariableToWrite<Real>("ThermalDiffusivity");
+		base_particles_->addVariableToRestart<Real>("ThermalDiffusivity");
 	}
 	//=================================================================================================//
 	void LocalDirectionalDiffusion::readFromXmlForLocalParameters(const std::string &filefullpath)
