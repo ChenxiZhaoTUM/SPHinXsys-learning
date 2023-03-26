@@ -88,8 +88,6 @@ namespace SPH
 				/** add species to basic output particle data. */
 				this->template addVariableToWrite<Real>(itr->first);
 
-				// add species to restart output particle data
-				this->template addAVariableToRestart<Real>(itr->first);
 			}
 
 			constexpr int type_index = DataTypeIndex<Real>::value;
