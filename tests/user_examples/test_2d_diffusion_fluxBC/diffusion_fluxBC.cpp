@@ -193,8 +193,9 @@ int main()
 	SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
 	wall_boundary.defineParticlesAndMaterial<DiffusionReactionParticles<SolidParticles,Solid>, DiffusionBodyMaterial>();
 	wall_boundary.generateParticles<ParticleGeneratorLattice>();
-	MultiPolygonShape heat_flux_surface_shape(createHeatFluxSurfaceDomain(), "Heat_flux_surface");
-	BodyRegionByParticle heat_flux_shape(diffusion_body, makeShared<MultiPolygonShape>("Heat_flux_surface"));
+	//MultiPolygonShape heat_flux_surface_shape(createHeatFluxSurfaceDomain(), "Heat_flux_surface");
+	//BodyRegionByParticle heat_flux_shape(diffusion_body, makeShared<MultiPolygonShape>("Heat_flux_surface"));
+	BodyRegionByParticle heat_flux_region(wall_boundary, makeShared<MultiPolygonShape>(createHeatFluxSurfaceDomain(), "heat_flux_region"));
 	//----------------------------  ------------------------------------------
 	//	Particle and body creation of temperature observers.
 	//----------------------------------------------------------------------
@@ -220,19 +221,14 @@ int main()
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<WallBoundaryInitialCondition> setup_boundary_condition(wall_boundary);
 	
-	InteractionDynamics<solid_dynamics::CorrectConfiguration> correct_configuration(diffusion_body_inner_relation);
+	/** Time step size calculation. */
+	GetDiffusionTimeStepSize<SolidParticles, Solid> get_time_step_size(diffusion_body);
 
-	/** Calculate unit vector normal to the boundary. */
-	/*UpdateUnitVectorNormalToBoundary<SolidParticles, Solid, SolidParticles, Solid>
-		update_diffusion_body_normal_vector(diffusion_body_complex);
-	UpdateUnitVectorNormalToBoundary<SolidParticles, Solid,SolidParticles, Solid>
-		update_wall_boundary_normal_vector(wall_boundary_complex);*/
-
+	//InteractionDynamics<solid_dynamics::CorrectConfiguration> correct_configuration(diffusion_body_inner_relation);
+	DiffusionBodyRelaxation thermal_relaxation_with_boundary(diffusion_body_complex);
 	InteractionDynamics<UpdateUnitVectorNormalToBoundary<SolidParticles, Solid, SolidParticles, Solid>> update_diffusion_body_normal_vector(diffusion_body_complex);
 	InteractionDynamics<UpdateUnitVectorNormalToBoundary<SolidParticles, Solid, SolidParticles, Solid>> update_wall_boundary_normal_vector(wall_boundary_complex);
 
-	/** Time step size calculation. */
-	GetDiffusionTimeStepSize<SolidParticles, Solid> get_time_step_size(diffusion_body);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -242,12 +238,7 @@ int main()
 		write_solid_temperature("ThermalDiffusivity", io_environment, thermal_diffusivity_observer_contact);
 	/*RegressionTestEnsembleAveraged<ObservedQuantityRecording<Real>>
 		write_solid_temperature("Phi", io_environment, thermal_diffusivity_observer_contact);*/
-	/************************************************************************/
-	/*            splitting thermal diffusivity optimization                */
-	/************************************************************************/
-	DiffusionBodyRelaxation thermal_relaxation_with_boundary(diffusion_body_complex);
-	/*TemperatureSplittingWithBoundary<SolidParticles, Solid, SolidBody, SolidParticles, Solid, Real>
-		temperature_splitting_with_boundary(diffusion_body_complex, "Phi");*/
+
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary. 
@@ -255,7 +246,7 @@ int main()
 	sph_system.initializeSystemCellLinkedLists();
 	sph_system.initializeSystemConfigurations();
 
-	correct_configuration.parallel_exec();
+	//correct_configuration.parallel_exec();
 
 	setup_diffusion_initial_condition.parallel_exec();
 	setup_boundary_condition.parallel_exec();
@@ -274,7 +265,6 @@ int main()
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
 	//int ite = sph_system.restart_step_;
-	//int ite_splitting = 0;
 	int ite = 0;
 	Real T0 = 10.0;
 	Real End_Time = T0;
