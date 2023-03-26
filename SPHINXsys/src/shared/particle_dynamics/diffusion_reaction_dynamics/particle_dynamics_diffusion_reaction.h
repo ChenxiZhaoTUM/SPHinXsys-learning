@@ -250,17 +250,6 @@ namespace SPH
 
 		virtual void exec(Real dt = 0.0) override;
 		virtual void parallel_exec(Real dt = 0.0) override;
-
-		/*void ImposePreProcess(ParticleDynamics* preprocesses)
-		{
-			rk2_1st_stage_.pre_processes_.push_back(preprocesses);
-			rk2_2nd_stage_.pre_processes_.push_back(preprocesses);
-		}
-		void ImposePostProcess(ParticleDynamics* postprocesses)
-		{
-			rk2_1st_stage_.post_processes_.push_back(postprocesses);
-			rk2_2nd_stage_.post_processes_.push_back(postprocesses);
-		}*/
 	};
 
 	struct UpdateAReactionSpecies
@@ -350,6 +339,7 @@ namespace SPH
 		DiffusionReaction<BaseMaterialType, NUM_SPECIES> &diffusion_reaction_material_;
 		size_t phi_;
 		StdLargeVec<Real> &species_;
+
 		StdLargeVec<Real> &heat_flux_;
 	};
 
@@ -367,12 +357,14 @@ namespace SPH
 		explicit DiffusionBasedMapping(SPHBody &sph_body)
 			: LocalDynamics(sph_body),
 			  DiffusionReactionSimpleData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(sph_body),
-			  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_){};
+			  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_), heat_flux_(this->particles_->heat_flux_) {};
 		virtual ~DiffusionBasedMapping(){};
 
 	protected:
 		StdLargeVec<Vecd> &pos_;
 		StdVec<StdLargeVec<Real>> &species_n_;
+
+		StdLargeVec<Real> &heat_flux_;
 	};
 
 	/**

@@ -68,7 +68,8 @@ namespace SPH
 		{
 			species_n_.resize(number_of_species_);
 			diffusion_dt_.resize(number_of_diffusion_species_);
-			heat_flux_.resize(number_of_diffusion_species_);
+			//heat_flux_.resize(number_of_diffusion_species_);
+			//normal_vector_.resize(number_of_diffusion_species_);
 		};
 		virtual ~DiffusionReactionParticles(){};
 
@@ -97,8 +98,14 @@ namespace SPH
 				std::get<type_index>(this->all_particle_data_).push_back(&diffusion_dt_[m]);
 				std::get<type_index>(this->all_particle_data_).push_back(&heat_flux_);
 				diffusion_dt_[m].resize(this->real_particles_bound_, Real(0));
-				heat_flux_.resize(this->real_particles_bound_, Real(0));
+				//heat_flux_.resize(this->real_particles_bound_, Real(0));
 			}
+
+			this->registerVariable(heat_flux_, "HeatFlux"); //add by zhao
+			this->template addVariableToWrite<Real>("HeatFlux"); //add by zhao
+			
+			this->registerVariable(normal_vector_, "UnitNormalVector"); //add by zhao
+			this->template addVariableToWrite<Vecd>("UnitNormalVector"); //add by zhao
 		};
 
 		virtual DiffusionReactionParticles<BaseParticlesType, BaseMaterialType, NUM_SPECIES> *ThisObjectPtr() override { return this; };

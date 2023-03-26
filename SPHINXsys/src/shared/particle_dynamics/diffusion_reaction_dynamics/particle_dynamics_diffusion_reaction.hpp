@@ -425,7 +425,7 @@ namespace SPH
 		LocalDynamics(body_complex_relation.getInnerRelation().getSPHBody()),
 		DiffusionReactionInnerData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(body_complex_relation.getInnerRelation()),
 		DiffusionReactionContactData<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>(body_complex_relation.getContactRelation()),
-		n_(this->particles_->n_)
+		n_(this->particles_->normal_vector_)
 	{
 		for (size_t k = 0; k != this->contact_particles_.size(); ++k)
 		{
