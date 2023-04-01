@@ -412,8 +412,8 @@ namespace SPH
 		public DiffusionReactionContactData<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>
 	{
 	protected:
-		StdLargeVec<Vecd>& n_;
-		StdVec<StdLargeVec<Real>*> contact_Vol_;
+		StdLargeVec<Vecd>& normal_vector_;
+		//StdVec<StdLargeVec<Real>*> contact_Vol_;
 
 	public:
 		UpdateUnitVectorNormalToBoundary(ComplexRelation& body_complex_relation);

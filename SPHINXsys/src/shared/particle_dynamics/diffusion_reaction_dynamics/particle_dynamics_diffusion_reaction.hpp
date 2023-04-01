@@ -425,12 +425,12 @@ namespace SPH
 		LocalDynamics(body_complex_relation.getInnerRelation().getSPHBody()),
 		DiffusionReactionInnerData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(body_complex_relation.getInnerRelation()),
 		DiffusionReactionContactData<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>(body_complex_relation.getContactRelation()),
-		n_(this->particles_->normal_vector_)
+		normal_vector_(this->particles_->normal_vector_)
 	{
-		for (size_t k = 0; k != this->contact_particles_.size(); ++k)
+		/*for (size_t k = 0; k != this->contact_particles_.size(); ++k)
 		{
 			contact_Vol_.push_back(&(this->contact_particles_[k]->Vol_));
-		}
+		}*/
 	}
 	//=================================================================================================//
 	template< class BaseParticlesType, class BaseMaterialType,
@@ -440,16 +440,15 @@ namespace SPH
 	{
 		for (size_t k = 0; k != this->contact_configuration_.size(); ++k)
 		{
-			StdLargeVec<Real>& Vol_k = *(contact_Vol_[k]);
 			Neighborhood& contact_neighborhood = (*this->contact_configuration_[k])[index_i];
 			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
 			{
-				Real dw_ij_ = contact_neighborhood.dW_ijV_j_[n];
-				Vecd& e_ij = contact_neighborhood.e_ij_[n];
-				n_[index_i] += Vol_k[n] * dw_ij_ * e_ij;
+				Real& dW_ijV_j_ = contact_neighborhood.dW_ijV_j_[n];
+				Vecd& e_ij_ = contact_neighborhood.e_ij_[n];
+				normal_vector_[index_i] += dW_ijV_j_ * e_ij_;
 			}
 		}
-		n_[index_i] = n_[index_i] / (n_[index_i].norm() + TinyReal);
+		normal_vector_[index_i] = normal_vector_[index_i] / (normal_vector_[index_i].norm() + TinyReal);
 	};
 	//=================================================================================================//
 }
