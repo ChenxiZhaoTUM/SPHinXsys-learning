@@ -251,14 +251,16 @@ int main(int ac, char* av[])
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<WallBoundaryInitialCondition> setup_boundary_condition(wall_boundary);
 	GetDiffusionTimeStepSize<SolidParticles, Solid> get_time_step_size(diffusion_body);
+
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
 	BodyStatesRecordingToVtp write_states(io_environment, sph_system.real_bodies_);
 	ObservedQuantityRecording<Real> write_solid_temperature("Phi", io_environment, temperature_observer_contact);
-	/************************************************************************/
-	/* Splitting thermal diffusivity optimization                           */
-	/************************************************************************/
+	//----------------------------------------------------------------------
+	//	Define the main numerical methods used in the simulation.
+	//	Note that there may be data dependence on the constructors of these methods.
+	//----------------------------------------------------------------------
 	DiffusionBodyRelaxation temperature_relaxation(diffusion_body_complex);
 	InteractionDynamics<UpdateUnitVectorNormalToBoundary<SolidParticles, Solid, SolidParticles, Solid>> update_diffusion_body_normal_vector(diffusion_body_complex);
 	InteractionDynamics<UpdateUnitVectorNormalToBoundary<SolidParticles, Solid, SolidParticles, Solid>> update_wall_boundary_normal_vector(wall_boundary_complex);
@@ -272,7 +274,6 @@ int main(int ac, char* av[])
 	setup_boundary_condition.parallel_exec();
 	update_diffusion_body_normal_vector.parallel_exec();
 	update_wall_boundary_normal_vector.parallel_exec();
-
 	//----------------------------------------------------------------------
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
@@ -280,6 +281,7 @@ int main(int ac, char* av[])
 	Real T0 = 10;
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
+	Real Output_Time = 0.1 * End_Time;
 	Real dt = 0.0;
 	//----------------------------------------------------------------------
 	//	Statistics for CPU time
@@ -292,19 +294,39 @@ int main(int ac, char* av[])
 	while (GlobalStaticVariables::physical_time_ < End_Time)
 	{
 		Real integration_time = 0.0;
-		dt = get_time_step_size.parallel_exec();
-		if (ite % 500 == 0)
+		while (integration_time < Output_Time)
 		{
-			write_states.writeToFile(ite);
-			write_solid_temperature.writeToFile(ite);
-			std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
+			Real relaxation_time = 0.0;
+			while (relaxation_time < Observe_time)
+			{
+				if (ite % 500 == 0)
+				{
+					std::cout << "N=" << ite << " Time: "
+						<< GlobalStaticVariables::physical_time_ << "	dt: "
+						<< dt << "\n";
+				}
+
+				temperature_relaxation.parallel_exec(dt); //wrong!
+
+				ite++;
+				dt = get_time_step_size.parallel_exec();
+				relaxation_time += dt;
+				integration_time += dt;
+				GlobalStaticVariables::physical_time_ += dt;
+			}
 		}
 
-		ite++; GlobalStaticVariables::physical_time_ += dt;
+		tick_count t2 = tick_count::now();
+		write_states.writeToFile();
+		write_solid_temperature.writeToFile(ite);
+		tick_count t3 = tick_count::now();
+		interval += t3 - t2;
 	}
 	tick_count t4 = tick_count::now();
+
 	tick_count::interval_t tt;
-	tt = t4 - t1;
+	tt = t4 - t1 - interval;
+
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 	std::cout << "Total physical time for computation: " << GlobalStaticVariables::physical_time_ << " seconds." << std::endl;
 	return 0;
