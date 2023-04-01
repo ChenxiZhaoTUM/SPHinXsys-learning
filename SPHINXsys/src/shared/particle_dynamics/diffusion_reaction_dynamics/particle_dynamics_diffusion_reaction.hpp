@@ -193,12 +193,12 @@ namespace SPH
 	RelaxationOfAllDiffusionSpeciesWithBoundary<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>::
 		RelaxationOfAllDiffusionSpeciesWithBoundary(ComplexRelation& complex_relation) :
 		RelaxationOfAllDiffusionSpeciesComplex<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>(complex_relation),
-		species_n_(this->particles_->species_n_), diffusion_dt_(this->particles_->diffusion_dt_), n_(this->particles_->n_)
+		species_n_(this->particles_->species_n_), diffusion_dt_(this->particles_->diffusion_dt_), n_(this->particles_->normal_vector_)
 	{
 		species_diffusion_ = this->particles_->diffusion_reaction_material_.SpeciesDiffusion();
 		for (size_t k = 0; k != this->contact_particles_.size(); ++k)
 		{
-			contact_n_.push_back(&this->contact_particles_[k]->n_);
+			contact_n_.push_back(&this->contact_particles_[k]->normal_vector_);
 			contact_Vol_.push_back(&(this->contact_particles_[k]->Vol_));
 			contact_heat_flux_.push_back(&(this->contact_particles_[k]->heat_flux_));
 			contact_species_n_.push_back(&(this->contact_particles_[k])->species_n_);

@@ -278,7 +278,7 @@ int main(int ac, char* av[])
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
 	int ite = 0;
-	Real T0 = 10;
+	Real T0 = 1;
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
 	Real Output_Time = 0.1 * End_Time;
@@ -306,7 +306,7 @@ int main(int ac, char* av[])
 						<< dt << "\n";
 				}
 
-				temperature_relaxation.parallel_exec(dt); //wrong!
+				temperature_relaxation.parallel_exec(dt);
 
 				ite++;
 				dt = get_time_step_size.parallel_exec();
