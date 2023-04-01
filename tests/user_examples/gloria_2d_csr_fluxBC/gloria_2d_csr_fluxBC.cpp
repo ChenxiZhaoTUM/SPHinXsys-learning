@@ -1,7 +1,7 @@
 /**
  * @file 	gloria_2d_csr.cpp
- * @brief 	This is a test to validate continuum surface reaction model under flux boundary condition.
- * @author 	Chenxi Zhao, Bo Zhang, Chi Zhang and Xiangyu Hu
+ * @brief 	This is the first test to validate continuum surface reaction model.
+ * @author 	Chenxi Zhao, Chi Zhang and Xiangyu Hu
  */
 #include "sphinxsys.h" //SPHinXsys Library
 using namespace SPH;   // Namespace cite here
@@ -19,9 +19,9 @@ StdVec<Vecd> observation_location = { Vecd(0.8, 0.5) };
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
-Real diffusion_coff = 1.0e-3;
+Real diffusion_coff = 1.0;
 Real bias_coff = 0.0;
-std::array<std::string, 1> species_name_list{"Phi"};
+std::array<std::string, 1> species_name_list{ "Phi" };
 
 Real rho0_f = 1.0;					/**< Density. */
 Real U_f = 1.0;						/**< Characteristic velocity. */
@@ -31,10 +31,10 @@ Real mu_f = rho0_f * U_f * 2 * (insert_out_circle_radius - insert_in_circle_radi
 //----------------------------------------------------------------------
 //	Global parameters on the initial condition.
 //----------------------------------------------------------------------
-Real phi_outer_wall = 40.0;
-Real phi_inner_wall = 20.0;
-Real phi_fluid_initial = 20.0;
-Real heat_flux = 200.0;
+Real phi_outer_wall = 300.0;
+//Real phi_inner_wall = 20.0;
+Real phi_fluid_initial = 200.0;
+Real heat_flux = 10000.0;
 //----------------------------------------------------------------------
 //	Definition of the fluid block shape.
 //----------------------------------------------------------------------
@@ -49,46 +49,46 @@ public:
 		add<MultiPolygonShape>(multi_polygon);
 	}
 };
-//----------------------------------------------------------------------
-//	Definition of the inner cylinder.
-//----------------------------------------------------------------------
-class HeatFluxCylinder : public MultiPolygonShape
-{
-public:
-	explicit HeatFluxCylinder(const std::string& shape_name) : MultiPolygonShape(shape_name)
-	{
-		multi_polygon_.addACircle(insert_circle_center, insert_in_circle_radius, 100, ShapeBooleanOps::add);
-	}
-};
-//----------------------------------------------------------------------
-//	Definition of the outer wall.
-//----------------------------------------------------------------------
-class OuterWall : public ComplexShape
-{
-public:
-	explicit OuterWall(const std::string& shape_name) : ComplexShape(shape_name)
-	{
-		MultiPolygon multi_polygon;
-		multi_polygon.addACircle(insert_circle_center, insert_outer_wall_circle_radius, 100, ShapeBooleanOps::add);
-		multi_polygon.addACircle(insert_circle_center, insert_out_circle_radius, 100, ShapeBooleanOps::sub);
-		add<MultiPolygonShape>(multi_polygon);
-	}
-};
 ////----------------------------------------------------------------------
-////	Definition of the wall.
+////	Definition of the cylinder.
 ////----------------------------------------------------------------------
-//class SolidWall : public ComplexShape
+//class Cylinder : public MultiPolygonShape
 //{
 //public:
-//	explicit SolidWall(const std::string& shape_name) : ComplexShape(shape_name)
+//	explicit Cylinder(const std::string& shape_name) : MultiPolygonShape(shape_name)
+//	{
+//		multi_polygon_.addACircle(insert_circle_center, insert_in_circle_radius, 100, ShapeBooleanOps::add);
+//	}
+//};
+////----------------------------------------------------------------------
+////	Definition of the outer wall.
+////----------------------------------------------------------------------
+//class OuterWall : public ComplexShape
+//{
+//public:
+//	explicit OuterWall(const std::string& shape_name) : ComplexShape(shape_name)
 //	{
 //		MultiPolygon multi_polygon;
 //		multi_polygon.addACircle(insert_circle_center, insert_outer_wall_circle_radius, 100, ShapeBooleanOps::add);
 //		multi_polygon.addACircle(insert_circle_center, insert_out_circle_radius, 100, ShapeBooleanOps::sub);
-//		multi_polygon.addACircle(insert_circle_center, insert_in_circle_radius, 100, ShapeBooleanOps::add);
 //		add<MultiPolygonShape>(multi_polygon);
 //	}
 //};
+//----------------------------------------------------------------------
+//	Definition of the wall.
+//----------------------------------------------------------------------
+class SolidWall : public ComplexShape
+{
+public:
+	explicit SolidWall(const std::string& shape_name) : ComplexShape(shape_name)
+	{
+		MultiPolygon multi_polygon;
+		multi_polygon.addACircle(insert_circle_center, insert_outer_wall_circle_radius, 100, ShapeBooleanOps::add);
+		multi_polygon.addACircle(insert_circle_center, insert_out_circle_radius, 100, ShapeBooleanOps::sub);
+		multi_polygon.addACircle(insert_circle_center, insert_in_circle_radius, 100, ShapeBooleanOps::add);
+		add<MultiPolygonShape>(multi_polygon);
+	}
+};
 
 //----------------------------------------------------------------------
 //	Setup fluid material properties.
@@ -130,8 +130,6 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		species_n_[phi_][index_i] = -0.0;
-
 		if (pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_in_circle_radius, 2))
 		{
 			heat_flux_[index_i] = heat_flux;
@@ -170,14 +168,14 @@ public:
 //----------------------------------------------------------------------
 //	Specify diffusion relaxation method.
 //----------------------------------------------------------------------
-class ThermalRelaxationComplex
+class ThermalRelaxationWithBoundary
 	: public RelaxationOfAllDiffusionSpeciesRK2<
 	RelaxationOfAllDiffusionSpeciesComplex<FluidParticles, WeaklyCompressibleFluid, SolidParticles, Solid>>
 {
 public:
-	explicit ThermalRelaxationComplex(ComplexRelation& complex_relation)
+	explicit ThermalRelaxationWithBoundary(ComplexRelation& complex_relation)
 		: RelaxationOfAllDiffusionSpeciesRK2(complex_relation) {};
-	virtual ~ThermalRelaxationComplex() {};
+	virtual ~ThermalRelaxationWithBoundary() {};
 };
 //----------------------------------------------------------------------
 //	Main program starts here.
@@ -204,20 +202,13 @@ int main(int ac, char* av[])
 	FluidBody fluid_body(sph_system, makeShared<FluidBlock>("FluidBlock"));
 	fluid_body.defineParticlesAndMaterial<DiffusionReactionParticles<FluidParticles, WeaklyCompressibleFluid>, FluidMaterial>();
 	fluid_body.generateParticles<ParticleGeneratorLattice>();
-	
-	SolidBody outer_wall_body(sph_system, makeShared<OuterWall>("OuterWall"));
-	outer_wall_body.defineBodyLevelSetShape();
-	outer_wall_body.defineParticlesAndMaterial<DiffusionReactionParticles<SolidParticles, Solid>, WallMaterial>();
-	(!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-		? outer_wall_body.generateParticles<ParticleGeneratorReload>(io_environment, outer_wall_body.getName())
-		: outer_wall_body.generateParticles<ParticleGeneratorLattice>();
 
-	SolidBody heat_flux_cylinder_body(sph_system, makeShared<HeatFluxCylinder>("HeatFluxCylinder"));
-	heat_flux_cylinder_body.defineBodyLevelSetShape();
-	heat_flux_cylinder_body.defineParticlesAndMaterial<DiffusionReactionParticles<SolidParticles, Solid>, WallMaterial>();
+	SolidBody wall_body(sph_system, makeShared<SolidWall>("SolidWall"));
+	wall_body.defineBodyLevelSetShape();
+	wall_body.defineParticlesAndMaterial<DiffusionReactionParticles<SolidParticles, Solid>, WallMaterial>();
 	(!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-		? heat_flux_cylinder_body.generateParticles<ParticleGeneratorReload>(io_environment, heat_flux_cylinder_body.getName())
-		: heat_flux_cylinder_body.generateParticles<ParticleGeneratorLattice>();
+		? wall_body.generateParticles<ParticleGeneratorReload>(io_environment, wall_body.getName())
+		: wall_body.generateParticles<ParticleGeneratorLattice>();
 
 	//----------------------------------------------------------------------
 	//	Particle and body creation of fluid observers.
@@ -231,25 +222,27 @@ int main(int ac, char* av[])
 	//----------------------------------------------------------------------
 	InnerRelation fluid_body_inner(fluid_body);
 	//InnerRelation wall_body_inner(wall_body);
-	ComplexRelation fluid_body_complex(fluid_body_inner, { &outer_wall_body });
-	ContactRelation wall_contact(outer_wall_body, { &fluid_body });
-	ContactRelation temperature_observer_contact(temperature_observer, {&fluid_body});
+	//ComplexRelation fluid_body_complex(fluid_body_inner, { &wall_body });
+	ComplexRelation fluid_body_complex(fluid_body, { &wall_body });
+	ComplexRelation wall_boundary_complex(wall_body, { &fluid_body });
+	//ContactRelation wall_contact(wall_body, { &fluid_body });
+	ContactRelation temperature_observer_contact(temperature_observer, { &fluid_body });
 	//----------------------------------------------------------------------
 	//	Run particle relaxation for body-fitted distribution if chosen.
 	//----------------------------------------------------------------------
 	if (sph_system.RunParticleRelaxation())
 	{
 		/** body topology only for particle relaxation */
-		InnerRelation wall_body_inner(outer_wall_body);
+		InnerRelation wall_body_inner(wall_body);
 		//----------------------------------------------------------------------
 		//	Methods used for particle relaxation.
 		//----------------------------------------------------------------------
 		/** Random reset the insert body particle position. */
-		SimpleDynamics<RandomizeParticlePosition> random_inserted_body_particles(outer_wall_body);
+		SimpleDynamics<RandomizeParticlePosition> random_inserted_body_particles(wall_body);
 		/** Write the body state to Vtp file. */
-		BodyStatesRecordingToVtp write_inserted_body_to_vtp(io_environment, { &outer_wall_body });
+		BodyStatesRecordingToVtp write_inserted_body_to_vtp(io_environment, { &wall_body });
 		/** Write the particle reload files. */
-		ReloadParticleIO write_particle_reload_files(io_environment, outer_wall_body);
+		ReloadParticleIO write_particle_reload_files(io_environment, wall_body);
 		/** A  Physics relaxation step. */
 		relax_dynamics::RelaxationStepInner relaxation_step_inner(wall_body_inner);
 		//----------------------------------------------------------------------
@@ -282,13 +275,13 @@ int main(int ac, char* av[])
 	//	Note that there may be data dependence on the constructors of these methods.
 	//----------------------------------------------------------------------
 	SimpleDynamics<FluidInitialCondition> fluid_initial_condition(fluid_body);
-	SimpleDynamics<WallInitialCondition> wall_condition(outer_wall_body);
-	SimpleDynamics<NormalDirectionFromBodyShape> wall_body_normal_direction(outer_wall_body);
+	SimpleDynamics<WallInitialCondition> wall_condition(wall_body);
+	//SimpleDynamics<NormalDirectionFromBodyShape> wall_body_normal_direction(wall_body);
 	/** Initialize particle acceleration. */
 	SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(fluid_body);
 	/** Evaluation of density by summation approach. */
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex> update_density_by_summation(fluid_body_complex);
-	
+
 	/** Time step size without considering sound wave speed. */
 	ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step(fluid_body, U_f);
 	/** Time step size with considering sound wave speed. */
@@ -297,7 +290,10 @@ int main(int ac, char* av[])
 	GetDiffusionTimeStepSize<FluidParticles, WeaklyCompressibleFluid> get_thermal_time_step(fluid_body);
 
 	/** Diffusion process between two diffusion bodies. */
-	ThermalRelaxationComplex thermal_relaxation_complex(fluid_body_complex);
+	ThermalRelaxationWithBoundary thermal_relaxation_with_boundary(fluid_body_complex);
+
+	InteractionDynamics<UpdateUnitVectorNormalToBoundary<FluidParticles, WeaklyCompressibleFluid, SolidParticles, Solid>> update_fluid_body_normal_vector(fluid_body_complex);
+	InteractionDynamics<UpdateUnitVectorNormalToBoundary<SolidParticles, Solid, FluidParticles, WeaklyCompressibleFluid>> update_wall_boundary_normal_vector(wall_boundary_complex);
 
 	/** Pressure relaxation using verlet time stepping. */
 	/** Here, we do not use Riemann solver for pressure as the flow is viscous. */
@@ -323,9 +319,11 @@ int main(int ac, char* av[])
 	sph_system.initializeSystemConfigurations();
 
 	/** computing surface normal direction for the wall. */
-	wall_body_normal_direction.parallel_exec();
 	wall_condition.parallel_exec();
 	fluid_initial_condition.parallel_exec();
+	update_fluid_body_normal_vector.parallel_exec();
+	update_wall_boundary_normal_vector.parallel_exec();
+
 	Real dt_thermal = get_thermal_time_step.parallel_exec();
 	//----------------------------------------------------------------------
 	//	Setup for time-stepping control
@@ -365,7 +363,7 @@ int main(int ac, char* av[])
 				Real dt = SMIN(SMIN(dt_thermal, get_fluid_time_step.parallel_exec()), Dt);
 				pressure_relaxation.parallel_exec(dt);
 				density_relaxation.parallel_exec(dt);
-				thermal_relaxation_complex.parallel_exec(dt);
+				thermal_relaxation_with_boundary.parallel_exec(dt);
 
 				relaxation_time += dt;
 				integration_time += dt;
