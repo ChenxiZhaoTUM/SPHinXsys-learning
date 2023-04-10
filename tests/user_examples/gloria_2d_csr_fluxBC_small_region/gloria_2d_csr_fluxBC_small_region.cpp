@@ -9,9 +9,10 @@ using namespace SPH;   // Namespace cite here
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec2d insert_circle_center(0.0, 0.0);
+Real insert_inner_wall_circle_radius = 0.65;
 Real insert_in_circle_radius = 0.75;
 Real insert_out_circle_radius = 1.0;
-Real insert_outer_wall_circle_radius = 1.2;
+Real insert_outer_wall_circle_radius = 1.1;
 Real resolution_ref = 0.02;
 BoundingBox system_domain_bounds(Vec2d(-1.2, -1.2), Vec2d(1.2, 1.2));
 // observer location
@@ -86,6 +87,7 @@ public:
 		multi_polygon.addACircle(insert_circle_center, insert_outer_wall_circle_radius, 100, ShapeBooleanOps::add);
 		multi_polygon.addACircle(insert_circle_center, insert_out_circle_radius, 100, ShapeBooleanOps::sub);
 		multi_polygon.addACircle(insert_circle_center, insert_in_circle_radius, 100, ShapeBooleanOps::add);
+		multi_polygon.addACircle(insert_circle_center, insert_inner_wall_circle_radius, 100, ShapeBooleanOps::sub);
 		add<MultiPolygonShape>(multi_polygon);
 	}
 };
@@ -130,7 +132,7 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		if (pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_in_circle_radius, 2))
+		if (pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_in_circle_radius, 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) >= pow(insert_inner_wall_circle_radius, 2) && pos_[index_i][0] < 0.1 * pos_[index_i][1] && pos_[index_i][0] > 0)
 		{
 			heat_flux_[index_i] = heat_flux;
 		}
