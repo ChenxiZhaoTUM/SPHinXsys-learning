@@ -19,7 +19,7 @@ StdVec<Vecd> observation_location = { Vecd(0.8, 0.5) };
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
-Real diffusion_coff = 1.0;
+Real diffusion_coff = 1.0e-3;
 Real bias_coff = 0.0;
 std::array<std::string, 1> species_name_list{ "Phi" };
 
@@ -31,9 +31,9 @@ Real mu_f = rho0_f * U_f * 2 * (insert_out_circle_radius - insert_in_circle_radi
 //----------------------------------------------------------------------
 //	Global parameters on the initial condition.
 //----------------------------------------------------------------------
-Real phi_outer_wall = 300.0;
+Real phi_outer_wall = 40.0;
 //Real phi_inner_wall = 20.0;
-Real phi_fluid_initial = 200.0;
+Real phi_fluid_initial = 20.0;
 Real heat_flux = 10000.0;
 //----------------------------------------------------------------------
 //	Definition of the fluid block shape.
@@ -310,7 +310,7 @@ int main(int ac, char* av[])
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
 	BodyStatesRecordingToVtp write_states(io_environment, sph_system.real_bodies_);
-	RegressionTestEnsembleAveraged<ObservedQuantityRecording<Real>> write_fluid_phi("Phi", io_environment, temperature_observer_contact);
+	//RegressionTestEnsembleAveraged<ObservedQuantityRecording<Real>> write_fluid_phi("Phi", io_environment, temperature_observer_contact);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -388,7 +388,7 @@ int main(int ac, char* av[])
 		compute_vorticity.parallel_exec();
 		temperature_observer_contact.updateConfiguration();
 		write_states.writeToFile();
-		write_fluid_phi.writeToFile(number_of_iterations);
+		//write_fluid_phi.writeToFile(number_of_iterations);
 		tick_count t3 = tick_count::now();
 		interval += t3 - t2;
 	}
@@ -398,7 +398,7 @@ int main(int ac, char* av[])
 	tt = t4 - t1 - interval;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
-	write_fluid_phi.newResultTest();
+	//write_fluid_phi.newResultTest();
 
 	return 0;
 }
