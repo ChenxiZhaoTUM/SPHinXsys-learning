@@ -58,6 +58,8 @@ namespace SPH
 		//StdLargeVec<Real> heat_source_;             /**< heat source used for inner heat source intensity */
 		StdLargeVec<Vecd> normal_vector_;           /**< unit vector normal used for Neumann boundary condition */
 
+		StdLargeVec<Real> convection_;               /**< convection used for Robin boundary condition */
+
 		DiffusionReactionParticles(SPHBody &sph_body,
 								   DiffusionReaction<BaseMaterialType, NUM_SPECIES> *diffusion_reaction_material)
 			: BaseParticlesType(sph_body, diffusion_reaction_material),
@@ -97,6 +99,7 @@ namespace SPH
 				// register reactive change rate terms without giving variable name
 				std::get<type_index>(this->all_particle_data_).push_back(&diffusion_dt_[m]);
 				std::get<type_index>(this->all_particle_data_).push_back(&heat_flux_);
+				std::get<type_index>(this->all_particle_data_).push_back(&convection_);
 				diffusion_dt_[m].resize(this->real_particles_bound_, Real(0));
 				//heat_flux_.resize(this->real_particles_bound_, Real(0));
 			}
@@ -106,6 +109,9 @@ namespace SPH
 			
 			this->registerVariable(normal_vector_, "UnitNormalVector"); //add by zhao
 			this->template addVariableToWrite<Vecd>("UnitNormalVector"); //add by zhao
+
+			this->registerVariable(convection_, "Convection"); //add by zhao
+			this->template addVariableToWrite<Real>("Convection"); //add by zhao
 		};
 
 		virtual DiffusionReactionParticles<BaseParticlesType, BaseMaterialType, NUM_SPECIES> *ThisObjectPtr() override { return this; };

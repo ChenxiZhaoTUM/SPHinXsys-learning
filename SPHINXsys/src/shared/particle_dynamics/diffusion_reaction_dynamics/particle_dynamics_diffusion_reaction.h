@@ -152,7 +152,7 @@ namespace SPH
 
 	 /**
 	  * @class 	RelaxationOfAllDiffusionSpeciesWithBoundary
-	  * @brief 	Contact diffusion relaxation with Dirichlet and/or Neumann boundary conditions.
+	  * @brief 	Contact diffusion relaxation with Dirichlet and/or Neumann and/or Robin boundary conditions.
 	  */
 	template <class BaseParticlesType, class BaseMaterialType,
 			  class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES = 1>
@@ -166,6 +166,7 @@ namespace SPH
 		StdVec<StdLargeVec<Real>> &diffusion_dt_;
 		StdVec<StdLargeVec<Real> *> contact_Vol_;
 		StdVec<StdLargeVec<Real> *> contact_heat_flux_;
+		StdVec<StdLargeVec<Real> *> contact_convection_;
 		StdVec<StdLargeVec<Vecd> *> contact_n_;
 		StdVec<StdVec<StdLargeVec<Real>> *> contact_species_n_;
 
@@ -174,6 +175,9 @@ namespace SPH
 			Real surface_area_ij, const StdVec<StdLargeVec<Real>>& species_n_k);
 		void getDiffusionChangeRateWithNeumann(size_t particle_i, size_t particle_j,
 			Real surface_area_ij_Neumann, StdLargeVec<Real>& heat_flux_k);
+
+		void getDiffusionChangeRateWithRobin(size_t particle_i, size_t particle_j,
+			Real surface_area_ij_Robin, StdLargeVec<Real>& convection_k);
 	public:
 		typedef ComplexRelation BodyRelationType;
 		explicit RelaxationOfAllDiffusionSpeciesWithBoundary(ComplexRelation& complex_relation);
