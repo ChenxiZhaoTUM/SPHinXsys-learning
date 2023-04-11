@@ -35,7 +35,7 @@ Real mu_f = rho0_f * U_f * 2 * (insert_out_circle_radius - insert_in_circle_radi
 Real phi_outer_wall = 40.0;
 //Real phi_inner_wall = 20.0;
 Real phi_fluid_initial = 20.0;
-Real T_infinity = 0.0;
+Real T_infinity = 10.0;
 Real convection = 100.0;
 //----------------------------------------------------------------------
 //	Definition of the fluid block shape.
