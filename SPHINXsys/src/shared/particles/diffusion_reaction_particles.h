@@ -59,6 +59,7 @@ namespace SPH
 		StdLargeVec<Vecd> normal_vector_;           /**< unit vector normal used for Neumann boundary condition */
 
 		StdLargeVec<Real> convection_;               /**< convection used for Robin boundary condition */
+		StdLargeVec<Real> T_infinity_;               /**< T_infinity used for Robin boundary condition */
 
 		DiffusionReactionParticles(SPHBody &sph_body,
 								   DiffusionReaction<BaseMaterialType, NUM_SPECIES> *diffusion_reaction_material)
@@ -100,6 +101,7 @@ namespace SPH
 				std::get<type_index>(this->all_particle_data_).push_back(&diffusion_dt_[m]);
 				std::get<type_index>(this->all_particle_data_).push_back(&heat_flux_);
 				std::get<type_index>(this->all_particle_data_).push_back(&convection_);
+				std::get<type_index>(this->all_particle_data_).push_back(&T_infinity_);
 				diffusion_dt_[m].resize(this->real_particles_bound_, Real(0));
 				//heat_flux_.resize(this->real_particles_bound_, Real(0));
 			}
@@ -112,6 +114,9 @@ namespace SPH
 
 			this->registerVariable(convection_, "Convection"); //add by zhao
 			this->template addVariableToWrite<Real>("Convection"); //add by zhao
+
+			this->registerVariable(T_infinity_, "T_infinity"); //add by zhao
+			this->template addVariableToWrite<Real>("T_infinity"); //add by zhao
 		};
 
 		virtual DiffusionReactionParticles<BaseParticlesType, BaseMaterialType, NUM_SPECIES> *ThisObjectPtr() override { return this; };

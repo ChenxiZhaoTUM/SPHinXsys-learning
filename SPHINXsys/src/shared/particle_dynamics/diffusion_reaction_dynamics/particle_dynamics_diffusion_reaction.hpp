@@ -40,7 +40,8 @@ namespace SPH
 		DiffusionReactionInitialCondition(SPHBody &sph_body)
 		: LocalDynamics(sph_body),
 		  DiffusionReactionSimpleData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(sph_body),
-		  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_), heat_flux_(this->particles_->heat_flux_), convection_(this->particles_->convection_) {}
+		  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_), heat_flux_(this->particles_->heat_flux_),
+		convection_(this->particles_->convection_), T_infinity_(this->particles_->T_infinity_) {}
 	//=================================================================================================//
 	template <class BaseParticlesType, class BaseMaterialType, int NUM_SPECIES>
 	GetDiffusionTimeStepSize<BaseParticlesType, BaseMaterialType, NUM_SPECIES>::
@@ -202,6 +203,7 @@ namespace SPH
 			contact_Vol_.push_back(&(this->contact_particles_[k]->Vol_));
 			contact_heat_flux_.push_back(&(this->contact_particles_[k]->heat_flux_));
 			contact_convection_.push_back(&(this->contact_particles_[k]->convection_));
+			contact_T_infinity_.push_back(&(this->contact_particles_[k]->T_infinity_));
 			contact_species_n_.push_back(&(this->contact_particles_[k])->species_n_);
 		}
 	}
@@ -237,14 +239,13 @@ namespace SPH
 	template <class BaseParticlesType, class BaseMaterialType,
 		class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES>
 	void RelaxationOfAllDiffusionSpeciesWithBoundary<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>::
-		getDiffusionChangeRateWithRobin(size_t particle_i, size_t particle_j, Real surface_area_ij_Robin, StdLargeVec<Real>& convection_k)
+		getDiffusionChangeRateWithRobin(size_t particle_i, size_t particle_j, Real surface_area_ij_Robin,
+			StdLargeVec<Real>& convection_k, StdLargeVec<Real>& T_infinity_k)
 	{
-		Real T_infinity = 10;
-
 		for (size_t m = 0; m < species_diffusion_.size(); ++m)
 		{
 			size_t l = species_diffusion_[m]->gradient_species_index_;
-			diffusion_dt_[m][particle_i] += surface_area_ij_Robin * convection_k[particle_j] * (T_infinity - species_n_[l][particle_i]);
+			diffusion_dt_[m][particle_i] += surface_area_ij_Robin * convection_k[particle_j] * (T_infinity_k[particle_j] - species_n_[l][particle_i]);
 		}
 	}
 
@@ -264,6 +265,7 @@ namespace SPH
 			StdLargeVec<Vecd>& n_k = *(contact_n_[k]);
 
 			StdLargeVec<Real>& convection_ = *(contact_convection_[k]);
+			StdLargeVec<Real>& T_infinity_ = *(contact_T_infinity_[k]);
 
 			Neighborhood& contact_neighborhood = (*this->contact_configuration_[k])[index_i];
 
@@ -285,7 +287,7 @@ namespace SPH
 				getDiffusionChangeRateWithNeumann(index_i, index_j, area_ij_Neumann, heat_flux_);
 
 				Real area_ij_Robin = grad_ijV_j.dot(n_ij);
-				getDiffusionChangeRateWithRobin(index_i, index_j, area_ij_Robin, convection_);
+				getDiffusionChangeRateWithRobin(index_i, index_j, area_ij_Robin, convection_, T_infinity_);
 			}
 		}
 	}

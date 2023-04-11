@@ -1,5 +1,5 @@
 /**
- * @file 	gloria_2d_csr.cpp
+ * @file 	gloria_2d_csr_robinBC_small_region.cpp
  * @brief 	This is the first test to validate continuum surface reaction model.
  * @author 	Chenxi Zhao, Chi Zhang and Xiangyu Hu
  */
@@ -35,7 +35,8 @@ Real mu_f = rho0_f * U_f * 2 * (insert_out_circle_radius - insert_in_circle_radi
 Real phi_outer_wall = 40.0;
 //Real phi_inner_wall = 20.0;
 Real phi_fluid_initial = 20.0;
-Real heat_flux = 1000.0;
+Real T_infinity = 0.0;
+Real convection = 100.0;
 //----------------------------------------------------------------------
 //	Definition of the fluid block shape.
 //----------------------------------------------------------------------
@@ -132,9 +133,12 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		if (pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_in_circle_radius, 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) >= pow(insert_inner_wall_circle_radius, 2) && pos_[index_i][0] < 0.1 * pos_[index_i][1] && pos_[index_i][0] > 0)
+		if (pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_in_circle_radius, 2) 
+			&& pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) >= pow(insert_inner_wall_circle_radius, 2) 
+			&& pos_[index_i][0] < 0.1 * pos_[index_i][1] && pos_[index_i][0] > 0)
 		{
-			heat_flux_[index_i] = heat_flux;
+			convection_[index_i] = convection;
+			T_infinity_[index_i] = T_infinity;
 		}
 
 		if (pow(insert_out_circle_radius, 2) <= pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_outer_wall_circle_radius, 2))
@@ -161,7 +165,8 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		if (pow(insert_in_circle_radius, 2) <= pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_out_circle_radius, 2))
+		if (pow(insert_in_circle_radius, 2) <= pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) 
+			&& pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_out_circle_radius, 2))
 		{
 			species_n_[phi_][index_i] = phi_fluid_initial;
 		}

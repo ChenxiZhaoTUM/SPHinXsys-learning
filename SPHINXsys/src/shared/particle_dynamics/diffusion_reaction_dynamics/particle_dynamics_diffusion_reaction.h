@@ -69,6 +69,8 @@ namespace SPH
 		StdLargeVec<Vecd> &pos_;
 		StdVec<StdLargeVec<Real>> &species_n_;
 		StdLargeVec<Real> &heat_flux_;
+		StdLargeVec<Real> &convection_;
+		StdLargeVec<Real> &T_infinity_;
 	};
 
 	/**
@@ -167,6 +169,7 @@ namespace SPH
 		StdVec<StdLargeVec<Real> *> contact_Vol_;
 		StdVec<StdLargeVec<Real> *> contact_heat_flux_;
 		StdVec<StdLargeVec<Real> *> contact_convection_;
+		StdVec<StdLargeVec<Real> *> contact_T_infinity_;
 		StdVec<StdLargeVec<Vecd> *> contact_n_;
 		StdVec<StdVec<StdLargeVec<Real>> *> contact_species_n_;
 
@@ -177,7 +180,7 @@ namespace SPH
 			Real surface_area_ij_Neumann, StdLargeVec<Real>& heat_flux_k);
 
 		void getDiffusionChangeRateWithRobin(size_t particle_i, size_t particle_j,
-			Real surface_area_ij_Robin, StdLargeVec<Real>& convection_k);
+			Real surface_area_ij_Robin, StdLargeVec<Real>& convection_k, StdLargeVec<Real>& T_infinity);
 	public:
 		typedef ComplexRelation BodyRelationType;
 		explicit RelaxationOfAllDiffusionSpeciesWithBoundary(ComplexRelation& complex_relation);
@@ -336,7 +339,9 @@ namespace SPH
 			  diffusion_reaction_material_(this->particles_->diffusion_reaction_material_),
 			  phi_(diffusion_reaction_material_.SpeciesIndexMap()[species_name]),
 			  species_(this->particles_->species_n_[phi_]),
-			  heat_flux_(this->particles_->heat_flux_){};
+			  heat_flux_(this->particles_->heat_flux_),
+			  convection_(this->particles_->convection_),
+			  T_infinity_(this->particles_->T_infinity_) {};
 		virtual ~DiffusionReactionSpeciesConstraint(){};
 
 	protected:
@@ -345,6 +350,8 @@ namespace SPH
 		StdLargeVec<Real> &species_;
 
 		StdLargeVec<Real> &heat_flux_;
+		StdLargeVec<Real> &convection_;
+		StdLargeVec<Real> &T_infinity_;
 	};
 
 	/**
@@ -361,7 +368,8 @@ namespace SPH
 		explicit DiffusionBasedMapping(SPHBody &sph_body)
 			: LocalDynamics(sph_body),
 			  DiffusionReactionSimpleData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(sph_body),
-			  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_), heat_flux_(this->particles_->heat_flux_) {};
+			  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_), heat_flux_(this->particles_->heat_flux_),
+			  convection_(this->particles_->convection_), T_infinity_(this->particles_->T_infinity_) {};
 		virtual ~DiffusionBasedMapping(){};
 
 	protected:
@@ -369,6 +377,8 @@ namespace SPH
 		StdVec<StdLargeVec<Real>> &species_n_;
 
 		StdLargeVec<Real> &heat_flux_;
+		StdLargeVec<Real> &convection_;
+		StdLargeVec<Real> &T_infinity_;
 	};
 
 	/**
