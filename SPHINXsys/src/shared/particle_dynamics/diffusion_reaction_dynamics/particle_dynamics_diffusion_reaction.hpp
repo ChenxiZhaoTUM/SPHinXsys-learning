@@ -40,7 +40,7 @@ namespace SPH
 		DiffusionReactionInitialCondition(SPHBody &sph_body)
 		: LocalDynamics(sph_body),
 		  DiffusionReactionSimpleData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(sph_body),
-		  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_), heat_flux_(this->particles_->heat_flux_){}
+		  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_), heat_flux_(this->particles_->heat_flux_), convection_(this->particles_->convection_) {}
 	//=================================================================================================//
 	template <class BaseParticlesType, class BaseMaterialType, int NUM_SPECIES>
 	GetDiffusionTimeStepSize<BaseParticlesType, BaseMaterialType, NUM_SPECIES>::
