@@ -245,7 +245,8 @@ namespace SPH
 		for (size_t m = 0; m < species_diffusion_.size(); ++m)
 		{
 			size_t l = species_diffusion_[m]->gradient_species_index_;
-			diffusion_dt_[m][particle_i] += surface_area_ij_Robin * convection_k[particle_j] * (T_infinity_k[particle_j] - species_n_[l][particle_j]);
+			Real phi_ij = T_infinity_k[particle_j] - species_n_[l][particle_i];
+			diffusion_dt_[m][particle_i] += surface_area_ij_Robin * convection_k[particle_j] * phi_ij;
 		}
 	}
 

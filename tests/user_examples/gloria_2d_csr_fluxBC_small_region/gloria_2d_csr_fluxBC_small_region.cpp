@@ -32,8 +32,8 @@ Real mu_f = rho0_f * U_f * 2 * (insert_out_circle_radius - insert_in_circle_radi
 //----------------------------------------------------------------------
 //	Global parameters on the initial condition.
 //----------------------------------------------------------------------
-Real phi_outer_wall = 40.0;
-//Real phi_inner_wall = 20.0;
+//Real phi_outer_wall = 40.0;
+Real phi_inner_wall = 40.0;
 Real phi_fluid_initial = 20.0;
 Real heat_flux = 1000.0;
 //----------------------------------------------------------------------
@@ -132,14 +132,16 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		if (pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_in_circle_radius, 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) >= pow(insert_inner_wall_circle_radius, 2) && pos_[index_i][0] < 0.1 * pos_[index_i][1] && pos_[index_i][0] > 0)
+		if (pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_in_circle_radius, 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) >= pow(insert_inner_wall_circle_radius, 2))
 		{
-			heat_flux_[index_i] = heat_flux;
+			species_n_[phi_][index_i] = phi_inner_wall;
 		}
 
-		if (pow(insert_out_circle_radius, 2) <= pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_outer_wall_circle_radius, 2))
+		if (pow(insert_out_circle_radius, 2) <= pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_outer_wall_circle_radius, 2)
+			&& pos_[index_i][0] < 0.1 * pos_[index_i][1] && pos_[index_i][0] > 0)
 		{
-			species_n_[phi_][index_i] = phi_outer_wall;
+			
+			heat_flux_[index_i] = heat_flux;
 		}
 	};
 };
@@ -189,9 +191,9 @@ int main(int ac, char* av[])
 	//----------------------------------------------------------------------
 	SPHSystem sph_system(system_domain_bounds, resolution_ref);
 	/** Tag for run particle relaxation for the initial body fitted distribution. */
-	sph_system.setRunParticleRelaxation(true);
+	sph_system.setRunParticleRelaxation(false);
 	/** Tag for computation start with relaxed body fitted particles distribution. */
-	sph_system.setReloadParticles(false);
+	sph_system.setReloadParticles(true);
 	//handle command line arguments
 #ifdef BOOST_AVAILABLE
 	sph_system.handleCommandlineOptions(ac, av);

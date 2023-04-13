@@ -20,7 +20,7 @@ StdVec<Vecd> observation_location = { Vecd(0.8, 0.5) };
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
-Real diffusion_coff = 0.005;
+Real diffusion_coff = 1;
 Real bias_coff = 0.0;
 std::array<std::string, 1> species_name_list{ "Phi" };
 
@@ -32,10 +32,10 @@ Real mu_f = rho0_f * U_f * 2 * (insert_out_circle_radius - insert_in_circle_radi
 //----------------------------------------------------------------------
 //	Global parameters on the initial condition.
 //----------------------------------------------------------------------
-Real phi_outer_wall = 40.0;
-//Real phi_inner_wall = 20.0;
-Real phi_fluid_initial = 20.0;
-Real T_infinity = 10.0;
+//Real phi_outer_wall = 40.0;
+Real phi_inner_wall = 350.0;
+Real phi_fluid_initial = 200.0;
+Real T_infinity = 100.0;
 Real convection = 100.0;
 //----------------------------------------------------------------------
 //	Definition of the fluid block shape.
@@ -134,17 +134,20 @@ public:
 	void update(size_t index_i, Real dt)
 	{
 		if (pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_in_circle_radius, 2) 
-			&& pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) >= pow(insert_inner_wall_circle_radius, 2) 
+			&& pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) >= pow(insert_inner_wall_circle_radius, 2))
+		{
+			
+			species_n_[phi_][index_i] = phi_inner_wall;
+		}
+		
+		if (pow(insert_out_circle_radius, 2) <= pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) 
+			&& pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_outer_wall_circle_radius, 2)
 			&& pos_[index_i][0] < 0.1 * pos_[index_i][1] && pos_[index_i][0] > 0)
 		{
 			convection_[index_i] = convection;
 			T_infinity_[index_i] = T_infinity;
 		}
-
-		if (pow(insert_out_circle_radius, 2) <= pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) && pow(pos_[index_i][0], 2) + pow(pos_[index_i][1], 2) <= pow(insert_outer_wall_circle_radius, 2))
-		{
-			species_n_[phi_][index_i] = phi_outer_wall;
-		}
+			
 	};
 };
 //----------------------------------------------------------------------
