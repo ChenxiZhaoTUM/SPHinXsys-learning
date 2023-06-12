@@ -94,6 +94,95 @@ public:
 	}
 };
 //----------------------------------------------------------------------
+//	Define reaction type 
+//----------------------------------------------------------------------
+class CompetitiveAdsorptionReaction : public BaseReactionModel<4>
+{
+protected:
+	Real X_A_; //aqueous concentration of species A
+	Real Y_A_; //adsorpted concentration of species A
+
+	Real X_B_; //aqueous concentration of species B
+	Real Y_B_; //adsorpted concentration of species B
+
+	virtual Real getProductionRateXA(LocalSpecies& species) = 0;
+	virtual Real getLossRateXA(LocalSpecies& species) = 0;
+	virtual Real getProductionRateXB(LocalSpecies& species) = 0;
+	virtual Real getLossRateXB(LocalSpecies& species) = 0;
+
+public:
+	explicit CompetitiveAdsorptionReaction()
+		: BaseReactionModel<4>({ "AAqueousConcentration", "AAdsorptedConcentration","BAqueousConcentration","BAdsorptedConcentration" }),
+		X_A_(species_indexes_map_["AAqueousConcentration"]),
+		Y_A_(species_indexes_map_["AAdsorptedConcentration"]),
+		X_B_(species_indexes_map_["BAqueousConcentration"]),
+		Y_B_(species_indexes_map_["BAdsorptedConcentration"])
+	{
+		reaction_model_ = "CompetitiveAdsorptionReaction";
+		initializeCompetitiveAdsorptionReaction();
+	};
+
+	virtual ~CompetitiveAdsorptionReaction() {};
+
+	void initializeCompetitiveAdsorptionReaction()
+	{
+		get_production_rates_.push_back(std::bind(&CompetitiveAdsorptionReaction::getProductionRateXA, this, _1));
+		get_production_rates_.push_back(std::bind(&CompetitiveAdsorptionReaction::getProductionRateXB, this, _1));
+
+		get_loss_rates_.push_back(std::bind(&CompetitiveAdsorptionReaction::getLossRateXA, this, _1));
+		get_loss_rates_.push_back(std::bind(&CompetitiveAdsorptionReaction::getLossRateXB, this, _1));
+	}
+};
+
+class LangmuirAdsorptionModel : public CompetitiveAdsorptionReaction
+{
+protected:
+	Real k_A_ad_, k_A_de_;  //adsorption and desorption rate coefficients of species A
+	Real k_B_ad_, k_B_de_;
+	Real adsorption_sites_A_;
+	Real adsorption_sites_B_;
+	Real Y_A_max_;
+	Real Y_B_max_;
+
+	virtual Real getProductionRateXA(LocalSpecies& species) override
+	{
+		Real X_A = species[X_A_];
+		Real theta_A = species[Y_A_] / Y_A_max_;
+		Real theta_B = species[Y_B_] / Y_B_max_;
+		return k_A_ad_ * X_A * pow(1 - theta_A - theta_B, adsorption_sites_A_);
+	}
+
+	virtual Real getLossRateXA(LocalSpecies& species) override
+	{
+		Real theta_A = species[Y_A_] / Y_A_max_;
+		return k_A_de_ * pow(theta_A, adsorption_sites_A_);
+	}
+
+	virtual Real getProductionRateXB(LocalSpecies& species) override
+	{
+		Real X_B = species[X_B_];
+		Real theta_A = species[Y_A_] / Y_A_max_;
+		Real theta_B = species[Y_B_] / Y_B_max_;
+		return k_B_ad_ * X_B * pow(1 - theta_A - theta_B, adsorption_sites_B_);
+	}
+
+	virtual Real getLossRateXB(LocalSpecies& species) override
+	{
+		Real theta_B = species[Y_B_] / Y_B_max_;
+		return k_B_de_ * pow(theta_B, adsorption_sites_B_);
+	}
+
+public:
+	explicit LangmuirAdsorptionModel(Real k_A_ad, Real k_A_de, Real k_B_ad, Real k_B_de, Real adsorption_sites_A, Real adsorption_sites_B, Real Y_A_max, Real Y_B_max)
+		: CompetitiveAdsorptionReaction(),
+		k_A_ad_(k_A_ad), k_A_de_(k_A_de), k_B_ad_(k_B_ad), k_B_de_(k_B_de), adsorption_sites_A_(adsorption_sites_A), adsorption_sites_B_(adsorption_sites_A), Y_A_max_(Y_A_max), Y_B_max_(Y_B_max)
+	{
+		reaction_model_ = "LangmuirAdsorptionModel";
+	}
+	virtual ~LangmuirAdsorptionModel() {};
+};
+
+//----------------------------------------------------------------------
 //	Setup diffusion material properties. 
 //----------------------------------------------------------------------
 class DiffusionMaterial : public DiffusionReaction<Solid>
