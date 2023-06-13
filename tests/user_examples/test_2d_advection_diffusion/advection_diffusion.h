@@ -96,14 +96,11 @@ public:
 //----------------------------------------------------------------------
 //	Define reaction type 
 //----------------------------------------------------------------------
-class CompetitiveAdsorptionReaction : public BaseReactionModel<4>
+class AqueousSpeciesReaction : public BaseReactionModel<2>
 {
 protected:
 	Real X_A_; //aqueous concentration of species A
-	Real Y_A_; //adsorpted concentration of species A
-
 	Real X_B_; //aqueous concentration of species B
-	Real Y_B_; //adsorpted concentration of species B
 
 	virtual Real getProductionRateXA(LocalSpecies& species) = 0;
 	virtual Real getLossRateXA(LocalSpecies& species) = 0;
@@ -111,30 +108,62 @@ protected:
 	virtual Real getLossRateXB(LocalSpecies& species) = 0;
 
 public:
-	explicit CompetitiveAdsorptionReaction()
-		: BaseReactionModel<4>({ "AAqueousConcentration", "AAdsorptedConcentration","BAqueousConcentration","BAdsorptedConcentration" }),
+	explicit AqueousSpeciesReaction()
+		: BaseReactionModel<2>({ "AAqueousConcentration", "BAqueousConcentration"}),
 		X_A_(species_indexes_map_["AAqueousConcentration"]),
-		Y_A_(species_indexes_map_["AAdsorptedConcentration"]),
-		X_B_(species_indexes_map_["BAqueousConcentration"]),
-		Y_B_(species_indexes_map_["BAdsorptedConcentration"])
+		X_B_(species_indexes_map_["BAqueousConcentration"])
 	{
-		reaction_model_ = "CompetitiveAdsorptionReaction";
-		initializeCompetitiveAdsorptionReaction();
+		reaction_model_ = "AqueousSpeciesReaction";
+		initializeAqueousSpeciesReaction();
 	};
 
-	virtual ~CompetitiveAdsorptionReaction() {};
+	virtual ~AqueousSpeciesReaction() {};
 
-	void initializeCompetitiveAdsorptionReaction()
+	void initializeAqueousSpeciesReaction()
 	{
-		get_production_rates_.push_back(std::bind(&CompetitiveAdsorptionReaction::getProductionRateXA, this, _1));
-		get_production_rates_.push_back(std::bind(&CompetitiveAdsorptionReaction::getProductionRateXB, this, _1));
+		get_production_rates_.push_back(std::bind(&AqueousSpeciesReaction::getProductionRateXA, this, _1));
+		get_production_rates_.push_back(std::bind(&AqueousSpeciesReaction::getProductionRateXB, this, _1));
 
-		get_loss_rates_.push_back(std::bind(&CompetitiveAdsorptionReaction::getLossRateXA, this, _1));
-		get_loss_rates_.push_back(std::bind(&CompetitiveAdsorptionReaction::getLossRateXB, this, _1));
+		get_loss_rates_.push_back(std::bind(&AqueousSpeciesReaction::getLossRateXA, this, _1));
+		get_loss_rates_.push_back(std::bind(&AqueousSpeciesReaction::getLossRateXB, this, _1));
 	}
 };
 
-class LangmuirAdsorptionModel : public CompetitiveAdsorptionReaction
+class AdsorbedSpeciesReaction : public BaseReactionModel<2>
+{
+protected:
+	Real Y_A_; //aqueous concentration of species A
+	Real Y_B_; //aqueous concentration of species B
+
+	virtual Real getProductionRateYA(LocalSpecies& species) = 0;
+	virtual Real getLossRateYA(LocalSpecies& species) = 0;
+	virtual Real getProductionRateYB(LocalSpecies& species) = 0;
+	virtual Real getLossRateYB(LocalSpecies& species) = 0;
+
+public:
+	explicit AdsorbedSpeciesReaction()
+		: BaseReactionModel<2>({ "AAdsorbedConcentration", "BAdsorbedConcentration"}),
+		Y_A_(species_indexes_map_["AAdsorbedConcentration"]),
+		Y_B_(species_indexes_map_["BAdsorbedConcentration"])
+	{
+		reaction_model_ = "AdsorbedSpeciesReaction";
+		initializeAdsorbedSpeciesReaction();
+	};
+
+	virtual ~AdsorbedSpeciesReaction() {};
+
+	void initializeAdsorbedSpeciesReaction()
+	{
+		get_production_rates_.push_back(std::bind(&AdsorbedSpeciesReaction::getProductionRateYA, this, _1));
+		get_production_rates_.push_back(std::bind(&AdsorbedSpeciesReaction::getProductionRateYB, this, _1));
+
+		get_loss_rates_.push_back(std::bind(&AdsorbedSpeciesReaction::getLossRateYA, this, _1));
+		get_loss_rates_.push_back(std::bind(&AdsorbedSpeciesReaction::getLossRateYB, this, _1));
+	}
+};
+
+class LangmuirAdsorptionModel : public AqueousSpeciesReaction,
+								public AdsorbedSpeciesReaction
 {
 protected:
 	Real k_A_ad_, k_A_de_;  //adsorption and desorption rate coefficients of species A
@@ -172,123 +201,151 @@ protected:
 		return k_B_de_ * pow(theta_B, adsorption_sites_B_);
 	}
 
+	virtual Real getProductionRateYA(LocalSpecies& species) override
+	{
+		return getLossRateXA(species);
+	}
+
+	virtual Real getLossRateYA(LocalSpecies& species) override
+	{
+		return getProductionRateXA(species);
+	}
+
+	virtual Real getProductionRateYB(LocalSpecies& species) override
+	{
+		return getLossRateXB(species);
+	}
+
+	virtual Real getLossRateYB(LocalSpecies& species) override
+	{
+		return getProductionRateXB(species);
+	}
+
 public:
 	explicit LangmuirAdsorptionModel(Real k_A_ad, Real k_A_de, Real k_B_ad, Real k_B_de, Real adsorption_sites_A, Real adsorption_sites_B, Real Y_A_max, Real Y_B_max)
-		: CompetitiveAdsorptionReaction(),
+		: AqueousSpeciesReaction(),
+		AdsorbedSpeciesReaction(),
 		k_A_ad_(k_A_ad), k_A_de_(k_A_de), k_B_ad_(k_B_ad), k_B_de_(k_B_de), adsorption_sites_A_(adsorption_sites_A), adsorption_sites_B_(adsorption_sites_A), Y_A_max_(Y_A_max), Y_B_max_(Y_B_max)
 	{
-		reaction_model_ = "LangmuirAdsorptionModel";
+		AqueousSpeciesReaction::reaction_model_ = "LangmuirAdsorptionModel";
+		AdsorbedSpeciesReaction::reaction_model_ = "LangmuirAdsorptionModel";
 	}
 	virtual ~LangmuirAdsorptionModel() {};
 };
 
+template <typename T>
+struct TypeIdentity
+{
+};
+
 //----------------------------------------------------------------------
-//	Setup diffusion material properties. 
+//	Define material type 
 //----------------------------------------------------------------------
-class DiffusionMaterial : public DiffusionReaction<Solid>
+class AqueousSpecies : public DiffusionReaction<Fluid, 2>
 {
 public:
-	DiffusionMaterial() : DiffusionReaction<Solid>({ "Phi" }, SharedPtr<NoReaction>())
+	template <class DiffusionType>
+	AqueousSpecies(SharedPtr<AqueousSpeciesReaction> aqueous_species_reaction_ptr,
+		TypeIdentity<DiffusionType> empty_object, Real diff_cf_A_aqueous, Real diff_cf_B_aqueous)
+		: DiffusionReaction<Fluid, 2>({ "AAqueousConcentration", "BAqueousConcentration" },
+			aqueous_species_reaction_ptr)
 	{
-		initializeAnDiffusion<IsotropicDiffusion>("Phi", "Phi", diffusion_coff);
-	}
+		material_type_name_ = "AqueousSpecies";
+		initializeAnDiffusion<DiffusionType>("AAqueousConcentration", "AAqueousConcentration", diff_cf_A_aqueous);
+		initializeAnDiffusion<DiffusionType>("BAqueousConcentration", "BAqueousConcentration", diff_cf_B_aqueous);
+	};
+
+	virtual ~AqueousSpecies() {};
 };
-using DiffusionParticles = DiffusionReactionParticles<SolidParticles, DiffusionMaterial>;
-using WallParticles = DiffusionReactionParticles<SolidParticles, DiffusionMaterial>;
+
+class AdsorbedSpecies : public DiffusionReaction<Fluid, 2> //diff_cf_A = 0, diff_cf_B = 0
+{
+public:
+	template <class DiffusionType>
+	AdsorbedSpecies(SharedPtr<AdsorbedSpeciesReaction> adsorbed_species_reaction_ptr,
+		TypeIdentity<DiffusionType> empty_object, Real diff_cf_A_adsorbed, Real diff_cf_B_adsorbed)
+		: DiffusionReaction<Fluid, 2>({ "AAdsorbedConcentration", "BAdsorbedConcentration" },
+			adsorbed_species_reaction_ptr)
+	{
+		material_type_name_ = "AdsorbedSpecies";
+		initializeAnDiffusion<DiffusionType>("AAdsorbedConcentration", "AAdsorbedConcentration", diff_cf_A_adsorbed);
+		initializeAnDiffusion<DiffusionType>("BAdsorbedConcentration", "BAdsorbedConcentration", diff_cf_B_adsorbed);
+	};
+
+	virtual ~AdsorbedSpecies() {};
+};
+
+using AqueousParticles = DiffusionReactionParticles<FluidParticles, AqueousSpecies>;
+using AdsorbedParticles = DiffusionReactionParticles<FluidParticles, AdsorbedSpecies>;
+
 //----------------------------------------------------------------------
 //	Application dependent initial condition. 
 //----------------------------------------------------------------------
 class DiffusionInitialCondition
-	: public DiffusionReactionInitialCondition<DiffusionParticles>
+	: public DiffusionReactionInitialCondition<AqueousParticles>
 {
 protected:
-	size_t phi_;
+	Real X_A_;
+	Real X_B_;
 
 public:
 	explicit DiffusionInitialCondition(SPHBody& sph_body)
-		: DiffusionReactionInitialCondition<DiffusionParticles>(sph_body)
+		: DiffusionReactionInitialCondition<AqueousParticles>(sph_body)
 	{
-		phi_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["Phi"];
+		X_A_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["AAqueousConcentration"];
+		X_B_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["BAqueousConcentration"];
 	};
 
 	void update(size_t index_i, Real dt)
 	{
-		all_species_[phi_][index_i] = initial_temperature;
+		all_species_[X_A_][index_i] = initial_temperature;
 	};
 };
 
 class DirichletWallBoundaryInitialCondition
-	: public DiffusionReactionInitialCondition<WallParticles>
+	: public DiffusionReactionInitialCondition<AdsorbedParticles>
 {
 protected:
-	size_t phi_;
+	Real Y_A_;
+	Real Y_B_;
 
 public:
 	DirichletWallBoundaryInitialCondition(SolidBody& diffusion_body) :
-		DiffusionReactionInitialCondition<WallParticles>(diffusion_body)
+		DiffusionReactionInitialCondition<AdsorbedParticles>(diffusion_body)
 	{
-		phi_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["Phi"];
+		Y_A_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["AAdsorbedConcentration"];
+		Y_B_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["BAdsorbedConcentration"];
 	}
 
 	void update(size_t index_i, Real dt)
 	{
-		all_species_[phi_][index_i] = -0.0;
+		all_species_[Y_A_][index_i] = -0.0;
+		all_species_[Y_B_][index_i] = -0.0;
 
 		if (pos_[index_i][1] > H && pos_[index_i][0] > 0.3 * L && pos_[index_i][0] < 0.4 * L)
 		{
-			all_species_[phi_][index_i] = left_temperature;
+			all_species_[Y_A_][index_i] = left_temperature;
 		}
 		if (pos_[index_i][1] > H && pos_[index_i][0] > 0.6 * L && pos_[index_i][0] < 0.7 * L)
 		{
-			all_species_[phi_][index_i] = right_temperature;
+			all_species_[Y_B_][index_i] = right_temperature;
 		}
 	}
 };
 
-class RobinWallBoundaryInitialCondition
-	: public DiffusionReactionInitialCondition<WallParticles>
-{
-protected:
-	size_t phi_;
-	StdLargeVec<Real>& convection_;
-	Real& T_infinity_;
-
-public:
-	RobinWallBoundaryInitialCondition(SolidBody& diffusion_body) :
-		DiffusionReactionInitialCondition<WallParticles>(diffusion_body),
-		convection_(*(this->particles_->template getVariableByName<Real>("Convection"))),
-		T_infinity_(*(this->particles_->template getGlobalVariableByName<Real>("T_infinity")))
-	{
-		phi_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["Phi"];
-	}
-
-	void update(size_t index_i, Real dt)
-	{
-		all_species_[phi_][index_i] = -0.0;
-
-		if (pos_[index_i][1] < 0 && pos_[index_i][0] > 0.45 * L && pos_[index_i][0] < 0.55 * L)
-		{
-			convection_[index_i] = convection;
-			T_infinity_ = T_infinity;
-		}
-	}
-};
-
-using SolidDiffusionInner = DiffusionRelaxationInner<DiffusionParticles>;
-using SolidDiffusionDirichlet = DiffusionRelaxationDirichlet<DiffusionParticles, WallParticles>;
-using SolidDiffusionRobin = DiffusionRelaxationRobin<DiffusionParticles, WallParticles>;
+using AqueousDiffusionInner = DiffusionRelaxationInner<AqueousParticles>;
+using WallBoundaryDirichlet = DiffusionRelaxationDirichlet<AqueousParticles, AdsorbedParticles>;
 //----------------------------------------------------------------------
 //	Specify diffusion relaxation method. 
 //----------------------------------------------------------------------
 class DiffusionBodyRelaxation
-	: public DiffusionRelaxationRK2<ComplexInteraction<SolidDiffusionInner, SolidDiffusionDirichlet, SolidDiffusionRobin>>
+	: public DiffusionRelaxationRK2<ComplexInteraction<AqueousDiffusionInner, WallBoundaryDirichlet>>
 {
 public:
 	explicit DiffusionBodyRelaxation(BaseInnerRelation& inner_relation,
-									 BaseContactRelation& body_contact_relation_Dirichlet,
-									 BaseContactRelation& body_contact_relation_Robin)
-		: DiffusionRelaxationRK2<ComplexInteraction<SolidDiffusionInner, SolidDiffusionDirichlet, SolidDiffusionRobin>>(
-			inner_relation, body_contact_relation_Dirichlet, body_contact_relation_Robin) {};
+									 BaseContactRelation& body_contact_relation_Dirichlet)
+		: DiffusionRelaxationRK2<ComplexInteraction<AqueousDiffusionInner, WallBoundaryDirichlet>>(
+			inner_relation, body_contact_relation_Dirichlet) {};
 	virtual ~DiffusionBodyRelaxation() {};
 };
 //----------------------------------------------------------------------

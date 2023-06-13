@@ -22,17 +22,14 @@ int main(int ac, char* av[])
 	//----------------------------------------------------------------------
 	//	Creating body, materials and particles.
 	//----------------------------------------------------------------------
-	SolidBody diffusion_body(sph_system, makeShared<DiffusionBody>("DiffusionBody"));
-	diffusion_body.defineParticlesAndMaterial<DiffusionParticles, DiffusionMaterial>();
-	diffusion_body.generateParticles<ParticleGeneratorLattice>();
+	FluidBody aqueous_body(sph_system, makeShared<DiffusionBody>("AqueousBody"));
+	SharedPtr<LangmuirAdsorptionModel> langmuir_adsorption_model_ptr = makeShared<LangmuirAdsorptionModel>(k_A_ad, k_A_de, k_B_ad, k_B_de, adsorption_sites_A, adsorption_sites_B, Y_A_max, Y_B_max);
+	aqueous_body.defineParticlesAndMaterial<AqueousParticles, AqueousSpecies>(langmuir_adsorption_model_ptr, TypeIdentity<IsotropicDiffusion>(), diff_cf_A_aqueous, diff_cf_B_aqueous);
+	aqueous_body.generateParticles<ParticleGeneratorLattice>();
 
 	SolidBody wall_boundary_Dirichlet(sph_system, makeShared<DirichletWallBoundary>("DirichletWallBoundary"));
-	wall_boundary_Dirichlet.defineParticlesAndMaterial<WallParticles, DiffusionMaterial>();
+	wall_boundary_Dirichlet.defineParticlesAndMaterial<AdsorbedParticles, AdsorbedSpecies>(langmuir_adsorption_model_ptr);
 	wall_boundary_Dirichlet.generateParticles<ParticleGeneratorLattice>();
-
-	SolidBody wall_boundary_Robin(sph_system, makeShared<RobinWallBoundary>("RobinWallBoundary"));
-	wall_boundary_Robin.defineParticlesAndMaterial<WallParticles, DiffusionMaterial>();
-	wall_boundary_Robin.generateParticles<ParticleGeneratorLattice>();
 	//----------------------------------------------------------------------
 	//	Particle and body creation of temperature observers.
 	//----------------------------------------------------------------------
@@ -43,27 +40,22 @@ int main(int ac, char* av[])
 	//	The contact map gives the topological connections between the bodies.
 	//	Basically the range of bodies to build neighbor particle lists.
 	//----------------------------------------------------------------------
-	InnerRelation diffusion_body_inner_relation(diffusion_body);
-
-	ContactRelation diffusion_body_contact_Dirichlet(diffusion_body, { &wall_boundary_Dirichlet });
-	ContactRelation diffusion_body_contact_Robin(diffusion_body, { &wall_boundary_Robin });
-
-	ContactRelation temperature_observer_contact(temperature_observer, { &diffusion_body });
+	InnerRelation aqueous_body_inner_relation(aqueous_body);
+	ContactRelation adsorbed_body_contact_Dirichlet(aqueous_body, { &wall_boundary_Dirichlet });
+	ContactRelation temperature_observer_contact(temperature_observer, { &aqueous_body });
 	//----------------------------------------------------------------------
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
 	//----------------------------------------------------------------------
-	DiffusionBodyRelaxation temperature_relaxation(diffusion_body_inner_relation, diffusion_body_contact_Dirichlet, diffusion_body_contact_Robin);
+	DiffusionBodyRelaxation temperature_relaxation(aqueous_body_inner_relation, adsorbed_body_contact_Dirichlet);
 
-	GetDiffusionTimeStepSize<DiffusionParticles> get_time_step_size(diffusion_body);
+	GetDiffusionTimeStepSize<AqueousParticles> get_time_step_size(aqueous_body);
 
-	SimpleDynamics<DiffusionInitialCondition> setup_diffusion_initial_condition(diffusion_body);
+	SimpleDynamics<DiffusionInitialCondition> setup_diffusion_initial_condition(aqueous_body);
 	SimpleDynamics<DirichletWallBoundaryInitialCondition> setup_boundary_condition_Dirichlet(wall_boundary_Dirichlet);
-	SimpleDynamics<RobinWallBoundaryInitialCondition> setup_boundary_condition_Robin(wall_boundary_Robin);
 
-	SimpleDynamics<NormalDirectionFromBodyShape> diffusion_body_normal_direction(diffusion_body);
+	SimpleDynamics<NormalDirectionFromBodyShape> diffusion_body_normal_direction(aqueous_body);
 	SimpleDynamics<NormalDirectionFromBodyShape> Dirichlet_normal_direction(wall_boundary_Dirichlet);
-	SimpleDynamics<NormalDirectionFromBodyShape> Robin_normal_direction(wall_boundary_Robin);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -81,11 +73,9 @@ int main(int ac, char* av[])
 	setup_diffusion_initial_condition.exec();
 
 	setup_boundary_condition_Dirichlet.exec();
-	setup_boundary_condition_Robin.exec();
 
 	diffusion_body_normal_direction.exec();
 	Dirichlet_normal_direction.exec();
-	Robin_normal_direction.exec();
 	//----------------------------------------------------------------------
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
