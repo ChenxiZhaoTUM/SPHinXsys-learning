@@ -20,16 +20,27 @@ BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
-Real diffusion_coff = 1;
-std::array<std::string, 1> species_name_list{ "Phi" };
+Real diff_cf_A_aqueous = 1;
+Real diff_cf_B_aqueous = 1;
+Real rho0_f = 1.0;					/**< Density. */
+Real U_f = 1.0;						/**< Characteristic velocity. */
+Real c_f = 10.0 * U_f;				/**< Speed of sound. */
+Real Re = 100.0;					/**< Reynolds number100. */
+Real mu_f = rho0_f * U_f * H / Re; /**< Dynamics viscosity. */
 //----------------------------------------------------------------------
 //	Initial and boundary conditions.
 //----------------------------------------------------------------------
 Real initial_temperature = 100.0;
 Real left_temperature = 300.0;
 Real right_temperature = 350.0;
-Real convection = 100.0;
-Real T_infinity = 400.0;
+Real k_A_ad;
+Real k_A_de;
+Real k_B_ad;
+Real k_B_de;
+Real adsorption_sites_A;
+Real adsorption_sites_B;
+Real Y_A_max;
+Real Y_B_max;
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
 //----------------------------------------------------------------------
@@ -233,50 +244,53 @@ public:
 	virtual ~LangmuirAdsorptionModel() {};
 };
 
-template <typename T>
-struct TypeIdentity
-{
-};
-
 //----------------------------------------------------------------------
 //	Define material type 
 //----------------------------------------------------------------------
-class AqueousSpecies : public DiffusionReaction<Fluid, 2>
+class AqueousSpecies : public DiffusionReaction<WeaklyCompressibleFluid, 2>
 {
 public:
-	template <class DiffusionType>
-	AqueousSpecies(SharedPtr<AqueousSpeciesReaction> aqueous_species_reaction_ptr,
-		TypeIdentity<DiffusionType> empty_object, Real diff_cf_A_aqueous, Real diff_cf_B_aqueous)
-		: DiffusionReaction<Fluid, 2>({ "AAqueousConcentration", "BAqueousConcentration" },
-			aqueous_species_reaction_ptr)
+	AqueousSpecies(SharedPtr<AqueousSpeciesReaction> aqueous_species_reaction_ptr, Real diff_cf_A_aqueous, Real diff_cf_B_aqueous)
+		: DiffusionReaction<WeaklyCompressibleFluid, 2>({ "AAqueousConcentration", "BAqueousConcentration" }, aqueous_species_reaction_ptr, rho0_f, c_f, mu_f)
 	{
 		material_type_name_ = "AqueousSpecies";
-		initializeAnDiffusion<DiffusionType>("AAqueousConcentration", "AAqueousConcentration", diff_cf_A_aqueous);
-		initializeAnDiffusion<DiffusionType>("BAqueousConcentration", "BAqueousConcentration", diff_cf_B_aqueous);
+		initializeAnDiffusion<IsotropicDiffusion>("AAqueousConcentration", "AAqueousConcentration", diff_cf_A_aqueous);
+		initializeAnDiffusion<IsotropicDiffusion>("BAqueousConcentration", "BAqueousConcentration", diff_cf_B_aqueous);
 	};
 
 	virtual ~AqueousSpecies() {};
 };
 
-class AdsorbedSpecies : public DiffusionReaction<Fluid, 2> //diff_cf_A = 0, diff_cf_B = 0
+//class AdsorbedSpecies : public DiffusionReaction<Fluid, 2>
+//{
+//public:
+//	template <class DiffusionType>
+//	AdsorbedSpecies(SharedPtr<AdsorbedSpeciesReaction> adsorbed_species_reaction_ptr,
+//		TypeIdentity<DiffusionType> empty_object, Real diff_cf_A_adsorbed, Real diff_cf_B_adsorbed)
+//		: DiffusionReaction<Fluid, 2>({ "AAdsorbedConcentration", "BAdsorbedConcentration" },
+//			adsorbed_species_reaction_ptr)
+//	{
+//		material_type_name_ = "AdsorbedSpecies";
+//		initializeAnDiffusion<DiffusionType>("AAdsorbedConcentration", "AAdsorbedConcentration", diff_cf_A_adsorbed);
+//		initializeAnDiffusion<DiffusionType>("BAdsorbedConcentration", "BAdsorbedConcentration", diff_cf_B_adsorbed);
+//	};
+//
+//	virtual ~AdsorbedSpecies() {};
+//};
+
+class AdsorbedSpecies : public DiffusionReaction<Solid, 2>  //diff_cf_A = 0, diff_cf_B = 0
 {
 public:
-	template <class DiffusionType>
-	AdsorbedSpecies(SharedPtr<AdsorbedSpeciesReaction> adsorbed_species_reaction_ptr,
-		TypeIdentity<DiffusionType> empty_object, Real diff_cf_A_adsorbed, Real diff_cf_B_adsorbed)
-		: DiffusionReaction<Fluid, 2>({ "AAdsorbedConcentration", "BAdsorbedConcentration" },
+	AdsorbedSpecies(SharedPtr<AdsorbedSpeciesReaction> adsorbed_species_reaction_ptr)
+		: DiffusionReaction<Solid, 2>({ "AAdsorbedConcentration", "BAdsorbedConcentration" },
 			adsorbed_species_reaction_ptr)
 	{
 		material_type_name_ = "AdsorbedSpecies";
-		initializeAnDiffusion<DiffusionType>("AAdsorbedConcentration", "AAdsorbedConcentration", diff_cf_A_adsorbed);
-		initializeAnDiffusion<DiffusionType>("BAdsorbedConcentration", "BAdsorbedConcentration", diff_cf_B_adsorbed);
 	};
-
 	virtual ~AdsorbedSpecies() {};
 };
-
 using AqueousParticles = DiffusionReactionParticles<FluidParticles, AqueousSpecies>;
-using AdsorbedParticles = DiffusionReactionParticles<FluidParticles, AdsorbedSpecies>;
+using WallBoundaryParticles = DiffusionReactionParticles<SolidParticles, AdsorbedSpecies>;
 
 //----------------------------------------------------------------------
 //	Application dependent initial condition. 
@@ -303,7 +317,7 @@ public:
 };
 
 class DirichletWallBoundaryInitialCondition
-	: public DiffusionReactionInitialCondition<AdsorbedParticles>
+	: public DiffusionReactionInitialCondition<WallBoundaryParticles>
 {
 protected:
 	Real Y_A_;
@@ -311,7 +325,7 @@ protected:
 
 public:
 	DirichletWallBoundaryInitialCondition(SolidBody& diffusion_body) :
-		DiffusionReactionInitialCondition<AdsorbedParticles>(diffusion_body)
+		DiffusionReactionInitialCondition<WallBoundaryParticles>(diffusion_body)
 	{
 		Y_A_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["AAdsorbedConcentration"];
 		Y_B_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["BAdsorbedConcentration"];
@@ -334,7 +348,7 @@ public:
 };
 
 using AqueousDiffusionInner = DiffusionRelaxationInner<AqueousParticles>;
-using WallBoundaryDirichlet = DiffusionRelaxationDirichlet<AqueousParticles, AdsorbedParticles>;
+using WallBoundaryDirichlet = DiffusionRelaxationDirichlet<AqueousParticles, WallBoundaryParticles>;
 //----------------------------------------------------------------------
 //	Specify diffusion relaxation method. 
 //----------------------------------------------------------------------

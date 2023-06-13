@@ -24,11 +24,11 @@ int main(int ac, char* av[])
 	//----------------------------------------------------------------------
 	FluidBody aqueous_body(sph_system, makeShared<DiffusionBody>("AqueousBody"));
 	SharedPtr<LangmuirAdsorptionModel> langmuir_adsorption_model_ptr = makeShared<LangmuirAdsorptionModel>(k_A_ad, k_A_de, k_B_ad, k_B_de, adsorption_sites_A, adsorption_sites_B, Y_A_max, Y_B_max);
-	aqueous_body.defineParticlesAndMaterial<AqueousParticles, AqueousSpecies>(langmuir_adsorption_model_ptr, TypeIdentity<IsotropicDiffusion>(), diff_cf_A_aqueous, diff_cf_B_aqueous);
+	aqueous_body.defineParticlesAndMaterial<AqueousParticles, AqueousSpecies>(langmuir_adsorption_model_ptr, diff_cf_A_aqueous, diff_cf_B_aqueous);
 	aqueous_body.generateParticles<ParticleGeneratorLattice>();
 
 	SolidBody wall_boundary_Dirichlet(sph_system, makeShared<DirichletWallBoundary>("DirichletWallBoundary"));
-	wall_boundary_Dirichlet.defineParticlesAndMaterial<AdsorbedParticles, AdsorbedSpecies>(langmuir_adsorption_model_ptr);
+	wall_boundary_Dirichlet.defineParticlesAndMaterial<WallBoundaryParticles, AdsorbedSpecies>(langmuir_adsorption_model_ptr);
 	wall_boundary_Dirichlet.generateParticles<ParticleGeneratorLattice>();
 	//----------------------------------------------------------------------
 	//	Particle and body creation of temperature observers.
