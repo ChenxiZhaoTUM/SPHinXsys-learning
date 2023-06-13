@@ -261,23 +261,6 @@ public:
 	virtual ~AqueousSpecies() {};
 };
 
-//class AdsorbedSpecies : public DiffusionReaction<Fluid, 2>
-//{
-//public:
-//	template <class DiffusionType>
-//	AdsorbedSpecies(SharedPtr<AdsorbedSpeciesReaction> adsorbed_species_reaction_ptr,
-//		TypeIdentity<DiffusionType> empty_object, Real diff_cf_A_adsorbed, Real diff_cf_B_adsorbed)
-//		: DiffusionReaction<Fluid, 2>({ "AAdsorbedConcentration", "BAdsorbedConcentration" },
-//			adsorbed_species_reaction_ptr)
-//	{
-//		material_type_name_ = "AdsorbedSpecies";
-//		initializeAnDiffusion<DiffusionType>("AAdsorbedConcentration", "AAdsorbedConcentration", diff_cf_A_adsorbed);
-//		initializeAnDiffusion<DiffusionType>("BAdsorbedConcentration", "BAdsorbedConcentration", diff_cf_B_adsorbed);
-//	};
-//
-//	virtual ~AdsorbedSpecies() {};
-//};
-
 class AdsorbedSpecies : public DiffusionReaction<Solid, 2>  //diff_cf_A = 0, diff_cf_B = 0
 {
 public:
@@ -289,9 +272,9 @@ public:
 	};
 	virtual ~AdsorbedSpecies() {};
 };
+
 using AqueousParticles = DiffusionReactionParticles<FluidParticles, AqueousSpecies>;
 using WallBoundaryParticles = DiffusionReactionParticles<SolidParticles, AdsorbedSpecies>;
-
 //----------------------------------------------------------------------
 //	Application dependent initial condition. 
 //----------------------------------------------------------------------
@@ -362,6 +345,15 @@ public:
 			inner_relation, body_contact_relation_Dirichlet) {};
 	virtual ~DiffusionBodyRelaxation() {};
 };
+
+using AqueousReactionRelaxationForward =
+    SimpleDynamics<ReactionRelaxationForward<AqueousParticles>>;
+using AqueousReactionRelaxationBackward =
+    SimpleDynamics<ReactionRelaxationBackward<AqueousParticles>>;
+using AdsorbedReactionRelaxationForward =
+    SimpleDynamics<ReactionRelaxationForward<WallBoundaryParticles>>;
+using AdsorbedReactionRelaxationBackward =
+    SimpleDynamics<ReactionRelaxationBackward<WallBoundaryParticles>>;
 //----------------------------------------------------------------------
 //	An observer body to measure temperature at given positions. 
 //----------------------------------------------------------------------

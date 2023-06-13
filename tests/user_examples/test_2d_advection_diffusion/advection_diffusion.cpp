@@ -41,6 +41,7 @@ int main(int ac, char* av[])
 	//	Basically the range of bodies to build neighbor particle lists.
 	//----------------------------------------------------------------------
 	InnerRelation aqueous_body_inner_relation(aqueous_body);
+
 	ContactRelation adsorbed_body_contact_Dirichlet(aqueous_body, { &wall_boundary_Dirichlet });
 	ContactRelation temperature_observer_contact(temperature_observer, { &aqueous_body });
 	//----------------------------------------------------------------------
@@ -48,6 +49,11 @@ int main(int ac, char* av[])
 	//	Note that there may be data dependence on the constructors of these methods.
 	//----------------------------------------------------------------------
 	DiffusionBodyRelaxation temperature_relaxation(aqueous_body_inner_relation, adsorbed_body_contact_Dirichlet);
+
+	AqueousReactionRelaxationForward aqueous_reaction_relaxation_forward(aqueous_body);
+	AqueousReactionRelaxationBackward aqueous_reaction_relaxation_backward(aqueous_body);
+	AdsorbedReactionRelaxationForward adsorbed_reaction_relaxation_forward(wall_boundary_Dirichlet);
+	AdsorbedReactionRelaxationBackward adsorbed_reaction_relaxation_backward(wall_boundary_Dirichlet);
 
 	GetDiffusionTimeStepSize<AqueousParticles> get_time_step_size(aqueous_body);
 
@@ -112,8 +118,11 @@ int main(int ac, char* av[])
 						<< GlobalStaticVariables::physical_time_ << "	dt: "
 						<< dt << "\n";
 				}
-
+				aqueous_reaction_relaxation_forward.exec(0.5 * dt);
+				adsorbed_reaction_relaxation_forward.exec(0.5 * dt);
 				temperature_relaxation.exec(dt);
+				aqueous_reaction_relaxation_backward.exec(0.5 * dt);
+				adsorbed_reaction_relaxation_backward.exec(0.5 * dt);
 
 				ite++;
 				dt = get_time_step_size.exec();
