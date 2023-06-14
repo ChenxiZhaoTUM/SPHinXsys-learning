@@ -21,8 +21,8 @@ StdVec<Vecd> observation_location = { Vecd(0.8, 0.5) };
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
-Real diff_cf_A_aqueous = 9.35e-5;
-Real diff_cf_B_aqueous = 9.35e-5;
+Real diff_cf_A_aqueous = 1.0;
+Real diff_cf_B_aqueous = 1.0;
 Real k_A_ad = 3.95e-1;
 Real k_A_de = 1.44e-3;
 Real k_B_ad = 3.95e-1;
@@ -81,8 +81,8 @@ public:
 class AqueousSpeciesReaction : public BaseReactionModel<2>
 {
 protected:
-	Real X_A_; //aqueous concentration of species A
-	Real X_B_; //aqueous concentration of species B
+	size_t X_A_index_; //index of XA
+	size_t X_B_index_; //index of XB
 
 	virtual Real getProductionRateXA(LocalSpecies& species) = 0;
 	virtual Real getLossRateXA(LocalSpecies& species) = 0;
@@ -92,8 +92,8 @@ protected:
 public:
 	explicit AqueousSpeciesReaction()
 		: BaseReactionModel<2>({ "AAqueousConcentration", "BAqueousConcentration"}),
-		X_A_(species_indexes_map_["AAqueousConcentration"]),
-		X_B_(species_indexes_map_["BAqueousConcentration"])
+		X_A_index_(species_indexes_map_["AAqueousConcentration"]),
+		X_B_index_(species_indexes_map_["BAqueousConcentration"])
 	{
 		reaction_model_ = "AqueousSpeciesReaction";
 		initializeAqueousSpeciesReaction();
@@ -114,8 +114,8 @@ public:
 class AdsorbedSpeciesReaction : public BaseReactionModel<2>
 {
 protected:
-	Real Y_A_; //aqueous concentration of species A
-	Real Y_B_; //aqueous concentration of species B
+	size_t Y_A_index_; //index of YA
+	size_t Y_B_index_; //index of YB
 
 	virtual Real getProductionRateYA(LocalSpecies& species) = 0;
 	virtual Real getLossRateYA(LocalSpecies& species) = 0;
@@ -125,8 +125,8 @@ protected:
 public:
 	explicit AdsorbedSpeciesReaction()
 		: BaseReactionModel<2>({ "AAdsorbedConcentration", "BAdsorbedConcentration"}),
-		Y_A_(species_indexes_map_["AAdsorbedConcentration"]),
-		Y_B_(species_indexes_map_["BAdsorbedConcentration"])
+		Y_A_index_(species_indexes_map_["AAdsorbedConcentration"]),
+		Y_B_index_(species_indexes_map_["BAdsorbedConcentration"])
 	{
 		reaction_model_ = "AdsorbedSpeciesReaction";
 		initializeAdsorbedSpeciesReaction();
@@ -157,29 +157,29 @@ protected:
 
 	virtual Real getProductionRateXA(LocalSpecies& species) override
 	{
-		Real X_A = species[X_A_];
-		Real theta_A = species[Y_A_] / Y_A_max_;
-		Real theta_B = species[Y_B_] / Y_B_max_;
+		Real X_A = species[X_A_index_];
+		Real theta_A = species[Y_A_index_] / Y_A_max_;
+		Real theta_B = species[Y_B_index_] / Y_B_max_;
 		return k_A_ad_ * X_A * pow(1 - theta_A - theta_B, adsorption_sites_A_);
 	}
 
 	virtual Real getLossRateXA(LocalSpecies& species) override
 	{
-		Real theta_A = species[Y_A_] / Y_A_max_;
+		Real theta_A = species[Y_A_index_] / Y_A_max_;
 		return k_A_de_ * pow(theta_A, adsorption_sites_A_);
 	}
 
 	virtual Real getProductionRateXB(LocalSpecies& species) override
 	{
-		Real X_B = species[X_B_];
-		Real theta_A = species[Y_A_] / Y_A_max_;
-		Real theta_B = species[Y_B_] / Y_B_max_;
+		Real X_B = species[X_B_index_];
+		Real theta_A = species[Y_A_index_] / Y_A_max_;
+		Real theta_B = species[Y_B_index_] / Y_B_max_;
 		return k_B_ad_ * X_B * pow(1 - theta_A - theta_B, adsorption_sites_B_);
 	}
 
 	virtual Real getLossRateXB(LocalSpecies& species) override
 	{
-		Real theta_B = species[Y_B_] / Y_B_max_;
+		Real theta_B = species[Y_B_index_] / Y_B_max_;
 		return k_B_de_ * pow(theta_B, adsorption_sites_B_);
 	}
 

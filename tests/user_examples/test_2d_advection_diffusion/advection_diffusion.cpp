@@ -90,7 +90,7 @@ int main(int ac, char* av[])
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
 	int ite = 0;
-	Real T0 = 1;
+	Real T0 = 1.0;
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
 	Real Output_Time = 0.1 * End_Time;
