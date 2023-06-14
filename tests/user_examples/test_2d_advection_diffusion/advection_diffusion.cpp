@@ -17,24 +17,25 @@ int main(int ac, char* av[])
 	//	Build up the environment of a SPHSystem.
 	//----------------------------------------------------------------------
 	SPHSystem sph_system(system_domain_bounds, resolution_ref);
-	sph_system.generate_regression_data_ = false;
 	IOEnvironment io_environment(sph_system);
 	//----------------------------------------------------------------------
 	//	Creating body, materials and particles.
 	//----------------------------------------------------------------------
-	FluidBody aqueous_body(sph_system, makeShared<DiffusionBody>("AqueousBody"));
+	SolidBody aqueous_body(sph_system, makeShared<AqueousDomain>("AqueousBody"));
 	SharedPtr<LangmuirAdsorptionModel> langmuir_adsorption_model_ptr = makeShared<LangmuirAdsorptionModel>(k_A_ad, k_A_de, k_B_ad, k_B_de, adsorption_sites_A, adsorption_sites_B, Y_A_max, Y_B_max);
-	aqueous_body.defineParticlesAndMaterial<AqueousParticles, AqueousSpecies>(langmuir_adsorption_model_ptr, diff_cf_A_aqueous, diff_cf_B_aqueous);
+	aqueous_body.defineParticlesAndMaterial<AqueousParticles, AqueousSpecies>(langmuir_adsorption_model_ptr);
 	aqueous_body.generateParticles<ParticleGeneratorLattice>();
 
-	SolidBody wall_boundary_Dirichlet(sph_system, makeShared<DirichletWallBoundary>("DirichletWallBoundary"));
-	wall_boundary_Dirichlet.defineParticlesAndMaterial<WallBoundaryParticles, AdsorbedSpecies>(langmuir_adsorption_model_ptr);
-	wall_boundary_Dirichlet.generateParticles<ParticleGeneratorLattice>();
-	//----------------------------------------------------------------------
-	//	Particle and body creation of temperature observers.
-	//----------------------------------------------------------------------
-	ObserverBody temperature_observer(sph_system, "TemperatureObserver");
-	temperature_observer.generateParticles<TemperatureObserverParticleGenerator>();
+	SolidBody inner_wall_boundary(sph_system, makeShared<InnerWall>("InnerWallBoundary"));
+	inner_wall_boundary.defineParticlesAndMaterial<InnerWallBoundaryParticles, AdsorbedSpecies>(langmuir_adsorption_model_ptr);
+	inner_wall_boundary.generateParticles<ParticleGeneratorLattice>();
+
+	SolidBody outer_wall_boundary(sph_system, makeShared<OuterWall>("OuterWallBoundary"));
+	outer_wall_boundary.defineParticlesAndMaterial<OuterWallBoundaryParticles, AqueousSpeciesNoReaction>();
+	outer_wall_boundary.generateParticles<ParticleGeneratorLattice>();
+
+	ObserverBody aqueous_concentration_observer(sph_system, "AqueousConcentrationObserver");
+	aqueous_concentration_observer.generateParticles<ObserverParticleGenerator>();
 	//----------------------------------------------------------------------
 	//	Define body relation map.
 	//	The contact map gives the topological connections between the bodies.
@@ -42,33 +43,35 @@ int main(int ac, char* av[])
 	//----------------------------------------------------------------------
 	InnerRelation aqueous_body_inner_relation(aqueous_body);
 
-	ContactRelation adsorbed_body_contact_Dirichlet(aqueous_body, { &wall_boundary_Dirichlet });
-	ContactRelation temperature_observer_contact(temperature_observer, { &aqueous_body });
+	ContactRelation adsorbed_body_contact(aqueous_body, { &inner_wall_boundary });
+	ContactRelation contact_outer_wall(aqueous_body, { &outer_wall_boundary });
+	ContactRelation aqueous_concentration_observer_contact(aqueous_concentration_observer, { &aqueous_body });
 	//----------------------------------------------------------------------
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
 	//----------------------------------------------------------------------
-	DiffusionBodyRelaxation temperature_relaxation(aqueous_body_inner_relation, adsorbed_body_contact_Dirichlet);
+	DiffusionRelaxation diffusion_relaxation(aqueous_body_inner_relation, contact_outer_wall);
 
 	AqueousReactionRelaxationForward aqueous_reaction_relaxation_forward(aqueous_body);
 	AqueousReactionRelaxationBackward aqueous_reaction_relaxation_backward(aqueous_body);
-	AdsorbedReactionRelaxationForward adsorbed_reaction_relaxation_forward(wall_boundary_Dirichlet);
-	AdsorbedReactionRelaxationBackward adsorbed_reaction_relaxation_backward(wall_boundary_Dirichlet);
+	AdsorbedReactionRelaxationForward inner_adsorbed_reaction_relaxation_forward(inner_wall_boundary);
+	AdsorbedReactionRelaxationBackward inner_adsorbed_reaction_relaxation_backward(inner_wall_boundary);
 
 	GetDiffusionTimeStepSize<AqueousParticles> get_time_step_size(aqueous_body);
 
-	SimpleDynamics<DiffusionInitialCondition> setup_diffusion_initial_condition(aqueous_body);
-	SimpleDynamics<DirichletWallBoundaryInitialCondition> setup_boundary_condition_Dirichlet(wall_boundary_Dirichlet);
+	SimpleDynamics<AqueousInitialCondition> setup_diffusion_initial_condition(aqueous_body);
+	SimpleDynamics<InnerWallBoundaryInitialCondition> setup_inner_wall_boundary_condition(inner_wall_boundary);
+	SimpleDynamics<OuterWallBoundaryInitialCondition> setup_outer_wall_boundary_condition(outer_wall_boundary);
 
-	SimpleDynamics<NormalDirectionFromBodyShape> diffusion_body_normal_direction(aqueous_body);
-	SimpleDynamics<NormalDirectionFromBodyShape> Dirichlet_normal_direction(wall_boundary_Dirichlet);
+	SimpleDynamics<NormalDirectionFromBodyShape> aqueous_body_normal_direction(aqueous_body);
+	SimpleDynamics<NormalDirectionFromBodyShape> inner_wall_normal_direction(inner_wall_boundary);
+	SimpleDynamics<NormalDirectionFromBodyShape> outer_wall_normal_direction(outer_wall_boundary);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
 	BodyStatesRecordingToVtp write_states(io_environment, sph_system.real_bodies_);
-	//ObservedQuantityRecording<Real> write_solid_temperature("Phi", io_environment, temperature_observer_contact);
-	RegressionTestEnsembleAveraged<ObservedQuantityRecording<Real>>
-		write_solid_temperature("Phi", io_environment, temperature_observer_contact);
+	ObservedQuantityRecording<Real> write_XA("AAqueousConcentration", io_environment, aqueous_concentration_observer_contact);
+	ObservedQuantityRecording<Real> write_XB("BAqueousConcentration", io_environment, aqueous_concentration_observer_contact);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary. 
@@ -77,11 +80,12 @@ int main(int ac, char* av[])
 	sph_system.initializeSystemConfigurations();
 
 	setup_diffusion_initial_condition.exec();
+	setup_inner_wall_boundary_condition.exec();
+	setup_outer_wall_boundary_condition.exec();
 
-	setup_boundary_condition_Dirichlet.exec();
-
-	diffusion_body_normal_direction.exec();
-	Dirichlet_normal_direction.exec();
+	aqueous_body_normal_direction.exec();
+	inner_wall_normal_direction.exec();
+	outer_wall_normal_direction.exec();
 	//----------------------------------------------------------------------
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
@@ -100,7 +104,8 @@ int main(int ac, char* av[])
 	//	First output before the main loop.
 	//----------------------------------------------------------------------
 	write_states.writeToFile();
-	write_solid_temperature.writeToFile();
+	write_XA.writeToFile();
+	write_XB.writeToFile();
 	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
@@ -119,10 +124,10 @@ int main(int ac, char* av[])
 						<< dt << "\n";
 				}
 				aqueous_reaction_relaxation_forward.exec(0.5 * dt);
-				adsorbed_reaction_relaxation_forward.exec(0.5 * dt);
-				temperature_relaxation.exec(dt);
+				inner_adsorbed_reaction_relaxation_forward.exec(0.5 * dt);
+				diffusion_relaxation.exec(dt);
 				aqueous_reaction_relaxation_backward.exec(0.5 * dt);
-				adsorbed_reaction_relaxation_backward.exec(0.5 * dt);
+				inner_adsorbed_reaction_relaxation_backward.exec(0.5 * dt);
 
 				ite++;
 				dt = get_time_step_size.exec();
@@ -134,7 +139,8 @@ int main(int ac, char* av[])
 
 		TickCount t2 = TickCount::now();
 		write_states.writeToFile();
-		write_solid_temperature.writeToFile(ite);
+		write_XA.writeToFile(ite);
+		write_XB.writeToFile(ite);
 		TickCount t3 = TickCount::now();
 		interval += t3 - t2;
 	}
@@ -145,15 +151,6 @@ int main(int ac, char* av[])
 
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 	std::cout << "Total physical time for computation: " << GlobalStaticVariables::physical_time_ << " seconds." << std::endl;
-	
-	if (sph_system.generate_regression_data_)
-	{
-		write_solid_temperature.generateDataBase(1.0e-3, 1.0e-3);
-	}
-	else if (sph_system.RestartStep() == 0)
-	{
-		write_solid_temperature.testResult();
-	}
 	
 	return 0;
 }

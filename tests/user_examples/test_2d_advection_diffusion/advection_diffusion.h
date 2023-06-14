@@ -8,100 +8,71 @@
 
 #include "sphinxsys.h"
 using namespace SPH;
-
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real L = 1.0;
-Real H = 1.0;
-Real resolution_ref = H / 100.0;
-Real BW = resolution_ref * 2.0;
-BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
+Vec2d insert_circle_center(0.0, 0.0);
+Real insert_in_circle_radius = 0.75;
+Real insert_out_circle_radius = 1.0;
+Real insert_outer_wall_circle_radius = 1.2;
+Real resolution_ref = 0.02;
+BoundingBox system_domain_bounds(Vec2d(-1.2, -1.2), Vec2d(1.2, 1.2));
+StdVec<Vecd> observation_location = { Vecd(0.8, 0.5) };
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
-Real diff_cf_A_aqueous = 1;
-Real diff_cf_B_aqueous = 1;
-Real rho0_f = 1.0;					/**< Density. */
-Real U_f = 1.0;						/**< Characteristic velocity. */
-Real c_f = 10.0 * U_f;				/**< Speed of sound. */
-Real Re = 100.0;					/**< Reynolds number100. */
-Real mu_f = rho0_f * U_f * H / Re; /**< Dynamics viscosity. */
+Real diff_cf_A_aqueous = 9.35e-5;
+Real diff_cf_B_aqueous = 9.35e-5;
+Real k_A_ad = 3.95e-1;
+Real k_A_de = 1.44e-3;
+Real k_B_ad = 3.95e-1;
+Real k_B_de = 1.44e-3;
+Real adsorption_sites_A = 2;
+Real adsorption_sites_B = 3;
+Real Y_A_max = 3.32e-4;
+Real Y_B_max = 3.3e-11;
 //----------------------------------------------------------------------
 //	Initial and boundary conditions.
 //----------------------------------------------------------------------
-Real initial_temperature = 100.0;
-Real left_temperature = 300.0;
-Real right_temperature = 350.0;
-Real k_A_ad;
-Real k_A_de;
-Real k_B_ad;
-Real k_B_de;
-Real adsorption_sites_A;
-Real adsorption_sites_B;
-Real Y_A_max;
-Real Y_B_max;
+Real initial_XA_bc = 2.12e-3;
+Real initial_XB_bc = 4.39e-12;
+Real initial_XA_aqueous = 0.0;
+Real initial_XB_aqueous = 0.0;
+Real initial_YA_bc = 0.0;
+Real initial_YB_bc = 0.0;
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
 //----------------------------------------------------------------------
-std::vector<Vecd> createThermalDomain()
-{
-	std::vector<Vecd> thermalDomainShape;
-	thermalDomainShape.push_back(Vecd(0.0, 0.0));
-	thermalDomainShape.push_back(Vecd(0.0, H));
-	thermalDomainShape.push_back(Vecd(L, H));
-	thermalDomainShape.push_back(Vecd(L, 0.0));
-	thermalDomainShape.push_back(Vecd(0.0, 0.0));
-
-	return thermalDomainShape;
-}
-
-std::vector<Vecd> left_temperature_region
-{
-	Vecd(0.3 * L, H), Vecd(0.3 * L, H + BW), Vecd(0.4 * L, H + BW),
-	Vecd(0.4 * L, H), Vecd(0.3 * L, H)
-};
-
-std::vector<Vecd> right_temperature_region
-{
-	Vecd(0.6 * L, H), Vecd(0.6 * L, H + BW), Vecd(0.7 * L, H + BW),
-	Vecd(0.7 * L, H), Vecd(0.6 * L, H)
-};
-
-std::vector<Vecd> convection_region
-{
-	Vecd(0.45 * L, -BW), Vecd(0.45 * L, 0), Vecd(0.55 * L, 0),
-	Vecd(0.55 * L, -BW), Vecd(0.45 * L, -BW)
-};
-
-//----------------------------------------------------------------------
-//	Define SPH bodies. 
-//----------------------------------------------------------------------
-class DiffusionBody : public MultiPolygonShape
+class AqueousDomain : public ComplexShape
 {
 public:
-	explicit DiffusionBody(const std::string& shape_name) : MultiPolygonShape(shape_name)
+	explicit AqueousDomain(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		multi_polygon_.addAPolygon(createThermalDomain(), ShapeBooleanOps::add);
+		MultiPolygon multi_polygon;
+		multi_polygon.addACircle(insert_circle_center, insert_out_circle_radius, 100, ShapeBooleanOps::add);
+		multi_polygon.addACircle(insert_circle_center, insert_in_circle_radius, 100, ShapeBooleanOps::sub);
+		add<MultiPolygonShape>(multi_polygon);
 	}
 };
 
-class DirichletWallBoundary : public MultiPolygonShape
+class InnerWall : public MultiPolygonShape
 {
 public:
-	explicit DirichletWallBoundary(const std::string& shape_name) : MultiPolygonShape(shape_name)
+	explicit InnerWall(const std::string& shape_name) : MultiPolygonShape(shape_name)
 	{
-		multi_polygon_.addAPolygon(left_temperature_region, ShapeBooleanOps::add);
-		multi_polygon_.addAPolygon(right_temperature_region, ShapeBooleanOps::add);
+		multi_polygon_.addACircle(insert_circle_center, insert_in_circle_radius, 100, ShapeBooleanOps::add);
 	}
 };
 
-class RobinWallBoundary : public MultiPolygonShape
+class OuterWall : public ComplexShape
 {
 public:
-	explicit RobinWallBoundary(const std::string& shape_name) : MultiPolygonShape(shape_name)
+	explicit OuterWall(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		multi_polygon_.addAPolygon(convection_region, ShapeBooleanOps::add);
+		MultiPolygon multi_polygon;
+		multi_polygon.addACircle(insert_circle_center, insert_outer_wall_circle_radius, 100, ShapeBooleanOps::add);
+		multi_polygon.addACircle(insert_circle_center, insert_out_circle_radius, 100, ShapeBooleanOps::sub);
+		add<MultiPolygonShape>(multi_polygon);
 	}
 };
 //----------------------------------------------------------------------
@@ -247,11 +218,11 @@ public:
 //----------------------------------------------------------------------
 //	Define material type 
 //----------------------------------------------------------------------
-class AqueousSpecies : public DiffusionReaction<WeaklyCompressibleFluid, 2>
+class AqueousSpecies : public DiffusionReaction<Solid, 2>
 {
 public:
-	AqueousSpecies(SharedPtr<AqueousSpeciesReaction> aqueous_species_reaction_ptr, Real diff_cf_A_aqueous, Real diff_cf_B_aqueous)
-		: DiffusionReaction<WeaklyCompressibleFluid, 2>({ "AAqueousConcentration", "BAqueousConcentration" }, aqueous_species_reaction_ptr, rho0_f, c_f, mu_f)
+	AqueousSpecies(SharedPtr<AqueousSpeciesReaction> aqueous_species_reaction_ptr)
+		: DiffusionReaction<Solid, 2>({ "AAqueousConcentration", "BAqueousConcentration" }, aqueous_species_reaction_ptr)
 	{
 		material_type_name_ = "AqueousSpecies";
 		initializeAnDiffusion<IsotropicDiffusion>("AAqueousConcentration", "AAqueousConcentration", diff_cf_A_aqueous);
@@ -259,6 +230,20 @@ public:
 	};
 
 	virtual ~AqueousSpecies() {};
+};
+
+class AqueousSpeciesNoReaction : public DiffusionReaction<Solid>
+{
+public:
+	AqueousSpeciesNoReaction()
+		: DiffusionReaction<Solid>({ "AAqueousConcentration", "BAqueousConcentration" }, SharedPtr<NoReaction>())
+	{
+		material_type_name_ = "AqueousSpeciesNoReaction";
+		initializeAnDiffusion<IsotropicDiffusion>("AAqueousConcentration", "AAqueousConcentration", diff_cf_A_aqueous);
+		initializeAnDiffusion<IsotropicDiffusion>("BAqueousConcentration", "BAqueousConcentration", diff_cf_B_aqueous);
+	};
+
+	virtual ~AqueousSpeciesNoReaction() {};
 };
 
 class AdsorbedSpecies : public DiffusionReaction<Solid, 2>  //diff_cf_A = 0, diff_cf_B = 0
@@ -273,12 +258,13 @@ public:
 	virtual ~AdsorbedSpecies() {};
 };
 
-using AqueousParticles = DiffusionReactionParticles<FluidParticles, AqueousSpecies>;
-using WallBoundaryParticles = DiffusionReactionParticles<SolidParticles, AdsorbedSpecies>;
+using AqueousParticles = DiffusionReactionParticles<SolidParticles, AqueousSpecies>;
+using InnerWallBoundaryParticles = DiffusionReactionParticles<SolidParticles, AdsorbedSpecies>;
+using OuterWallBoundaryParticles = DiffusionReactionParticles<SolidParticles, AqueousSpeciesNoReaction>;
 //----------------------------------------------------------------------
 //	Application dependent initial condition. 
 //----------------------------------------------------------------------
-class DiffusionInitialCondition
+class AqueousInitialCondition
 	: public DiffusionReactionInitialCondition<AqueousParticles>
 {
 protected:
@@ -286,7 +272,7 @@ protected:
 	Real X_B_;
 
 public:
-	explicit DiffusionInitialCondition(SPHBody& sph_body)
+	explicit AqueousInitialCondition(SPHBody& sph_body)
 		: DiffusionReactionInitialCondition<AqueousParticles>(sph_body)
 	{
 		X_A_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["AAqueousConcentration"];
@@ -295,20 +281,21 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		all_species_[X_A_][index_i] = initial_temperature;
+		all_species_[X_A_][index_i] = initial_XA_aqueous;
+		all_species_[X_B_][index_i] = initial_XB_aqueous;
 	};
 };
 
-class DirichletWallBoundaryInitialCondition
-	: public DiffusionReactionInitialCondition<WallBoundaryParticles>
+class InnerWallBoundaryInitialCondition
+	: public DiffusionReactionInitialCondition<InnerWallBoundaryParticles>
 {
 protected:
 	Real Y_A_;
 	Real Y_B_;
 
 public:
-	DirichletWallBoundaryInitialCondition(SolidBody& diffusion_body) :
-		DiffusionReactionInitialCondition<WallBoundaryParticles>(diffusion_body)
+	InnerWallBoundaryInitialCondition(SolidBody& diffusion_body) :
+		DiffusionReactionInitialCondition<InnerWallBoundaryParticles>(diffusion_body)
 	{
 		Y_A_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["AAdsorbedConcentration"];
 		Y_B_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["BAdsorbedConcentration"];
@@ -316,34 +303,48 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		all_species_[Y_A_][index_i] = -0.0;
-		all_species_[Y_B_][index_i] = -0.0;
-
-		if (pos_[index_i][1] > H && pos_[index_i][0] > 0.3 * L && pos_[index_i][0] < 0.4 * L)
-		{
-			all_species_[Y_A_][index_i] = left_temperature;
-		}
-		if (pos_[index_i][1] > H && pos_[index_i][0] > 0.6 * L && pos_[index_i][0] < 0.7 * L)
-		{
-			all_species_[Y_B_][index_i] = right_temperature;
-		}
+		all_species_[Y_A_][index_i] = initial_YA_bc;
+		all_species_[Y_B_][index_i] = initial_YB_bc;
 	}
 };
 
-using AqueousDiffusionInner = DiffusionRelaxationInner<AqueousParticles>;
-using WallBoundaryDirichlet = DiffusionRelaxationDirichlet<AqueousParticles, WallBoundaryParticles>;
+class OuterWallBoundaryInitialCondition
+	: public DiffusionReactionInitialCondition<OuterWallBoundaryParticles>
+{
+protected:
+	Real X_A_;
+	Real X_B_;
+
+public:
+	OuterWallBoundaryInitialCondition(SolidBody& diffusion_body) :
+		DiffusionReactionInitialCondition<OuterWallBoundaryParticles>(diffusion_body)
+	{
+		X_A_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["AAqueousConcentration"];
+		X_B_ = particles_->diffusion_reaction_material_.AllSpeciesIndexMap()["BAqueousConcentration"];
+	}
+
+	void update(size_t index_i, Real dt)
+	{
+		all_species_[X_A_][index_i] = initial_XA_bc;
+		all_species_[X_B_][index_i] = initial_XB_bc;
+	}
+};
+
+using AqueousDiffusion = DiffusionRelaxationInner<AqueousParticles>;
+using InnerWallBoundary = DiffusionRelaxationDirichlet<AqueousParticles, InnerWallBoundaryParticles>;
+using OuterWallBoundary = DiffusionRelaxationDirichlet<AqueousParticles, OuterWallBoundaryParticles>;
 //----------------------------------------------------------------------
 //	Specify diffusion relaxation method. 
 //----------------------------------------------------------------------
-class DiffusionBodyRelaxation
-	: public DiffusionRelaxationRK2<ComplexInteraction<AqueousDiffusionInner, WallBoundaryDirichlet>>
+class DiffusionRelaxation
+	: public DiffusionRelaxationRK2<ComplexInteraction<AqueousDiffusion, OuterWallBoundary>>
 {
 public:
-	explicit DiffusionBodyRelaxation(BaseInnerRelation& inner_relation,
-									 BaseContactRelation& body_contact_relation_Dirichlet)
-		: DiffusionRelaxationRK2<ComplexInteraction<AqueousDiffusionInner, WallBoundaryDirichlet>>(
-			inner_relation, body_contact_relation_Dirichlet) {};
-	virtual ~DiffusionBodyRelaxation() {};
+	explicit DiffusionRelaxation(BaseInnerRelation& inner_relation,
+									 BaseContactRelation& contact_outer_wall)
+		: DiffusionRelaxationRK2<ComplexInteraction<AqueousDiffusion, OuterWallBoundary>>(
+			inner_relation, contact_outer_wall) {};
+	virtual ~DiffusionRelaxation() {};
 };
 
 using AqueousReactionRelaxationForward =
@@ -351,29 +352,7 @@ using AqueousReactionRelaxationForward =
 using AqueousReactionRelaxationBackward =
     SimpleDynamics<ReactionRelaxationBackward<AqueousParticles>>;
 using AdsorbedReactionRelaxationForward =
-    SimpleDynamics<ReactionRelaxationForward<WallBoundaryParticles>>;
+    SimpleDynamics<ReactionRelaxationForward<InnerWallBoundaryParticles>>;
 using AdsorbedReactionRelaxationBackward =
-    SimpleDynamics<ReactionRelaxationBackward<WallBoundaryParticles>>;
-//----------------------------------------------------------------------
-//	An observer body to measure temperature at given positions. 
-//----------------------------------------------------------------------
-class TemperatureObserverParticleGenerator : public ObserverParticleGenerator
-{
-public:
-	TemperatureObserverParticleGenerator(SPHBody& sph_body) : ObserverParticleGenerator(sph_body)
-	{
-		/** A line of measuring points at the middle line. */
-		size_t number_of_observation_points = 5;
-		Real range_of_measure = L;
-		Real start_of_measure = 0;
-
-		for (size_t i = 0; i < number_of_observation_points; ++i)
-		{
-			Vec2d point_coordinate(0.5 * L, range_of_measure * Real(i) /
-                                                    Real(number_of_observation_points - 1) +
-                                                start_of_measure);
-			positions_.push_back(point_coordinate);
-		}
-	}
-};
+    SimpleDynamics<ReactionRelaxationBackward<InnerWallBoundaryParticles>>;
 #endif //DIFFUSION_TEST_WITH_NEUMANNBC_H
