@@ -347,6 +347,57 @@ public:
 	virtual ~DiffusionRelaxation() {};
 };
 
+template <class ParticlesType, class ContactParticlesType>
+class SurfaceReaction : public DataDelegateContact<ParticlesType, ContactParticlesType>
+{
+protected:
+	StdVec<StdVec<StdLargeVec<Real> *>> contact_reactive_species_;
+
+public:
+
+	SurfaceReaction(BaseContactRelation& contact_relation)
+	{
+		contact_reactive_species_.resize(this->contact_particles_.size());
+		for (size_t k = 0; k != this->contact_particles_.size(); ++k)
+		{
+			StdVec<StdLargeVec<Real>> &contact_reactive_species_k = this->contact_particles_[k]->reactive_species_;
+			contact_reactive_species_.push_back(&contact_reactive_species_k);
+		}
+	}
+	virtual ~SurfaceReaction(){};
+	inline void interaction(size_t index_i, Real dt = 0.0)
+	{
+		ParticlesType *particles = this->particles_;
+		
+		for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
+		{
+			 Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
+			 for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+			 {
+				 size_t index_j = contact_neighborhood.j_[n];
+				 Real r_ij_ = contact_neighborhood.r_ij_[n];
+				 Real dW_ijV_j_ = contact_neighborhood.dW_ijV_j_[n];
+				 Vecd &e_ij = contact_neighborhood.e_ij_[n];
+				 const Vecd &grad_ijV_j = particles->getKernelGradient(index_i, index_j, dW_ijV_j_, e_ij);
+
+
+			 }
+
+
+		}
+	
+	}
+
+};
+
+
+
+
+
+
+
+
+
 using AqueousReactionRelaxationForward =
     SimpleDynamics<ReactionRelaxationForward<AqueousParticles>>;
 using AqueousReactionRelaxationBackward =
