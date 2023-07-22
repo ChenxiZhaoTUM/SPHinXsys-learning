@@ -33,21 +33,24 @@ int main(int ac, char *av[])
     //--------------------------------------------------------------------------------
     SolidBody tank(sph_system, makeShared<Tank>("Tank"));
 	tank.defineParticlesAndMaterial<SolidParticles, Solid>();
-	//tank.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-	(!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-		? tank.generateParticles<ParticleGeneratorReload>(io_environment, tank.getName())
-		: tank.generateParticles<ParticleGeneratorLattice>();
+	if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+	{
+		tank.generateParticles<ParticleGeneratorReload>(io_environment, tank.getName());
+	}
+	else
+	{
+		tank.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+		tank.generateParticles<ParticleGeneratorLattice>();
+	}
 	tank.addBodyStateForRecording<Vecd>("NormalDirection");
 
 	FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
 	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f);
-	//water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
 	water_block.generateParticles<ParticleGeneratorLattice>();
 	water_block.addBodyStateForRecording<Vecd>("Position");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
 	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f);
-	//air_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
 	air_block.generateParticles<ParticleGeneratorLattice>();
 	air_block.addBodyStateForRecording<Real>("Pressure");
 
@@ -117,31 +120,36 @@ int main(int ac, char *av[])
 	SimpleDynamics<NormalDirectionFromShapeAndOp> inner_normal_direction(tank, "InnerWall");
 	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
 	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
-	InteractionWithUpdate<CorrectedConfigurationInner> tank_corrected_configuration(tank_inner);
 	SimpleDynamics<SloshMaking> slosh_making(wave_maker);
+	InteractionWithUpdate<CorrectedConfigurationInner> tank_corrected_configuration(tank_inner);
+	InteractionDynamics<InterpolatingAQuantity<Vecd>>
+		interpolation_observer_position(tank_observer_contact, "Position", "Position");
 
-	/** Fluid dynamics. */
+	//--------------------------------------------------------------------------------
+    //	Algorithms of fluid dynamics.
+    //--------------------------------------------------------------------------------
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		fluid_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
 		air_density_by_summation(air_block_contact, air_water_complex);
 	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex>
 		air_transport_correction(air_block_contact, air_water_complex);
-	ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> fluid_advection_time_step(water_block, U_max);
+
+	/** Compute time step size of fluid body */
+	ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> water_advection_time_step(water_block, U_max);
 	ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> air_advection_time_step(air_block, U_max);
-	ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> fluid_acoustic_time_step(water_block);
+	ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> water_acoustic_time_step(water_block);
 	ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> air_acoustic_time_step(air_block);
+
+	/** Riemann slover for pressure and density relaxation */
 	Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfRiemannWithWall>
-		fluid_pressure_relaxation(water_block_contact, water_air_complex);
+		water_pressure_relaxation(water_block_contact, water_air_complex);
 	Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfRiemannWithWall>
-		fluid_density_relaxation(water_block_contact, water_air_complex);
+		water_density_relaxation(water_block_contact, water_air_complex);
 	Dynamics1Level<fluid_dynamics::ExtendMultiPhaseIntegration1stHalfRiemannWithWall>
 		air_pressure_relaxation(air_block_contact, air_water_complex, 2.0);
 	Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfRiemannWithWall>
 		air_density_relaxation(air_block_contact, air_water_complex);
-
-	InteractionDynamics<InterpolatingAQuantity<Vecd>>
-		interpolation_observer_position(tank_observer_contact, "Position", "Position");
 
 	//--------------------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
@@ -168,7 +176,7 @@ int main(int ac, char *av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 100;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 17;			                                      /** End time. */
+	Real End_Time = 16;			                                      /** End time. */
 	Real D_Time = 0.025;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */
@@ -202,7 +210,7 @@ int main(int ac, char *av[])
 			initialize_a_water_step.exec();
 			initialize_a_air_step.exec();
 
-			Real Dt_f = fluid_advection_time_step.exec();
+			Real Dt_f = water_advection_time_step.exec();
 			Real Dt_a = air_advection_time_step.exec();
 			Dt = SMIN(Dt_f, Dt_a);
 			fluid_density_by_summation.exec();
@@ -213,13 +221,13 @@ int main(int ac, char *av[])
 
 			while (relaxation_time < Dt)
 			{
-				Real dt_f = fluid_acoustic_time_step.exec();
+				Real dt_f = water_acoustic_time_step.exec();
 				dt_a = air_acoustic_time_step.exec();
 				dt = SMIN(SMIN(dt_f, dt_a),Dt);
 				/** Fluid pressure relaxation. */
-				fluid_pressure_relaxation.exec(dt);
+				water_pressure_relaxation.exec(dt);
 				air_pressure_relaxation.exec(dt);
-				fluid_density_relaxation.exec(dt);
+				water_density_relaxation.exec(dt);
 				air_density_relaxation.exec(dt);
 				slosh_making.exec(dt);
 				interpolation_observer_position.exec();
@@ -251,8 +259,8 @@ int main(int ac, char *av[])
 
 			tank.updateCellLinkedList();
 			tank_observer_contact.updateConfiguration();
-
 		}
+
 		TickCount t2 = TickCount::now();
 		/** Write run-time observation into file. */
 		write_real_body_states.writeToFile();

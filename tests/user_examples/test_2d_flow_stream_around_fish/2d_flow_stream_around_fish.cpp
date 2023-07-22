@@ -14,9 +14,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, particle_spacing_ref);
     /** Tag for run particle relaxation for the initial body fitted distribution. */
-    system.setRunParticleRelaxation(true);
+    system.setRunParticleRelaxation(false);
     /** Tag for computation start with relaxed body fitted particles distribution. */
-    system.setReloadParticles(false);
+    system.setReloadParticles(true);
     // handle command line arguments
 #ifdef BOOST_AVAILABLE
     system.handleCommandlineOptions(ac, av);
@@ -34,7 +34,7 @@ int main(int ac, char *av[])
      */
     SolidBody fish_body(system, makeShared<FishBody>("FishBody"));
     fish_body.defineAdaptationRatios(1.15, 2.0);
-    fish_body.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //fish_body.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     fish_body.defineParticlesAndMaterial<ElasticSolidParticles, FishBodyComposite>();
     //  Using relaxed particle distribution if needed
     (!system.RunParticleRelaxation() && system.ReloadParticles())

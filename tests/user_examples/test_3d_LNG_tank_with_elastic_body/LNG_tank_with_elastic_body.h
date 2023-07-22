@@ -19,18 +19,12 @@ std::string fuel_tank_inner = "./input/3D_grotle_tank_inner.STL";
 std::string water_05 = "./input/3D_grotle_water_0255.STL";
 std::string air_05 = "./input/3D_grotle_air_0255.STL";
 
-//std::string fuel_tank_outer = "./input/tank_outer.STL";
-//std::string fuel_tank_inner = "./input/tank_inner.STL";
-//std::string water_05 = "./input/water_05.STL";
-//std::string air_05 = "./input/gas_05.STL";
-
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real resolution_ref = 0.006;			  /** Initial particle spacing*/
 Real length_scale = 1.0;							  /** Scale factor*/
 Vecd translation(0, 0.12, 0);
-//Vec3d translation(0, 0.175, 0);
 BoundingBox system_domain_bounds(Vecd(-0.6, -0.2,-0.2), Vecd(0.6, 0.4,0.2));
 
 //----------------------------------------------------------------------
@@ -43,6 +37,11 @@ Real U_max = 2.0 * sqrt(gravity_g*0.0612); /** Characteristic velocity*/
 Real c_f = 10.0 * U_max;					 /** Reference sound speed*/
 Real mu_f = 1.01e-3;							   /** Water viscosity*/
 Real mu_a = 17.9e-6;								 /** Air viscosity*/
+
+Real rho0_s = 7800.0;								 /** Solid density*/
+Real poisson = 0.3;									 /** Poisson ratio*/
+Real Ae = 2.0e9;						/** Normalized Youngs Modulus */  // may wrong!
+Real Youngs_modulus = Ae * rho0_f * U_max * U_max;
 
 //----------------------------------------------------------------------
 //	Define SPH bodies.
