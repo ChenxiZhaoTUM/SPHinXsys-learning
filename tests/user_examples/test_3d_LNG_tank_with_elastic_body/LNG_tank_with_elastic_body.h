@@ -9,7 +9,7 @@
 
 #include "sphinxsys.h"
 using namespace SPH;
-#define PI 3.1415926
+#define PI (3.14159265358979323846)
 
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
@@ -31,17 +31,18 @@ BoundingBox system_domain_bounds(Vecd(-0.6, -0.2,-0.2), Vecd(0.6, 0.4,0.2));
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
 Real rho0_f = 1000.0;								 /** Fluid density*/
-Real rho0_a = 1.0;									   /** Air density*/
+Real rho0_a = 1.226;								   /** Air density*/
 Real gravity_g = 9.81;						/** Gravity force of fluid*/
 Real U_max = 2.0 * sqrt(gravity_g*0.0612); /** Characteristic velocity*/
 Real c_f = 10.0 * U_max;					 /** Reference sound speed*/
 Real mu_f = 1.01e-3;							   /** Water viscosity*/
 Real mu_a = 17.9e-6;								 /** Air viscosity*/
 
-Real rho0_s = 7800.0;								 /** Solid density*/
-Real poisson = 0.3;									 /** Poisson ratio*/
-Real Ae = 2.0e9;						/** Normalized Youngs Modulus */  // may wrong!
-Real Youngs_modulus = Ae * rho0_f * U_max * U_max;
+Real rho0_s = 7890.0;								 /** Solid density*/
+Real poisson = 0.27;								 /** Poisson ratio*/
+//Real Ae = 2.0e9;						/** Normalized Youngs Modulus */  // may wrong!
+//Real Youngs_modulus = Ae * rho0_f * U_max * U_max;
+Real Youngs_modulus = 135e9;
 
 //----------------------------------------------------------------------
 //	Define SPH bodies.

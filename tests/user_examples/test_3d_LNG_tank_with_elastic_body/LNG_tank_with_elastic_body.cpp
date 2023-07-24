@@ -133,11 +133,15 @@ int main(int ac, char *av[])
 	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
 	
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
-		fluid_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
+		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
 		air_density_by_summation(air_block_contact, air_water_complex);
 	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex>
 		air_transport_correction(air_block_contact, air_water_complex);
+	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
+		water_viscous_acceleration(water_block_contact, water_air_complex);
+	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
+		air_viscous_acceleration(air_block_contact, air_water_complex);
 
 	/** Time step size of fluid body. */
 	ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> water_advection_time_step(water_block, U_max);
@@ -146,10 +150,10 @@ int main(int ac, char *av[])
 	ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> air_acoustic_time_step(air_block);
 
 	/** Riemann slover for pressure and density relaxation. */
-	Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfRiemannWithWall>
-		water_pressure_relaxation(water_block_contact, water_air_complex);
-	Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfRiemannWithWall>
-		water_density_relaxation(water_block_contact, water_air_complex);
+	Dynamics1Level<fluid_dynamics::Integration1stHalfRiemannWithWall>
+		water_pressure_relaxation(water_block_contact, water_air_complex.getInnerRelation());
+	Dynamics1Level<fluid_dynamics::Integration2ndHalfRiemannWithWall>
+		water_density_relaxation(water_block_contact, water_air_complex.getInnerRelation());
 	Dynamics1Level<fluid_dynamics::ExtendMultiPhaseIntegration1stHalfRiemannWithWall>
 		air_pressure_relaxation(air_block_contact, air_water_complex, 2.0);
 	Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfRiemannWithWall>
@@ -158,8 +162,6 @@ int main(int ac, char *av[])
 	//--------------------------------------------------------------------------------
     //	Algorithms of FSI.
     //--------------------------------------------------------------------------------
-	/** Corrected configuration for the elastic body. */
-	InteractionWithUpdate<CorrectedConfigurationInner> elastic_body_corrected_configuration(tank_inner);
 	/** Force exerted on elastic body due to fluid pressure and viscosity. */
     InteractionDynamics<solid_dynamics::ViscousForceFromFluid> viscous_force_on_tack(tank_contacts);
     InteractionDynamics<solid_dynamics::AllForceAccelerationFromFluid>
@@ -169,10 +171,10 @@ int main(int ac, char *av[])
 	//----------------------------------------------------------------------
     //	Algorithms of solid dynamics.
     //----------------------------------------------------------------------
-	SimpleDynamics<NormalDirectionFromShapeAndOp> inner_normal_direction(tank, "InnerWall");
+	SimpleDynamics<NormalDirectionFromShapeAndOp> tank_normal_direction(tank, "InnerWall");
 	InteractionWithUpdate<CorrectedConfigurationInner> tank_corrected_configuration(tank_inner);
 	/** Time step size of elastic body. */
-	ReduceDynamics<solid_dynamics::AcousticTimeStepSize> tank_advection_time_step(tank);
+	ReduceDynamics<solid_dynamics::AcousticTimeStepSize> tank_acoustic_time_step(tank);
 	/** Stress relaxation for the elastic body. */
     Dynamics1Level<solid_dynamics::Integration1stHalfPK2> tank_stress_relaxation_1st_half(tank_inner);
     Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_2nd_half(tank_inner);
@@ -185,10 +187,10 @@ int main(int ac, char *av[])
 	BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
 	ObservedQuantityRecording<Vecd> write_tank_move("Position", io_environment, tank_observer_contact);
 	ObservedQuantityRecording<Vecd> write_tank_nom("NormalDirection", io_environment, tank_observer_contact);
-	RegressionTestTimeAverage<ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>>
+	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
         write_viscous_force_on_tank(io_environment, viscous_force_on_tack, "TotalViscousForceOnSolid");
-
-	// pressure_force
+	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
+        write_total_force_on_tank(io_environment, fluid_force_on_tank_update, "TotalForceOnSolid");
 
 	//--------------------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -200,7 +202,7 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
 	/** Computing surface normal direction for the tank. */
 	tank_corrected_configuration.exec();
-	inner_normal_direction.exec();
+	tank_normal_direction.exec();
 	
 	//--------------------------------------------------------------------------------
     //	Setup computing and initial conditions.
@@ -245,10 +247,21 @@ int main(int ac, char *av[])
 			Real Dt_f = water_advection_time_step.exec();
 			Real Dt_a = air_advection_time_step.exec();
 			Dt = SMIN(Dt_f, Dt_a);
-			fluid_density_by_summation.exec();
+
+			water_density_by_summation.exec();
 			air_density_by_summation.exec();
+			water_viscous_acceleration.exec();
+			air_viscous_acceleration.exec();
 			air_transport_correction.exec();
+
+			/** FSI for viscous force. */
+			viscous_force_on_tack.exec();
+			
+			/** Update normal direction on elastic body. */
+			tank_update_normal_direction.exec();
+
 			size_t inner_ite_dt = 0;
+			size_t inner_ite_dt_s = 0;
 			Real relaxation_time = 0.0;
 
 			while (relaxation_time < Dt)
@@ -259,10 +272,29 @@ int main(int ac, char *av[])
 				/** Fluid pressure relaxation. */
 				water_pressure_relaxation.exec(dt);
 				air_pressure_relaxation.exec(dt);
+				/** FSI for pressure force. */
+				fluid_force_on_tank_update.exec();
+				/** Fluid density relaxation. */
 				water_density_relaxation.exec(dt);
 				air_density_relaxation.exec(dt);
+
 				slosh_making.exec(dt);
 				interpolation_observer_position.exec();
+
+				/** Solid dynamics. */
+                inner_ite_dt_s = 0;
+                Real dt_s_sum = 0.0;
+				tank_average_velocity_and_acceleration.initialize_displacement_.exec();
+				while (dt_s_sum < dt)
+                {
+                    Real dt_s = SMIN(tank_acoustic_time_step.exec(), dt - dt_s_sum);
+                    tank_stress_relaxation_1st_half.exec(dt_s);
+                    tank_stress_relaxation_2nd_half.exec(dt_s);
+                    dt_s_sum += dt_s;
+                    inner_ite_dt_s++;
+                }
+				tank_average_velocity_and_acceleration.update_averages_.exec();
+
 
 				relaxation_time += dt;
 				integration_time += dt;
@@ -276,7 +308,7 @@ int main(int ac, char *av[])
 				std::cout << std::fixed << std::setprecision(9) 
 					<< "N=" << number_of_iterations << "	Time = "
 					<< GlobalStaticVariables::physical_time_
-					<< "	Dt = " << Dt << "	dt = " << dt << "\n";
+					<< "	Dt = " << Dt << "	Dt / dt = " << inner_ite_dt << "	dt / dt_s = " << inner_ite_dt_s << "\n";
 			}
 			number_of_iterations++;
 
@@ -290,6 +322,7 @@ int main(int ac, char *av[])
 			air_water_complex.updateConfiguration();
 
 			tank.updateCellLinkedList();
+			tank_contacts.updateConfiguration();
 			tank_observer_contact.updateConfiguration();
 		}
 
@@ -298,6 +331,9 @@ int main(int ac, char *av[])
 		write_real_body_states.writeToFile();
 		write_tank_move.writeToFile();
 		write_tank_nom.writeToFile();
+		write_viscous_force_on_tank.writeToFile(number_of_iterations);
+		write_total_force_on_tank.writeToFile(number_of_iterations);
+
 		TickCount t3 = TickCount::now();
 		interval += t3 - t2;
 	}

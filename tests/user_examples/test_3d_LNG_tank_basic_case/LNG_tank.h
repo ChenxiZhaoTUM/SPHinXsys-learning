@@ -9,7 +9,7 @@
 
 #include "sphinxsys.h"
 using namespace SPH;
-#define PI 3.1415926
+#define PI (3.14159265358979323846)
 
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
@@ -25,13 +25,13 @@ std::string air_05 = "./input/3D_grotle_air_0255.STL";
 Real resolution_ref = 0.006;			  /** Initial particle spacing*/
 Real length_scale = 1.0;							  /** Scale factor*/
 Vecd translation(0, 0.12, 0);
-BoundingBox system_domain_bounds(Vecd(-0.6, -0.2,-0.2), Vecd(0.6, 0.4,0.2));
+BoundingBox system_domain_bounds(Vecd(-0.6, -0.2, -0.2), Vecd(0.6, 0.4, 0.2));
 
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
 Real rho0_f = 1000.0;								 /** Fluid density*/
-Real rho0_a = 1.0;									   /** Air density*/
+Real rho0_a = 1.226;								   /** Air density*/
 Real gravity_g = 9.81;						/** Gravity force of fluid*/
 Real U_max = 2.0 * sqrt(gravity_g*0.0612); /** Characteristic velocity*/
 Real c_f = 10.0 * U_max;					 /** Reference sound speed*/
