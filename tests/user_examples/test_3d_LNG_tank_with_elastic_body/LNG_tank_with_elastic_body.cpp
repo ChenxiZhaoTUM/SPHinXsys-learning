@@ -45,12 +45,12 @@ int main(int ac, char *av[])
 	tank.addBodyStateForRecording<Vecd>("NormalDirection");
 
 	FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
-	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f);
+	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
 	water_block.generateParticles<ParticleGeneratorLattice>();
 	water_block.addBodyStateForRecording<Vecd>("Position");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
-	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f);
+	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f, mu_a);
 	air_block.generateParticles<ParticleGeneratorLattice>();
 	air_block.addBodyStateForRecording<Real>("Pressure");
 
@@ -71,6 +71,7 @@ int main(int ac, char *av[])
 
 	ComplexRelation water_air_complex(water_block, { &air_block });
 	ComplexRelation air_water_complex(air_block, { &water_block });
+	ComplexRelation water_air_tank_complex(water_block, RealBodyVector{ &air_block, &tank });
 
 	BodyRegionByParticle wave_maker(tank, makeShared<Tank>("SloshingMaking"));
 
@@ -142,6 +143,8 @@ int main(int ac, char *av[])
 		water_viscous_acceleration(water_block_contact, water_air_complex);
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
 		air_viscous_acceleration(air_block_contact, air_water_complex);
+	/** Computing vorticity in the flow. */
+    InteractionDynamics<fluid_dynamics::VorticityInner> compute_vorticity(water_air_tank_complex.getInnerRelation());
 
 	/** Time step size of fluid body. */
 	ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> water_advection_time_step(water_block, U_max);
@@ -210,8 +213,8 @@ int main(int ac, char *av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 100;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 16;			                                      /** End time. */
-	Real D_Time = 0.025;								/** time stamps for output. */
+	Real End_Time = 10;			                                      /** End time. */
+	Real D_Time = 0.05;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */
 	Real dt_a = 0.0;				  /** Default acoustic time step sizes for air. */
@@ -250,9 +253,9 @@ int main(int ac, char *av[])
 
 			water_density_by_summation.exec();
 			air_density_by_summation.exec();
+			air_transport_correction.exec();
 			water_viscous_acceleration.exec();
 			air_viscous_acceleration.exec();
-			air_transport_correction.exec();
 
 			/** FSI for viscous force. */
 			viscous_force_on_tack.exec();
@@ -268,7 +271,7 @@ int main(int ac, char *av[])
 			{
 				Real dt_f = water_acoustic_time_step.exec();
 				dt_a = air_acoustic_time_step.exec();
-				dt = SMIN(SMIN(dt_f, dt_a),Dt);
+				dt = SMIN(SMIN(dt_f, dt_a), Dt);
 				/** Fluid pressure relaxation. */
 				water_pressure_relaxation.exec(dt);
 				air_pressure_relaxation.exec(dt);
@@ -327,6 +330,7 @@ int main(int ac, char *av[])
 		}
 
 		TickCount t2 = TickCount::now();
+		compute_vorticity.exec();
 		/** Write run-time observation into file. */
 		write_real_body_states.writeToFile();
 		write_tank_move.writeToFile();

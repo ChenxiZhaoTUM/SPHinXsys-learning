@@ -40,9 +40,7 @@ Real mu_a = 17.9e-6;								 /** Air viscosity*/
 
 Real rho0_s = 7890.0;								 /** Solid density*/
 Real poisson = 0.27;								 /** Poisson ratio*/
-//Real Ae = 2.0e9;						/** Normalized Youngs Modulus */  // may wrong!
-//Real Youngs_modulus = Ae * rho0_f * U_max * U_max;
-Real Youngs_modulus = 135e9;
+Real Youngs_modulus = 7.2e7;
 
 //----------------------------------------------------------------------
 //	Define SPH bodies.
