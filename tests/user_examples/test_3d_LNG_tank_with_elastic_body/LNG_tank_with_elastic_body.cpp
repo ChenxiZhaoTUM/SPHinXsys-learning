@@ -1,37 +1,37 @@
 /**
- * @file 	LNG_tank_with_elastic_body.cpp
- * @brief 	Sloshing in marine LNG fuel tank under roll excitation
- * @details 
- * @author 	
- */
+* @file 	LNG_tank_with_elastic_body.cpp
+* @brief 	Sloshing in marine LNG fuel tank under roll excitation
+* @details
+* @author
+*/
 #include "LNG_tank_with_elastic_body.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------
 //	Main program starts here.
 //------------------------------------------------------------------------------------
-int main(int ac, char *av[])
+int main(int ac, char* av[])
 {
 	//--------------------------------------------------------------------------------
-    //	Build up the environment of a SPHSystem.
-    //--------------------------------------------------------------------------------
+	//	Build up the environment of a SPHSystem.
+	//--------------------------------------------------------------------------------
 	SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    /** Tag for run particle relaxation for the initial body fitted distribution.   */
-    sph_system.setRunParticleRelaxation(false);
-    /** Tag for computation start with relaxed body fitted particles distribution.  */
-    sph_system.setReloadParticles(true);
+	/** Tag for run particle relaxation for the initial body fitted distribution.   */
+	sph_system.setRunParticleRelaxation(false);
+	/** Tag for computation start with relaxed body fitted particles distribution.  */
+	sph_system.setReloadParticles(true);
 	/** Tag for computation from restart files. 0: start with initial condition.    */
 	sph_system.setRestartStep(0);
-    /** Handle command line arguments. */
-    #ifdef BOOST_AVAILABLE
-    sph_system.handleCommandlineOptions(ac, av);
-    #endif
-    IOEnvironment io_environment(sph_system);
+	/** Handle command line arguments. */
+#ifdef BOOST_AVAILABLE
+	sph_system.handleCommandlineOptions(ac, av);
+#endif
+	IOEnvironment io_environment(sph_system);
 
-    //--------------------------------------------------------------------------------
-    //	Creating body, materials and particles.
-    //--------------------------------------------------------------------------------
-    SolidBody tank(sph_system, makeShared<Tank>("Tank"));
+	//--------------------------------------------------------------------------------
+	//	Creating body, materials and particles.
+	//--------------------------------------------------------------------------------
+	SolidBody tank(sph_system, makeShared<Tank>("Tank"));
 	tank.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
 	if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
 	{
@@ -58,10 +58,10 @@ int main(int ac, char *av[])
 	tank_observer.generateParticles<TankObserverParticleGenerator>();
 
 	//--------------------------------------------------------------------------------
-    //	Define body relation map.
-    //	The contact map gives the topological connections between the bodies.
-    //	Basically the the range of bodies to build neighbor particle lists.
-    //--------------------------------------------------------------------------------
+	//	Define body relation map.
+	//	The contact map gives the topological connections between the bodies.
+	//	Basically the the range of bodies to build neighbor particle lists.
+	//--------------------------------------------------------------------------------
 	InnerRelation tank_inner(tank);
 
 	ContactRelation water_block_contact(water_block, { &tank });
@@ -76,8 +76,8 @@ int main(int ac, char *av[])
 	BodyRegionByParticle wave_maker(tank, makeShared<Tank>("SloshingMaking"));
 
 	//--------------------------------------------------------------------------------
-    //	Run particle relaxation for body-fitted distribution if chosen.
-    //--------------------------------------------------------------------------------
+	//	Run particle relaxation for body-fitted distribution if chosen.
+	//--------------------------------------------------------------------------------
 	if (sph_system.RunParticleRelaxation())
 	{
 		//----------------------------------------------------------------------------
@@ -86,9 +86,9 @@ int main(int ac, char *av[])
 		/** Random reset the insert body particle position. */
 		SimpleDynamics<RandomizeParticlePosition> random_tank_particles(tank);
 		/** Write the body state to Vtp file. */
-		BodyStatesRecordingToVtp write_tank_to_vtp(io_environment, {&tank});
+		BodyStatesRecordingToVtp write_tank_to_vtp(io_environment, { &tank });
 		/** Write the particle reload files. */
-		ReloadParticleIO write_tank_particle_reload_files(io_environment, tank, "Tank" );
+		ReloadParticleIO write_tank_particle_reload_files(io_environment, tank, "Tank");
 		/** A Physics relaxation step. */
 		relax_dynamics::RelaxationStepInner tank_relaxation_step_inner(tank_inner);
 
@@ -119,20 +119,20 @@ int main(int ac, char *av[])
 	}
 
 	//--------------------------------------------------------------------------------
-    //	Define the main numerical methods used in the simulation.
-    //	Note that there may be data dependence on the constructors of these methods.
-    //--------------------------------------------------------------------------------
+	//	Define the main numerical methods used in the simulation.
+	//	Note that there may be data dependence on the constructors of these methods.
+	//--------------------------------------------------------------------------------
 	SimpleDynamics<SloshMaking> slosh_making(wave_maker);
 	InteractionDynamics<InterpolatingAQuantity<Vecd>>
 		interpolation_observer_position(tank_observer_contact, "Position", "Position");
 
 	//--------------------------------------------------------------------------------
-    //	Algorithms of fluid dynamics.
-    //--------------------------------------------------------------------------------
+	//	Algorithms of fluid dynamics.
+	//--------------------------------------------------------------------------------
 	/** Time step initialization of fluid body. */
 	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
 	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
-	
+
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
@@ -144,7 +144,7 @@ int main(int ac, char *av[])
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
 		air_viscous_acceleration(air_block_contact, air_water_complex);
 	/** Computing vorticity in the flow. */
-    InteractionDynamics<fluid_dynamics::VorticityInner> compute_vorticity(water_air_tank_complex.getInnerRelation());
+	InteractionDynamics<fluid_dynamics::VorticityInner> compute_vorticity(water_air_tank_complex.getInnerRelation());
 
 	/** Time step size of fluid body. */
 	ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> water_advection_time_step(water_block, U_max);
@@ -163,79 +163,97 @@ int main(int ac, char *av[])
 		air_density_relaxation(air_block_contact, air_water_complex);
 
 	//--------------------------------------------------------------------------------
-    //	Algorithms of FSI.
-    //--------------------------------------------------------------------------------
+	//	Algorithms of FSI.
+	//--------------------------------------------------------------------------------
 	/** Force exerted on elastic body due to fluid pressure and viscosity. */
-    InteractionDynamics<solid_dynamics::ViscousForceFromFluid> viscous_force_on_tack(tank_contacts);
-    InteractionDynamics<solid_dynamics::AllForceAccelerationFromFluid>
-        fluid_force_on_tank_update(tank_contacts, viscous_force_on_tack);
-    /** Average velocity of the elastic body. */
-    solid_dynamics::AverageVelocityAndAcceleration tank_average_velocity_and_acceleration(tank);
+	InteractionDynamics<solid_dynamics::ViscousForceFromFluid> viscous_force_on_tack(tank_contacts);
+	InteractionDynamics<solid_dynamics::AllForceAccelerationFromFluid>
+		fluid_force_on_tank_update(tank_contacts, viscous_force_on_tack);
+	/** Average velocity of the elastic body. */
+	solid_dynamics::AverageVelocityAndAcceleration tank_average_velocity_and_acceleration(tank);
+
 	//----------------------------------------------------------------------
-    //	Algorithms of solid dynamics.
-    //----------------------------------------------------------------------
+	//	Algorithms of solid dynamics.
+	//----------------------------------------------------------------------
 	SimpleDynamics<NormalDirectionFromShapeAndOp> tank_normal_direction(tank, "InnerWall");
 	InteractionWithUpdate<CorrectedConfigurationInner> tank_corrected_configuration(tank_inner);
 	/** Time step size of elastic body. */
 	ReduceDynamics<solid_dynamics::AcousticTimeStepSize> tank_acoustic_time_step(tank);
 	/** Stress relaxation for the elastic body. */
-    Dynamics1Level<solid_dynamics::Integration1stHalfPK2> tank_stress_relaxation_1st_half(tank_inner);
-    Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_2nd_half(tank_inner);
+	Dynamics1Level<solid_dynamics::Integration1stHalfPK2> tank_stress_relaxation_1st_half(tank_inner);
+	Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_2nd_half(tank_inner);
+
+	/** Exert constrain on tank. */
+	/*SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank, Vecd(1.0, 1.0, 1.0));
+	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(tank, "MassiveMeasure");
+	ReduceDynamics<QuantityMassPosition> compute_mass_position_(tank);
+	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
+	Matd moment_of_inertia = Matd::Zero();
+	for (int i = 0; i != Dimensions; ++i)
+	{
+		for (int j = 0; j != Dimensions; ++j)
+		{
+			ReduceDynamics<QuantityMomentOfInertia> compute_moment_of_inertia(tank, mass_center, i, j);
+			moment_of_inertia(i, j) = compute_moment_of_inertia.exec();
+		}
+	}
+	SimpleDynamics<Constrain3DSolidBodyRotation> constrain_rotation(tank, mass_center, moment_of_inertia);*/
+
 	/** Update normal direction. */
-    SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> tank_update_normal_direction(tank);
+	SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> tank_update_normal_direction(tank);
 
 	//--------------------------------------------------------------------------------
-    //	Define the methods for I/O operations and observations of the simulation.
-    //--------------------------------------------------------------------------------
+	//	Define the methods for I/O operations and observations of the simulation.
+	//--------------------------------------------------------------------------------
 	BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
 	ObservedQuantityRecording<Vecd> write_tank_move("Position", io_environment, tank_observer_contact);
 	ObservedQuantityRecording<Vecd> write_tank_nom("NormalDirection", io_environment, tank_observer_contact);
 	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
-        write_viscous_force_on_tank(io_environment, viscous_force_on_tack, "TotalViscousForceOnSolid");
+		write_viscous_force_on_tank(io_environment, viscous_force_on_tack, "TotalViscousForceOnTank");
 	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
-        write_total_force_on_tank(io_environment, fluid_force_on_tank_update, "TotalForceOnSolid");
+		write_total_force_on_tank(io_environment, fluid_force_on_tank_update, "TotalForceOnTank");
 
 	//--------------------------------------------------------------------------------
-    //	Prepare the simulation with cell linked list, configuration
-    //	and case specified initial condition if necessary.
-    //--------------------------------------------------------------------------------
+	//	Prepare the simulation with cell linked list, configuration
+	//	and case specified initial condition if necessary.
+	//--------------------------------------------------------------------------------
 	/** Initialize cell linked lists for all bodies. */
-    sph_system.initializeSystemCellLinkedLists();
+	sph_system.initializeSystemCellLinkedLists();
 	/** Initialize configurations for all bodies. */
-    sph_system.initializeSystemConfigurations();
+	sph_system.initializeSystemConfigurations();
 	/** Computing surface normal direction for the tank. */
 	tank_corrected_configuration.exec();
 	tank_normal_direction.exec();
-	
+
 	//--------------------------------------------------------------------------------
-    //	Setup computing and initial conditions.
-    //--------------------------------------------------------------------------------
+	//	Setup computing and initial conditions.
+	//--------------------------------------------------------------------------------
 	size_t number_of_iterations = sph_system.RestartStep();
-	int screen_output_interval = 100;
+	int screen_output_interval = 10;
 	int restart_output_interval = screen_output_interval * 10;
 	Real End_Time = 10;			                                      /** End time. */
 	Real D_Time = 0.05;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */
 	Real dt_a = 0.0;				  /** Default acoustic time step sizes for air. */
-	
+
 	//--------------------------------------------------------------------------------
-    //	Statistics for CPU time.
-    //--------------------------------------------------------------------------------
+	//	Statistics for CPU time.
+	//--------------------------------------------------------------------------------
 	TickCount t1 = TickCount::now();
 	TickCount::interval_t interval;
 
 	//--------------------------------------------------------------------------------
-    //	First output before the main loop.
-    //--------------------------------------------------------------------------------
+	//	First output before the main loop.
+	//--------------------------------------------------------------------------------
 	/** Computing linear reproducing configuration for the tank. */
 	write_real_body_states.writeToFile(0);
 	write_tank_move.writeToFile(0);
 	write_tank_nom.writeToFile(0);
 
 	//--------------------------------------------------------------------------------
-    //	Main loop starts here.
-    //--------------------------------------------------------------------------------
+	//	Main loop starts here.
+	//--------------------------------------------------------------------------------
 	while (GlobalStaticVariables::physical_time_ < End_Time)
 	{
 		Real integration_time = 0.0;
@@ -259,7 +277,7 @@ int main(int ac, char *av[])
 
 			/** FSI for viscous force. */
 			viscous_force_on_tack.exec();
-			
+
 			/** Update normal direction on elastic body. */
 			tank_update_normal_direction.exec();
 
@@ -285,19 +303,22 @@ int main(int ac, char *av[])
 				interpolation_observer_position.exec();
 
 				/** Solid dynamics. */
-                inner_ite_dt_s = 0;
-                Real dt_s_sum = 0.0;
+				inner_ite_dt_s = 0;
+				Real dt_s_sum = 0.0;
 				tank_average_velocity_and_acceleration.initialize_displacement_.exec();
 				while (dt_s_sum < dt)
-                {
-                    Real dt_s = SMIN(tank_acoustic_time_step.exec(), dt - dt_s_sum);
-                    tank_stress_relaxation_1st_half.exec(dt_s);
-                    tank_stress_relaxation_2nd_half.exec(dt_s);
-                    dt_s_sum += dt_s;
-                    inner_ite_dt_s++;
-                }
-				tank_average_velocity_and_acceleration.update_averages_.exec();
+				{
+					Real dt_s = SMIN(tank_acoustic_time_step.exec(), dt - dt_s_sum);
+					tank_stress_relaxation_1st_half.exec(dt_s);
 
+					/*constrain_rotation.exec(dt_s);
+					constrain_mass_center_1.exec(dt_s);*/
+
+					tank_stress_relaxation_2nd_half.exec(dt_s);
+					dt_s_sum += dt_s;
+					inner_ite_dt_s++;
+				}
+				tank_average_velocity_and_acceleration.update_averages_.exec(dt);
 
 				relaxation_time += dt;
 				integration_time += dt;
@@ -308,7 +329,7 @@ int main(int ac, char *av[])
 			/** Screen output, write body reduced values and restart files. */
 			if (number_of_iterations % screen_output_interval == 0)
 			{
-				std::cout << std::fixed << std::setprecision(9) 
+				std::cout << std::fixed << std::setprecision(9)
 					<< "N=" << number_of_iterations << "	Time = "
 					<< GlobalStaticVariables::physical_time_
 					<< "	Dt = " << Dt << "	Dt / dt = " << inner_ite_dt << "	dt / dt_s = " << inner_ite_dt_s << "\n";
