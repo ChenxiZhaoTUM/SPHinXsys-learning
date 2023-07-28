@@ -76,6 +76,8 @@ public:
 //----------------------------------------------------------------------
 //	Define external excitation.
 //----------------------------------------------------------------------
+Real f = 0.5496;
+Real a = PI / 60.0;
 
 class VariableGravity : public Gravity
 {
@@ -86,9 +88,11 @@ public:
 	virtual Vecd InducedAcceleration(Vecd& position) override
 	{
 		time_= GlobalStaticVariables::physical_time_;
-		Real angular_velocity = -2.0 * PI * 0.916 * 0.6 * PI * cos(time_ * 2.0 * PI * 0.916 * 0.6) / 60.0;
-		global_acceleration_[0] = pow(angular_velocity, 2);
-		global_acceleration_[1] = pow(angular_velocity, 2);
+		/*Real angular_velocity = -2.0 * PI * 0.916 * 0.6 * PI * cos(time_ * 2.0 * PI * 0.916 * 0.6) / 60.0;
+		global_acceleration_[0] = pow(angular_velocity, 2);*/
+		//global_acceleration_[1] = - pow(angular_velocity, 2);
+		global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * time_);
+		global_acceleration_[1] = - f * f * a * sin(2 * PI * f * time_);
 		return global_acceleration_;
 	}
 };
