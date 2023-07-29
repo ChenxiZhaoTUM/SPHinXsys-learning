@@ -88,11 +88,21 @@ public:
 	virtual Vecd InducedAcceleration(Vecd& position) override
 	{
 		time_= GlobalStaticVariables::physical_time_;
+		if (1.0 < time_)
+		{
+			//global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * time_);
+			global_acceleration_[1] = -gravity_g + PI * PI * f * f * a * sin(2 * PI * f * time_);
+		}
+		else
+		{
+			global_acceleration_[0] = 0;
+		}
+
 		/*Real angular_velocity = -2.0 * PI * 0.916 * 0.6 * PI * cos(time_ * 2.0 * PI * 0.916 * 0.6) / 60.0;
 		global_acceleration_[0] = pow(angular_velocity, 2);*/
 		//global_acceleration_[1] = - pow(angular_velocity, 2);
-		global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * time_);
-		global_acceleration_[1] = - f * f * a * sin(2 * PI * f * time_);
+		/*global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * time_);
+		global_acceleration_[1] = - 5.0;*/
 		return global_acceleration_;
 	}
 };
