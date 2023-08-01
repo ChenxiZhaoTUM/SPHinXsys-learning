@@ -16,11 +16,11 @@ file(MAKE_DIRECTORY ${BUILD_INPUT_PATH})
 execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_INPUT_PATH})
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/3D_grotle_tank_outer_03.STL
         DESTINATION ${BUILD_INPUT_PATH})
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/3D_grotle_tank_inner.STL
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_with_ring_baffle.STL
         DESTINATION ${BUILD_INPUT_PATH})
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/3D_grotle_water_0255.STL
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_with_ring_baffle_water.STL
         DESTINATION ${BUILD_INPUT_PATH})
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/3D_grotle_air_0255.STL
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_with_ring_baffle_air.STL
         DESTINATION ${BUILD_INPUT_PATH})
 
 add_executable(${PROJECT_NAME})
