@@ -15,12 +15,9 @@ using namespace SPH;
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
-//std::string fuel_tank_inner = "./input/tank_inner_with_ring_baffle.STL";
-//std::string water_05 = "./input/tank_inner_with_ring_baffle_water.STL";
-//std::string air_05 = "./input/tank_inner_with_ring_baffle_air.STL";
-std::string fuel_tank_inner = "./input/tank_inner_ring.STL";
-std::string water_05 = "./input/tank_inner_ring_water.STL";
-std::string air_05 = "./input/tank_inner_ring_air.STL";
+std::string fuel_tank_inner = "./input/tank_inner_ring_baffle.STL";
+std::string water_05 = "./input/tank_inner_ring_water_block.STL";
+std::string air_05 = "./input/tank_inner_ring_air_block.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.

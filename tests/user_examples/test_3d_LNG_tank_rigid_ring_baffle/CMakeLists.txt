@@ -16,12 +16,17 @@ file(MAKE_DIRECTORY ${BUILD_INPUT_PATH})
 execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_INPUT_PATH})
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/3D_grotle_tank_outer_03.STL
         DESTINATION ${BUILD_INPUT_PATH})
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_with_ring_baffle.STL
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_ring_baffle.STL
         DESTINATION ${BUILD_INPUT_PATH})
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_with_ring_baffle_water.STL
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_ring_air_block.STL
         DESTINATION ${BUILD_INPUT_PATH})
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_with_ring_baffle_air.STL
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_ring_water_block.STL
         DESTINATION ${BUILD_INPUT_PATH})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_ring_air_block_2.STL
+        DESTINATION ${BUILD_INPUT_PATH})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/tank_inner_ring_water_block_2.STL
+        DESTINATION ${BUILD_INPUT_PATH})
+
 
 add_executable(${PROJECT_NAME})
 aux_source_directory(. DIR_SRCS)
