@@ -46,12 +46,22 @@ int main(int ac, char *av[])
 
 	FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
 	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
-	water_block.generateParticles<ParticleGeneratorLattice>();
+	//water_block.generateParticles<ParticleGeneratorLattice>();
+	/*if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+	{
+		water_block.generateParticles<ParticleGeneratorReload>(io_environment, water_block.getName());
+	}*/
+	water_block.generateParticles<ParticleGeneratorReload>(io_environment, water_block.getName());
 	water_block.addBodyStateForRecording<Vecd>("Position");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
 	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f, mu_a);
-	air_block.generateParticles<ParticleGeneratorLattice>();
+	//air_block.generateParticles<ParticleGeneratorLattice>();
+	/*if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+	{
+		air_block.generateParticles<ParticleGeneratorReload>(io_environment, air_block.getName());
+	}*/
+	air_block.generateParticles<ParticleGeneratorReload>(io_environment, air_block.getName());
 	air_block.addBodyStateForRecording<Real>("Pressure");
 
 	ObserverBody tank_observer(sph_system, "TankObserver");
@@ -269,6 +279,12 @@ int main(int ac, char *av[])
 				integration_time += dt;
 				GlobalStaticVariables::physical_time_ += dt;
 				inner_ite_dt++;
+
+				write_real_body_states.writeToFile();
+				write_tank_move.writeToFile();
+				write_tank_nom.writeToFile();
+				write_viscous_force_on_tank.writeToFile(number_of_iterations);
+				write_total_force_on_tank.writeToFile(number_of_iterations);
 			}
 
 			/** Screen output, write body reduced values and restart files. */
@@ -296,11 +312,11 @@ int main(int ac, char *av[])
 
 		TickCount t2 = TickCount::now();
 		/** Write run-time observation into file. */
-		write_real_body_states.writeToFile();
+		/*write_real_body_states.writeToFile();
 		write_tank_move.writeToFile();
 		write_tank_nom.writeToFile();
 		write_viscous_force_on_tank.writeToFile(number_of_iterations);
-		write_total_force_on_tank.writeToFile(number_of_iterations);
+		write_total_force_on_tank.writeToFile(number_of_iterations);*/
 
 		TickCount t3 = TickCount::now();
 		interval += t3 - t2;

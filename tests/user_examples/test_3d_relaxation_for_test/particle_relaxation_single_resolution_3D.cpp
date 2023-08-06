@@ -25,16 +25,16 @@ Real scaling = 1.0; */
 //	To use this, please commenting the setting for the first geometry.
 //----------------------------------------------------------------------
 //std::string full_path_to_file = "./input/tank_inner_ring_water_block_2.STL";
-std::string full_path_to_file = "./input/tank_inner_ring_water_yes.STL";
+std::string full_path_to_file = "./input/tank_inner_ring_water.STL";  //WATER!!
+//std::string full_path_to_file = "./input/tank_inner_ring_air.STL";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DL = 0.75; // Domain width.
-Real DH = 1.3;  // Domain height.
-Real DW = 1.2;  // Domain width.
-Vec3d domain_lower_bound(-0.5, -0.2, -0.2);
-Vec3d domain_upper_bound(0.5, 0.2, 0.2);
-Vecd translation(0.0, 0.0, 0.0);
+Vec3d domain_lower_bound(-0.5, -0.2, -0.2);  //WATER!!
+Vec3d domain_upper_bound(0.5, 0.2, 0.2);  //WATER!!
+//Vec3d domain_lower_bound(-0.5, 0, -0.2);
+//Vec3d domain_upper_bound(0.5, 0.3, 0.2);
+Vecd translation(0.0, 0.12, 0.0);
 Real scaling = 1.0;
 //----------------------------------------------------------------------
 //	Below are common parts for the two test geometries.
@@ -49,9 +49,9 @@ class SolidBodyFromMesh : public ComplexShape
   public:
     explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * dp_0, full_path_to_file, translation, scaling);
-        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        //add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * dp_0, full_path_to_file, translation, scaling);
+        //subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 };
 //-----------------------------------------------------------------------------------------------------------
@@ -67,7 +67,8 @@ int main()
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    RealBody imported_model(system, makeShared<SolidBodyFromMesh>("SolidBodyFromMesh"));
+    RealBody imported_model(system, makeShared<SolidBodyFromMesh>("WaterBody"));  //WATER!!
+    //RealBody imported_model(system, makeShared<SolidBodyFromMesh>("AirBody"));
     // level set shape is used for particle relaxation
     imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(io_environment);
     imported_model.defineParticlesAndMaterial();
@@ -77,6 +78,8 @@ int main()
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp write_imported_model_to_vtp(io_environment, {imported_model});
     MeshRecordingToPlt write_cell_linked_list(io_environment, imported_model.getCellLinkedList());
+    ReloadParticleIO write_particle_reload_files(io_environment, imported_model, "WaterBody" );  //WATER!!
+    //ReloadParticleIO write_particle_reload_files(io_environment, imported_model, "AirBody" );
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -112,6 +115,8 @@ int main()
         }
     }
     std::cout << "The physics relaxation process of imported model finish !" << std::endl;
+
+    write_particle_reload_files.writeToFile(0);
 
     return 0;
 }

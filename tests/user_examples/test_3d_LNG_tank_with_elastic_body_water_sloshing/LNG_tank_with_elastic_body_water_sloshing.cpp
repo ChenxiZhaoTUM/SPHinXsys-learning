@@ -48,11 +48,15 @@ int main(int ac, char* av[])
 	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
 	water_block.generateParticles<ParticleGeneratorLattice>();
 	water_block.addBodyStateForRecording<Vecd>("Position");
+	water_block.addBodyStateForRecording<Vecd>("PriorAcceleration");
+	water_block.addBodyStateForRecording<Vecd>("Acceleration");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
 	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f, mu_a);
 	air_block.generateParticles<ParticleGeneratorLattice>();
 	air_block.addBodyStateForRecording<Real>("Pressure");
+	air_block.addBodyStateForRecording<Vecd>("PriorAcceleration");
+	air_block.addBodyStateForRecording<Vecd>("Acceleration");
 
 	ObserverBody tank_observer(sph_system, "TankObserver");
 	tank_observer.generateParticles<TankObserverParticleGenerator>();
@@ -130,8 +134,10 @@ int main(int ac, char* av[])
 	//	Algorithms of fluid dynamics.
 	//--------------------------------------------------------------------------------
 	/** Time step initialization of fluid body. */
-	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<VariableGravity>());
-	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<VariableGravity>());
+	SimpleDynamics<Sloshing> water_initial_velocity(water_block);
+	SimpleDynamics<Sloshing> air_initial_velocity(air_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block);
 
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
@@ -217,6 +223,7 @@ int main(int ac, char* av[])
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
 	//--------------------------------------------------------------------------------
+	
 	/** Initialize cell linked lists for all bodies. */
 	sph_system.initializeSystemCellLinkedLists();
 	/** Initialize configurations for all bodies. */
@@ -261,6 +268,8 @@ int main(int ac, char* av[])
 		/** Integrate time (loop) until the next output time. */
 		while (integration_time < D_Time)
 		{
+			
+	
 			/** Outer loop for dual-time criteria time-stepping. */
 			initialize_a_water_step.exec();
 			initialize_a_air_step.exec();
@@ -287,6 +296,9 @@ int main(int ac, char* av[])
 
 			while (relaxation_time < Dt)
 			{
+				water_initial_velocity.exec();
+				air_initial_velocity.exec();
+
 				Real dt_f = water_acoustic_time_step.exec();
 				dt_a = air_acoustic_time_step.exec();
 				dt = SMIN(SMIN(dt_f, dt_a), Dt);
@@ -353,11 +365,11 @@ int main(int ac, char* av[])
 		TickCount t2 = TickCount::now();
 		compute_vorticity.exec();
 		/** Write run-time observation into file. */
-		write_real_body_states.writeToFile();
+		/*write_real_body_states.writeToFile();
 		write_tank_move.writeToFile();
 		write_tank_nom.writeToFile();
 		write_viscous_force_on_tank.writeToFile(number_of_iterations);
-		write_total_force_on_tank.writeToFile(number_of_iterations);
+		write_total_force_on_tank.writeToFile(number_of_iterations);*/
 
 		TickCount t3 = TickCount::now();
 		interval += t3 - t2;

@@ -98,14 +98,53 @@ public:
 			global_acceleration_[0] = 0;
 		}
 
-		/*Real angular_velocity = -2.0 * PI * 0.916 * 0.6 * PI * cos(time_ * 2.0 * PI * 0.916 * 0.6) / 60.0;
-		global_acceleration_[0] = pow(angular_velocity, 2);*/
-		//global_acceleration_[1] = - pow(angular_velocity, 2);
-		/*global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * time_);
-		global_acceleration_[1] = - 5.0;*/
 		return global_acceleration_;
 	}
 };
+
+//**Roll Sloshing
+Real omega = 2 * PI * 0.5496;
+Real Theta0 = 3.0 * PI / 180.0;
+/**
+ * application dependent
+ */
+class Sloshing
+	: public fluid_dynamics::FluidInitialCondition
+{
+public:
+	Sloshing(SPHBody &sph_body)
+		: FluidInitialCondition(sph_body),
+		acc_prior_(particles_->acc_prior_),
+		vel_(particles_->vel_)
+	{};
+
+protected:
+	StdLargeVec<Vecd> &acc_prior_;
+	StdLargeVec<Vecd> &vel_;
+	Real time_ = 0;
+
+	void update(size_t index_i, Real dt)
+	{
+		time_= GlobalStaticVariables::physical_time_;
+		Real Theta = Theta0 * sin(omega * time_ - 0.5);
+		Real ThetaV = Theta0 * omega * cos(omega * (time_ - 0.5));
+		//Real ThetaA = -Theta0 * omega* omega*sin(omega*GlobalStaticVariables::physical_time_);
+
+
+		if (time_ < 0.5)
+		{
+			acc_prior_[index_i][0] = 0.0;
+			acc_prior_[index_i][1] = -gravity_g;
+		}
+
+		if (time_ >= 0.5)
+		{
+			acc_prior_[index_i][0] = -gravity_g * sin(Theta) + ThetaV * ThetaV * pos_[index_i][0] - 2 * ThetaV * vel_[index_i][1];
+			acc_prior_[index_i][1] = -gravity_g * cos(Theta) - ThetaV * ThetaV * pos_[index_i][1] + 2 * ThetaV * vel_[index_i][0];
+		}	
+	}
+};
+
 
 class SloshMaking : public solid_dynamics::BaseMotionConstraint<BodyPartByParticle>
 {
