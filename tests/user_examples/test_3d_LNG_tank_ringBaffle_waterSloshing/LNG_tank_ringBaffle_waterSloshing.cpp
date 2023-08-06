@@ -1,10 +1,10 @@
 /**
-* @file 	LNG_tank_rigid_ring_baffle_water_sloshing.cpp
+* @file 	LNG_tank_ringBaffle_waterSloshing.cpp
 * @brief 	Sloshing in marine LNG fuel tank under roll excitation
 * @details
 * @author
 */
-#include "LNG_tank_rigid_ring_baffle_water_sloshing.h"
+#include "LNG_tank_ringBaffle_waterSloshing.h"
 
 using namespace SPH;  /** Namespace cite here */
 //------------------------------------------------------------------------------------
@@ -123,15 +123,17 @@ int main(int ac, char *av[])
     //--------------------------------------------------------------------------------
 	InteractionWithUpdate<CorrectedConfigurationInner> tank_corrected_configuration(tank_inner);
 	SimpleDynamics<NormalDirectionFromShapeAndOp> tank_normal_direction(tank, "InnerWall");
-	/** Time step initialization of fluid body. */
-	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<VariableGravity>());
-	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<VariableGravity>());
 	InteractionDynamics<InterpolatingAQuantity<Vecd>>
 		interpolation_observer_position(tank_observer_contact, "Position", "Position");
 
 	//--------------------------------------------------------------------------------
     //	Algorithms of fluid dynamics.
     //--------------------------------------------------------------------------------
+	/** Time step initialization of fluid body. */
+	SimpleDynamics<Sloshing> water_initial_velocity(water_block);
+	SimpleDynamics<Sloshing> air_initial_velocity(air_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block);
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
@@ -249,6 +251,9 @@ int main(int ac, char *av[])
 
 			while (relaxation_time < Dt)
 			{
+				water_initial_velocity.exec();
+				air_initial_velocity.exec();
+
 				Real dt_f = water_acoustic_time_step.exec();
 				dt_a = air_acoustic_time_step.exec();
 				dt = SMIN(SMIN(dt_f, dt_a),Dt);

@@ -1,11 +1,11 @@
 /**
- * @file 	LNG_tank_rigid_ring_baffle_water_sloshing.h
+ * @file 	LNG_ETank_waterSloshing.h
  * @brief 	Sloshing in marine LNG fuel tank under roll excitation
  * @author
  */
 
-#ifndef LNG_TANK_RIGID_RING_BAFFLE_WATER_SLOSHING_H
-#define LNG_TANK_RIGID_RING_BAFFLE_WATER_SLOSHING_H
+#ifndef LNG_ETANK_WATERSLOSHING_H
+#define LNG_ETANK_WATERSLOSHING_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -15,9 +15,9 @@ using namespace SPH;
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
-std::string fuel_tank_inner = "./input/tank_inner_with_ring_baffle.STL";
-std::string water_05 = "./input/tank_inner_with_ring_baffle_water.STL";
-std::string air_05 = "./input/tank_inner_with_ring_baffle_air.STL";
+std::string fuel_tank_inner = "./input/3D_grotle_tank_inner.STL";
+std::string water_05 = "./input/3D_grotle_water_0255.STL";
+std::string air_05 = "./input/3D_grotle_air_0255.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -76,92 +76,45 @@ public:
 //----------------------------------------------------------------------
 //	Define external excitation.
 //----------------------------------------------------------------------
-Real f = 0.5496;
-Real a = PI / 60.0;
+/** Roll sloshing */
+Real omega = 2 * PI * 0.5496;
+Real Theta0 = 3.0 * PI / 180.0;
 
-class VariableGravity : public Gravity
+class Sloshing
+	: public fluid_dynamics::FluidInitialCondition
 {
+public:
+	Sloshing(SPHBody &sph_body)
+		: FluidInitialCondition(sph_body),
+		acc_prior_(particles_->acc_prior_),
+		vel_(particles_->vel_)
+	{};
+
+protected:
+	StdLargeVec<Vecd> &acc_prior_;
+	StdLargeVec<Vecd> &vel_;
 	Real time_ = 0;
 
-public:
-	VariableGravity() : Gravity(Vecd(0.0, -gravity_g, 0.0)) {};
-	virtual Vecd InducedAcceleration(Vecd& position) override
+	void update(size_t index_i, Real dt)
 	{
 		time_= GlobalStaticVariables::physical_time_;
-		if (1.0 < time_)
+		Real Theta = Theta0 * sin(omega * (time_ - 0.5));
+		Real ThetaV = Theta0 * omega * cos(omega * (time_ - 0.5));
+		//Real ThetaA = -Theta0 * omega* omega*sin(omega*GlobalStaticVariables::physical_time_);
+
+
+		if (time_ < 0.5)
 		{
-			global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * time_);
-			//global_acceleration_[1] = -gravity_g + PI * PI * f * f * a * sin(2 * PI * f * time_);
+			acc_prior_[index_i][0] = 0.0;
+			acc_prior_[index_i][1] = -gravity_g;
 		}
-		else
+
+		if (time_ >= 0.5)
 		{
-			global_acceleration_[0] = 0;
+			acc_prior_[index_i][0] = -gravity_g * sin(Theta) + ThetaV * ThetaV * pos_[index_i][0] - 2 * ThetaV * vel_[index_i][1];
+			acc_prior_[index_i][1] = -gravity_g * cos(Theta) - ThetaV * ThetaV * pos_[index_i][1] + 2 * ThetaV * vel_[index_i][0];
 		}
-
-		/*Real angular_velocity = -2.0 * PI * 0.916 * 0.6 * PI * cos(time_ * 2.0 * PI * 0.916 * 0.6) / 60.0;
-		global_acceleration_[0] = pow(angular_velocity, 2);*/
-		//global_acceleration_[1] = - pow(angular_velocity, 2);
-		/*global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * time_);
-		global_acceleration_[1] = - 5.0;*/
-		return global_acceleration_;
 	}
-};
-
-class SloshMaking : public solid_dynamics::BaseMotionConstraint<BodyPartByParticle>
-{
-
-	Vecd getDisplacement(const Real& time, const Vecd& pos_, const Vecd& pos0_)
-	{
-		Vecd displacement(0);
-		Vecd rotation(0);
-		Real angular = 0;
-		angular = getAngular(time);
-
-		rotation[0] = pos0_[0] * cos(angular) - pos0_[1] * sin(angular);
-		rotation[1] = pos0_[0] * sin(angular) + pos0_[1] * cos(angular);
-		rotation[2] = pos0_[2];
-		return rotation;
-	}
-
-	Vecd getVelocity(const Real& time, const Vecd& pos_, const Vecd& pos0_)
-	{
-		Vecd velocity(0);
-		Real x = pos0_[0];
-		Real y = pos0_[1];
-		Real local_radius = sqrt(pow(y, 2.0) + pow(x, 2.0));
-		Real angular = atan2(y, x);
-
-		Real angular_velocity = -2.0 * PI * 0.916 * 0.6 * PI * cos(time * 2.0 * PI * 0.916 * 0.6) / 60.0;
-
-		velocity[0] = angular_velocity * local_radius * cos(angular + PI / 2);
-		velocity[1] = angular_velocity * local_radius * sin(angular + PI / 2);
-		velocity[2] = 0.0;
-		return velocity;
-	}
-
-	Real getAngular(const Real& time)
-	{
-		Real angular = 0;
-		angular = -PI * sin(time * 2.0 * PI * 0.916 * 0.6) / 60.0;
-		return angular;
-	}
-
-public:
-	SloshMaking(BodyPartByParticle& constrained_region)
-		: solid_dynamics::BaseMotionConstraint<BodyPartByParticle>(constrained_region)
-	{}
-
-	void update(size_t index_i, Real dt = 0.0)
-	{
-		Real time = GlobalStaticVariables::physical_time_;
-		Real angular = getAngular(time);
-		n_[index_i][0] = n0_[index_i][0] * cos(angular) - n0_[index_i][1] * sin(angular);  // x
-		n_[index_i][1] = n0_[index_i][0] * sin(angular) + n0_[index_i][1] * cos(angular);  // y
-		n_[index_i][2] = n0_[index_i][2];												   // z
-		acc_[index_i] = Vecd(0.0, 0.0, 0.0);
-		vel_[index_i] = getVelocity(time, pos_[index_i], pos0_[index_i]);
-		pos_[index_i] = getDisplacement(time, pos_[index_i], pos0_[index_i]);
-	};
 };
 
 //----------------------------------------------------------------------
@@ -287,4 +240,4 @@ public:
 	}
 };
 
-#endif // LNG_TANK_RIGID_RING_BAFFLE_WATER_SLOSHING_H
+#endif // LNG_ETANK_WATERSLOSHING_H

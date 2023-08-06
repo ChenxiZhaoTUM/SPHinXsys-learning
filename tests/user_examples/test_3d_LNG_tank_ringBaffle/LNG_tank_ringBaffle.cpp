@@ -1,10 +1,10 @@
 /**
- * @file 	LNG_tank_rigid_board_baffle.cpp
+ * @file 	LNG_tank_ringBaffle.cpp
  * @brief 	Sloshing in marine LNG fuel tank under roll excitation
  * @details 
  * @author 	
  */
-#include "LNG_tank_rigid_board_baffle.h"
+#include "LNG_tank_ringBaffle.h"
 
 using namespace SPH;  /** Namespace cite here */
 //------------------------------------------------------------------------------------
@@ -17,9 +17,9 @@ int main(int ac, char *av[])
     //--------------------------------------------------------------------------------
 	SPHSystem sph_system(system_domain_bounds, resolution_ref);
     /** Tag for run particle relaxation for the initial body fitted distribution.   */
-    sph_system.setRunParticleRelaxation(true);
+    sph_system.setRunParticleRelaxation(false);
     /** Tag for computation start with relaxed body fitted particles distribution.  */
-    sph_system.setReloadParticles(false);
+    sph_system.setReloadParticles(true);
 	/** Tag for computation from restart files. 0: start with initial condition.    */
 	sph_system.setRestartStep(0);
     /** Handle command line arguments. */
@@ -46,12 +46,14 @@ int main(int ac, char *av[])
 
 	FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
 	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
-	water_block.generateParticles<ParticleGeneratorLattice>();
+	//water_block.generateParticles<ParticleGeneratorLattice>();
+	water_block.generateParticles<ParticleGeneratorReload>(io_environment, water_block.getName());
 	water_block.addBodyStateForRecording<Vecd>("Position");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
 	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f, mu_a);
-	air_block.generateParticles<ParticleGeneratorLattice>();
+	//air_block.generateParticles<ParticleGeneratorLattice>();
+	air_block.generateParticles<ParticleGeneratorReload>(io_environment, air_block.getName());
 	air_block.addBodyStateForRecording<Real>("Pressure");
 
 	ObserverBody tank_observer(sph_system, "TankObserver");
@@ -269,6 +271,12 @@ int main(int ac, char *av[])
 				integration_time += dt;
 				GlobalStaticVariables::physical_time_ += dt;
 				inner_ite_dt++;
+
+				write_real_body_states.writeToFile();
+				write_tank_move.writeToFile();
+				write_tank_nom.writeToFile();
+				write_viscous_force_on_tank.writeToFile(number_of_iterations);
+				write_total_force_on_tank.writeToFile(number_of_iterations);
 			}
 
 			/** Screen output, write body reduced values and restart files. */
@@ -296,11 +304,11 @@ int main(int ac, char *av[])
 
 		TickCount t2 = TickCount::now();
 		/** Write run-time observation into file. */
-		write_real_body_states.writeToFile();
+		/*write_real_body_states.writeToFile();
 		write_tank_move.writeToFile();
 		write_tank_nom.writeToFile();
 		write_viscous_force_on_tank.writeToFile(number_of_iterations);
-		write_total_force_on_tank.writeToFile(number_of_iterations);
+		write_total_force_on_tank.writeToFile(number_of_iterations);*/
 
 		TickCount t3 = TickCount::now();
 		interval += t3 - t2;

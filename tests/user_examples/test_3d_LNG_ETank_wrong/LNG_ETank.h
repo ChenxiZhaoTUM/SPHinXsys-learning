@@ -1,11 +1,11 @@
 /**
- * @file 	LNG_tank_with_elastic_body_water_sloshing.h
- * @brief 	Sloshing in marine LNG fuel tank under roll excitation
+ * @file 	LNG_ETank.h
+ * @brief 	Constraint tank is wrong!!
  * @author
  */
 
-#ifndef LNG_TANK_WITH_ELASTIC_BODY_WATER_SLOSHING_H
-#define LNG_TANK_WITH_ELASTIC_BODY_WATER_SLOSHING_H
+#ifndef LNG_ETANK_H
+#define LNG_ETANK_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -76,76 +76,6 @@ public:
 //----------------------------------------------------------------------
 //	Define external excitation.
 //----------------------------------------------------------------------
-Real f = 0.5496;
-Real a = PI / 60.0;
-
-class VariableGravity : public Gravity
-{
-	Real time_ = 0;
-
-public:
-	VariableGravity() : Gravity(Vecd(0.0, -gravity_g, 0.0)) {};
-	virtual Vecd InducedAcceleration(Vecd& position) override
-	{
-		time_= GlobalStaticVariables::physical_time_;
-		if (1.0 < time_)
-		{
-			//global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * time_);
-			global_acceleration_[1] = -gravity_g + PI * PI * f * f * a * sin(2 * PI * f * time_);
-		}
-		else
-		{
-			global_acceleration_[0] = 0;
-		}
-
-		return global_acceleration_;
-	}
-};
-
-//**Roll Sloshing
-Real omega = 2 * PI * 0.5496;
-Real Theta0 = 3.0 * PI / 180.0;
-/**
- * application dependent
- */
-class Sloshing
-	: public fluid_dynamics::FluidInitialCondition
-{
-public:
-	Sloshing(SPHBody &sph_body)
-		: FluidInitialCondition(sph_body),
-		acc_prior_(particles_->acc_prior_),
-		vel_(particles_->vel_)
-	{};
-
-protected:
-	StdLargeVec<Vecd> &acc_prior_;
-	StdLargeVec<Vecd> &vel_;
-	Real time_ = 0;
-
-	void update(size_t index_i, Real dt)
-	{
-		time_= GlobalStaticVariables::physical_time_;
-		Real Theta = Theta0 * sin(omega * time_ - 0.5);
-		Real ThetaV = Theta0 * omega * cos(omega * (time_ - 0.5));
-		//Real ThetaA = -Theta0 * omega* omega*sin(omega*GlobalStaticVariables::physical_time_);
-
-
-		if (time_ < 0.5)
-		{
-			acc_prior_[index_i][0] = 0.0;
-			acc_prior_[index_i][1] = -gravity_g;
-		}
-
-		if (time_ >= 0.5)
-		{
-			acc_prior_[index_i][0] = -gravity_g * sin(Theta) + ThetaV * ThetaV * pos_[index_i][0] - 2 * ThetaV * vel_[index_i][1];
-			acc_prior_[index_i][1] = -gravity_g * cos(Theta) - ThetaV * ThetaV * pos_[index_i][1] + 2 * ThetaV * vel_[index_i][0];
-		}	
-	}
-};
-
-
 class SloshMaking : public solid_dynamics::BaseMotionConstraint<BodyPartByParticle>
 {
 
@@ -326,4 +256,4 @@ public:
 	}
 };
 
-#endif // LNG_TANK_WITH_ELASTIC_BODY_WATER_SLOSHING_H
+#endif // LNG_ETANK_H

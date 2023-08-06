@@ -1,10 +1,10 @@
 /**
- * @file 	LNG_tank_rigid_ring_baffle.cpp
+ * @file 	LNG_tank_waterSloshing.cpp
  * @brief 	Sloshing in marine LNG fuel tank under roll excitation
  * @details 
  * @author 	
  */
-#include "LNG_tank_rigid_ring_baffle.h"
+#include "LNG_tank_waterSloshing.h"
 
 using namespace SPH;  /** Namespace cite here */
 //------------------------------------------------------------------------------------
@@ -134,15 +134,18 @@ int main(int ac, char *av[])
 	InteractionWithUpdate<CorrectedConfigurationInner> tank_corrected_configuration(tank_inner);
 	SimpleDynamics<NormalDirectionFromShapeAndOp> tank_normal_direction(tank, "InnerWall");
 	/** Time step initialization of fluid body. */
-	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
-	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
-	SimpleDynamics<SloshMaking> slosh_making(wave_maker);
 	InteractionDynamics<InterpolatingAQuantity<Vecd>>
 		interpolation_observer_position(tank_observer_contact, "Position", "Position");
 
 	//--------------------------------------------------------------------------------
     //	Algorithms of fluid dynamics.
     //--------------------------------------------------------------------------------
+	/** Time step initialization of fluid body. */
+	SimpleDynamics<Sloshing> water_initial_velocity(water_block);
+	SimpleDynamics<Sloshing> air_initial_velocity(air_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block);
+	
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
@@ -260,6 +263,9 @@ int main(int ac, char *av[])
 
 			while (relaxation_time < Dt)
 			{
+				water_initial_velocity.exec();
+				air_initial_velocity.exec();
+
 				Real dt_f = water_acoustic_time_step.exec();
 				dt_a = air_acoustic_time_step.exec();
 				dt = SMIN(SMIN(dt_f, dt_a),Dt);
@@ -272,19 +278,12 @@ int main(int ac, char *av[])
 				water_density_relaxation.exec(dt);
 				air_density_relaxation.exec(dt);
 
-				slosh_making.exec(dt);
 				interpolation_observer_position.exec();
 
 				relaxation_time += dt;
 				integration_time += dt;
 				GlobalStaticVariables::physical_time_ += dt;
 				inner_ite_dt++;
-
-				write_real_body_states.writeToFile();
-				write_tank_move.writeToFile();
-				write_tank_nom.writeToFile();
-				write_viscous_force_on_tank.writeToFile(number_of_iterations);
-				write_total_force_on_tank.writeToFile(number_of_iterations);
 			}
 
 			/** Screen output, write body reduced values and restart files. */
@@ -312,11 +311,11 @@ int main(int ac, char *av[])
 
 		TickCount t2 = TickCount::now();
 		/** Write run-time observation into file. */
-		/*write_real_body_states.writeToFile();
+		write_real_body_states.writeToFile();
 		write_tank_move.writeToFile();
 		write_tank_nom.writeToFile();
 		write_viscous_force_on_tank.writeToFile(number_of_iterations);
-		write_total_force_on_tank.writeToFile(number_of_iterations);*/
+		write_total_force_on_tank.writeToFile(number_of_iterations);
 
 		TickCount t3 = TickCount::now();
 		interval += t3 - t2;

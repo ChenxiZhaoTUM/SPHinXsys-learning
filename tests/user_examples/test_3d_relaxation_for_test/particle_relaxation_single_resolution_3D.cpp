@@ -25,15 +25,15 @@ Real scaling = 1.0; */
 //	To use this, please commenting the setting for the first geometry.
 //----------------------------------------------------------------------
 //std::string full_path_to_file = "./input/tank_inner_ring_water_block_2.STL";
-std::string full_path_to_file = "./input/tank_inner_ring_water.STL";  //WATER!!
-//std::string full_path_to_file = "./input/tank_inner_ring_air.STL";
+//std::string full_path_to_file = "./input/tank_inner_ring_water.STL";  //WATER!!
+std::string full_path_to_file = "./input/tank_inner_ring_air.STL";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Vec3d domain_lower_bound(-0.5, -0.2, -0.2);  //WATER!!
-Vec3d domain_upper_bound(0.5, 0.2, 0.2);  //WATER!!
-//Vec3d domain_lower_bound(-0.5, 0, -0.2);
-//Vec3d domain_upper_bound(0.5, 0.3, 0.2);
+//Vec3d domain_lower_bound(-0.5, -0.2, -0.2);  //WATER!!
+//Vec3d domain_upper_bound(0.5, 0.2, 0.2);  //WATER!!
+Vec3d domain_lower_bound(-0.5, 0, -0.2);
+Vec3d domain_upper_bound(0.5, 0.3, 0.2);
 Vecd translation(0.0, 0.12, 0.0);
 Real scaling = 1.0;
 //----------------------------------------------------------------------
@@ -67,8 +67,8 @@ int main()
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    RealBody imported_model(system, makeShared<SolidBodyFromMesh>("WaterBody"));  //WATER!!
-    //RealBody imported_model(system, makeShared<SolidBodyFromMesh>("AirBody"));
+    //RealBody imported_model(system, makeShared<SolidBodyFromMesh>("WaterBody"));  //WATER!!
+    RealBody imported_model(system, makeShared<SolidBodyFromMesh>("AirBody"));
     // level set shape is used for particle relaxation
     imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(io_environment);
     imported_model.defineParticlesAndMaterial();
@@ -78,8 +78,8 @@ int main()
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp write_imported_model_to_vtp(io_environment, {imported_model});
     MeshRecordingToPlt write_cell_linked_list(io_environment, imported_model.getCellLinkedList());
-    ReloadParticleIO write_particle_reload_files(io_environment, imported_model, "WaterBody" );  //WATER!!
-    //ReloadParticleIO write_particle_reload_files(io_environment, imported_model, "AirBody" );
+    //ReloadParticleIO write_particle_reload_files(io_environment, imported_model, "WaterBody" );  //WATER!!
+    ReloadParticleIO write_particle_reload_files(io_environment, imported_model, "AirBody" );
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.

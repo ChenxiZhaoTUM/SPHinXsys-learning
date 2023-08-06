@@ -1,11 +1,11 @@
 /**
- * @file 	LNG_tank_rigid_ring_baffle.h
+ * @file 	LNG_tank_ringBaffle.h
  * @brief 	Sloshing in marine LNG fuel tank under roll excitation
  * @author	
  */
 
-#ifndef LNG_TANK_RIGID_RING_BAFFLE_H
-#define LNG_TANK_RIGID_RING_BAFFLE_H
+#ifndef LNG_TANK_RINGBAFFLE_H
+#define LNG_TANK_RINGBAFFLE_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -141,4 +141,4 @@ public:
 	}
 };
 
-#endif // LNG_TANK_RIGID_RING_BAFFLE_H
+#endif // LNG_TANK_RINGBAFFLE_H
