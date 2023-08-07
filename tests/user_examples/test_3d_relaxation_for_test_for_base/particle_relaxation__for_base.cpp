@@ -24,8 +24,8 @@ Real scaling = 1.0; */
 //	Setting for the second geometry.
 //	To use this, please commenting the setting for the first geometry.
 //----------------------------------------------------------------------
-//std::string full_path_to_file = "./input/tank_inner_ring_water.STL";  //WATER!!
-std::string full_path_to_file = "./input/tank_inner_ring_air.STL";
+//std::string full_path_to_file = "./input/3D_grotle_water_0255.STL";  //WATER!!
+std::string full_path_to_file = "./input/3D_grotle_air_0255.STL";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
@@ -74,7 +74,7 @@ int main()
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    //RealBody imported_model(system, makeShared<SolidBodyFromMesh>("WaterBody"));  //WATER!!
+   // RealBody imported_model(system, makeShared<SolidBodyFromMesh>("WaterBody"));  //WATER!!
     RealBody imported_model(system, makeShared<SolidBodyFromMesh>("AirBody"));
     // level set shape is used for particle relaxation
     imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(io_environment);
@@ -84,8 +84,8 @@ int main()
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_imported_model_to_vtp(io_environment, {imported_model});
-    MeshRecordingToPlt write_cell_linked_list(io_environment, imported_model.getCellLinkedList());
+    /*BodyStatesRecordingToVtp write_imported_model_to_vtp(io_environment, {imported_model});
+    MeshRecordingToPlt write_cell_linked_list(io_environment, imported_model.getCellLinkedList());*/
     //ReloadParticleIO write_particle_reload_files(io_environment, imported_model, "WaterBody" );  //WATER!!
     ReloadParticleIO write_particle_reload_files(io_environment, imported_model, "AirBody" );
     //----------------------------------------------------------------------
@@ -93,36 +93,36 @@ int main()
     //	The contact map gives the topological connections between the bodies.
     //	Basically the the range of bodies to build neighbor particle lists.
     //----------------------------------------------------------------------
-    InnerRelation imported_model_inner(imported_model);
-    //----------------------------------------------------------------------
-    //	Methods used for particle relaxation.
-    //----------------------------------------------------------------------
-    SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
-    /** A  Physics relaxation step. */
-    relax_dynamics::RelaxationStepInner relaxation_step_inner(imported_model_inner, true);
-    //----------------------------------------------------------------------
-    //	Particle relaxation starts here.
-    //----------------------------------------------------------------------
-    random_imported_model_particles.exec(0.25);
-    relaxation_step_inner.SurfaceBounding().exec();
-    write_imported_model_to_vtp.writeToFile(0.0);
-    imported_model.updateCellLinkedList();
-    write_cell_linked_list.writeToFile(0.0);
-    //----------------------------------------------------------------------
-    //	Particle relaxation time stepping start here.
-    //----------------------------------------------------------------------
-    int ite_p = 0;
-    while (ite_p < 1000)
-    {
-        relaxation_step_inner.exec();
-        ite_p += 1;
-        if (ite_p % 100 == 0)
-        {
-            std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
-            write_imported_model_to_vtp.writeToFile(ite_p);
-        }
-    }
-    std::cout << "The physics relaxation process of imported model finish !" << std::endl;
+    //InnerRelation imported_model_inner(imported_model);
+    ////----------------------------------------------------------------------
+    ////	Methods used for particle relaxation.
+    ////----------------------------------------------------------------------
+    //SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
+    ///** A  Physics relaxation step. */
+    //relax_dynamics::RelaxationStepInner relaxation_step_inner(imported_model_inner, true);
+    ////----------------------------------------------------------------------
+    ////	Particle relaxation starts here.
+    ////----------------------------------------------------------------------
+    //random_imported_model_particles.exec(0.25);
+    //relaxation_step_inner.SurfaceBounding().exec();
+    //write_imported_model_to_vtp.writeToFile(0.0);
+    //imported_model.updateCellLinkedList();
+    //write_cell_linked_list.writeToFile(0.0);
+    ////----------------------------------------------------------------------
+    ////	Particle relaxation time stepping start here.
+    ////----------------------------------------------------------------------
+    //int ite_p = 0;
+    //while (ite_p < 1000)
+    //{
+    //    relaxation_step_inner.exec();
+    //    ite_p += 1;
+    //    if (ite_p % 100 == 0)
+    //    {
+    //        std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
+    //        write_imported_model_to_vtp.writeToFile(ite_p);
+    //    }
+    //}
+    //std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
     write_particle_reload_files.writeToFile(0);
 

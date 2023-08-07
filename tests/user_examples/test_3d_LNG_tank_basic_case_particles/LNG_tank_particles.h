@@ -1,11 +1,11 @@
 /**
- * @file 	LNG_tank_ringBaffle.h
+ * @file 	LNG_tank_particles.h
  * @brief 	Sloshing in marine LNG fuel tank under roll excitation
  * @author	
  */
 
-#ifndef LNG_TANK_RINGBAFFLE_H
-#define LNG_TANK_RINGBAFFLE_H
+#ifndef LNG_TANK_PARTICLES_H
+#define LNG_TANK_PARTICLES_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -15,15 +15,15 @@ using namespace SPH;
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
-std::string fuel_tank_inner = "./input/model1_inner_ring.STL";
-std::string air_255 = "./input/model1_inner_ring_air.STL";
+std::string fuel_tank_inner = "./input/3D_grotle_tank_inner.STL";
+std::string water_05 = "./input/3D_grotle_water_0255.STL";
+std::string air_05 = "./input/3D_grotle_air_0255.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real resolution_ref = 0.006;			  /** Initial particle spacing*/
 Real length_scale = 1.0;							  /** Scale factor*/
-Real length_scale2 = 0.01;							  /** Scale factor*/
 Vecd translation(0, 0.12, 0);
 BoundingBox system_domain_bounds(Vecd(-0.6, -0.2, -0.2), Vecd(0.6, 0.4, 0.2));
 
@@ -47,7 +47,7 @@ public:
 	explicit Tank(const std::string &shape_name) :ComplexShape(shape_name)
 	{
 		add<TriangleMeshShapeSTL>(fuel_tank_outer, translation, length_scale, "OuterWall");
-		subtract<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale2, "InnerWall");
+		subtract<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale, "InnerWall");
 	}
 };
 
@@ -56,9 +56,7 @@ class WaterBlock : public ComplexShape
 public:
 	explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
 	{
-		//add<TriangleMeshShapeSTL>(water_05, translation, length_scale2);
-		add<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale2);
-		subtract<TriangleMeshShapeSTL>(air_255, translation, length_scale2);
+		add<TriangleMeshShapeSTL>(water_05, translation, length_scale);
 	}
 };
 
@@ -67,7 +65,7 @@ class AirBlock : public ComplexShape
 public:
 	explicit AirBlock(const std::string &shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(air_255, translation, length_scale2);
+		add<TriangleMeshShapeSTL>(air_05, translation, length_scale);
 	}
 };
 
@@ -143,4 +141,4 @@ public:
 	}
 };
 
-#endif // LNG_TANK_H
+#endif // LNG_TANK_PARTICLES_H

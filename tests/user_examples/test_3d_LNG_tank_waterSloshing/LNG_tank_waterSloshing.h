@@ -94,7 +94,7 @@ protected:
 	void update(size_t index_i, Real dt)
 	{
 		time_= GlobalStaticVariables::physical_time_;
-		Real Theta = Theta0 * sin(omega * time_ - 0.5);
+		Real Theta = Theta0 * sin(omega * (time_ - 0.5));
 		Real ThetaV = Theta0 * omega * cos(omega * (time_ - 0.5));
 		//Real ThetaA = -Theta0 * omega* omega*sin(omega*GlobalStaticVariables::physical_time_);
 
