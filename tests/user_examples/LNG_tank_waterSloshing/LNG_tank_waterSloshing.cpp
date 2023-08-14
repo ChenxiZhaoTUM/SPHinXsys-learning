@@ -1,10 +1,10 @@
 /**
- * @file 	LNG_tank.cpp
+ * @file 	LNG_tank_waterSloshing.cpp
  * @brief 	Sloshing in marine LNG fuel tank under roll excitation
  * @details 
  * @author 	
  */
-#include "LNG_tank.h"
+#include "LNG_tank_waterSloshing.h"
 
 using namespace SPH;  /** Namespace cite here */
 //------------------------------------------------------------------------------------
@@ -48,11 +48,14 @@ int main(int ac, char *av[])
 	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
 	water_block.generateParticles<ParticleGeneratorLattice>();
 	water_block.addBodyStateForRecording<Vecd>("Position");
+	water_block.addBodyStateForRecording<Real>("Pressure");
+	water_block.addBodyStateForRecording<Vecd>("Velocity");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
 	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f, mu_a);
 	air_block.generateParticles<ParticleGeneratorLattice>();
 	air_block.addBodyStateForRecording<Real>("Pressure");
+	air_block.addBodyStateForRecording<Vecd>("Velocity");
 
 	ObserverBody tank_observer(sph_system, "TankObserver");
 	tank_observer.generateParticles<TankObserverParticleGenerator>();
@@ -71,8 +74,6 @@ int main(int ac, char *av[])
 
 	ComplexRelation water_air_complex(water_block, { &air_block });
 	ComplexRelation air_water_complex(air_block, { &water_block });
-
-	BodyRegionByParticle wave_maker(tank, makeShared<Tank>("SloshingMaking"));
 
 	//--------------------------------------------------------------------------------
     //	Run particle relaxation for body-fitted distribution if chosen.
@@ -124,15 +125,18 @@ int main(int ac, char *av[])
 	InteractionWithUpdate<CorrectedConfigurationInner> tank_corrected_configuration(tank_inner);
 	SimpleDynamics<NormalDirectionFromShapeAndOp> tank_normal_direction(tank, "InnerWall");
 	/** Time step initialization of fluid body. */
-	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
-	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
-	SimpleDynamics<SloshMaking> slosh_making(wave_maker);
 	InteractionDynamics<InterpolatingAQuantity<Vecd>>
 		interpolation_observer_position(tank_observer_contact, "Position", "Position");
 
 	//--------------------------------------------------------------------------------
     //	Algorithms of fluid dynamics.
     //--------------------------------------------------------------------------------
+	/** Time step initialization of fluid body. */
+	SimpleDynamics<Sloshing> water_initial_velocity(water_block);
+	SimpleDynamics<Sloshing> air_initial_velocity(air_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block);
+	
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
@@ -172,6 +176,10 @@ int main(int ac, char *av[])
 	//--------------------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //--------------------------------------------------------------------------------
+	BodyRegionByCell probe_s1(water_block, makeShared<ProbeShape>("PorbeS1"));
+	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight>>
+		probe_1(io_environment, probe_s1);
+
 	BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
 	ObservedQuantityRecording<Vecd> write_tank_move("Position", io_environment, tank_observer_contact);
 	ObservedQuantityRecording<Vecd> write_tank_nom("NormalDirection", io_environment, tank_observer_contact);
@@ -198,7 +206,7 @@ int main(int ac, char *av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 100;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 16;			                                      /** End time. */
+	Real End_Time = 20;			                                      /** End time. */
 	Real D_Time = 0.025;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */
@@ -215,6 +223,7 @@ int main(int ac, char *av[])
     //--------------------------------------------------------------------------------
 	/** Computing linear reproducing configuration for the tank. */
 	write_real_body_states.writeToFile(0);
+	probe_1.writeToFile(0);
 	write_tank_move.writeToFile(0);
 	write_tank_nom.writeToFile(0);
 
@@ -250,9 +259,12 @@ int main(int ac, char *av[])
 
 			while (relaxation_time < Dt)
 			{
+				water_initial_velocity.exec();
+				air_initial_velocity.exec();
+
 				Real dt_f = water_acoustic_time_step.exec();
 				dt_a = air_acoustic_time_step.exec();
-				dt = SMIN(SMIN(dt_f, dt_a), Dt);
+				dt = SMIN(SMIN(dt_f, dt_a),Dt);
 				/** Fluid pressure relaxation. */
 				water_pressure_relaxation.exec(dt);
 				air_pressure_relaxation.exec(dt);
@@ -262,7 +274,6 @@ int main(int ac, char *av[])
 				water_density_relaxation.exec(dt);
 				air_density_relaxation.exec(dt);
 
-				slosh_making.exec(dt);
 				interpolation_observer_position.exec();
 
 				relaxation_time += dt;
@@ -297,6 +308,7 @@ int main(int ac, char *av[])
 		TickCount t2 = TickCount::now();
 		/** Write run-time observation into file. */
 		write_real_body_states.writeToFile();
+		probe_1.writeToFile();
 		write_tank_move.writeToFile();
 		write_tank_nom.writeToFile();
 		write_viscous_force_on_tank.writeToFile(number_of_iterations);

@@ -18,6 +18,7 @@ std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
 std::string fuel_tank_inner = "./input/3D_grotle_tank_inner.STL";
 std::string water_05 = "./input/3D_grotle_water_0255.STL";
 std::string air_05 = "./input/3D_grotle_air_0255.STL";
+std::string probe_shape = "./input/base_case_probe.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -73,8 +74,8 @@ public:
 //	Define external excitation.
 //----------------------------------------------------------------------
 /** Roll sloshing */
-Real omega = 2 * PI * 0.5496;
-Real Theta0 = 3.0 * PI / 180.0;
+Real omega =  2 * PI * 0.5496;
+Real Theta0 = - 3.0 * PI / 180.0;
 
 class Sloshing
 	: public fluid_dynamics::FluidInitialCondition
@@ -107,8 +108,8 @@ protected:
 
 		if (time_ >= 0.5)
 		{
-			acc_prior_[index_i][0] = -gravity_g * sin(Theta) + ThetaV * ThetaV * pos_[index_i][0] - 2 * ThetaV * vel_[index_i][1];
-			acc_prior_[index_i][1] = -gravity_g * cos(Theta) - ThetaV * ThetaV * pos_[index_i][1] + 2 * ThetaV * vel_[index_i][0];
+			acc_prior_[index_i][0] = -gravity_g * sin(Theta) - ThetaV * ThetaV * pos_[index_i][0] + 2 * ThetaV * vel_[index_i][1];
+			acc_prior_[index_i][1] = -gravity_g * cos(Theta) + ThetaV * ThetaV * pos_[index_i][1] - 2 * ThetaV * vel_[index_i][0];
 		}	
 	}
 };
@@ -122,6 +123,16 @@ public:
 	explicit TankObserverParticleGenerator(SPHBody &sph_body) : ObserverParticleGenerator(sph_body)
 	{
 		positions_.push_back(Vecd(-0.198, 0.0, 0.0));
+	}
+};
+
+class ProbeShape : public ComplexShape
+{
+public:
+	explicit ProbeShape(const std::string& shape_name) : ComplexShape(shape_name)
+	{
+		Vec3d translation_probe(0.0, 0.0, 0.0);
+		add<TriangleMeshShapeSTL>(probe_shape, translation_probe, length_scale);
 	}
 };
 

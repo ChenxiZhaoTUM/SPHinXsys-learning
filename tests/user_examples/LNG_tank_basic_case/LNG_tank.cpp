@@ -1,10 +1,10 @@
 /**
- * @file 	LNG_tank_waterSloshing.cpp
+ * @file 	LNG_tank.cpp
  * @brief 	Sloshing in marine LNG fuel tank under roll excitation
  * @details 
  * @author 	
  */
-#include "LNG_tank_waterSloshing.h"
+#include "LNG_tank.h"
 
 using namespace SPH;  /** Namespace cite here */
 //------------------------------------------------------------------------------------
@@ -48,11 +48,14 @@ int main(int ac, char *av[])
 	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
 	water_block.generateParticles<ParticleGeneratorLattice>();
 	water_block.addBodyStateForRecording<Vecd>("Position");
+	water_block.addBodyStateForRecording<Real>("Pressure");
+	water_block.addBodyStateForRecording<Vecd>("Velocity");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
 	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f, mu_a);
 	air_block.generateParticles<ParticleGeneratorLattice>();
 	air_block.addBodyStateForRecording<Real>("Pressure");
+	air_block.addBodyStateForRecording<Vecd>("Velocity");
 
 	ObserverBody tank_observer(sph_system, "TankObserver");
 	tank_observer.generateParticles<TankObserverParticleGenerator>();
@@ -124,18 +127,15 @@ int main(int ac, char *av[])
 	InteractionWithUpdate<CorrectedConfigurationInner> tank_corrected_configuration(tank_inner);
 	SimpleDynamics<NormalDirectionFromShapeAndOp> tank_normal_direction(tank, "InnerWall");
 	/** Time step initialization of fluid body. */
+	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
+	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
+	SimpleDynamics<SloshMaking> slosh_making(wave_maker);
 	InteractionDynamics<InterpolatingAQuantity<Vecd>>
 		interpolation_observer_position(tank_observer_contact, "Position", "Position");
 
 	//--------------------------------------------------------------------------------
     //	Algorithms of fluid dynamics.
     //--------------------------------------------------------------------------------
-	/** Time step initialization of fluid body. */
-	SimpleDynamics<Sloshing> water_initial_velocity(water_block);
-	SimpleDynamics<Sloshing> air_initial_velocity(air_block);
-	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block);
-	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block);
-	
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
@@ -201,7 +201,7 @@ int main(int ac, char *av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 100;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 16;			                                      /** End time. */
+	Real End_Time = 20;			                                      /** End time. */
 	Real D_Time = 0.025;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */
@@ -253,12 +253,9 @@ int main(int ac, char *av[])
 
 			while (relaxation_time < Dt)
 			{
-				water_initial_velocity.exec();
-				air_initial_velocity.exec();
-
 				Real dt_f = water_acoustic_time_step.exec();
 				dt_a = air_acoustic_time_step.exec();
-				dt = SMIN(SMIN(dt_f, dt_a),Dt);
+				dt = SMIN(SMIN(dt_f, dt_a), Dt);
 				/** Fluid pressure relaxation. */
 				water_pressure_relaxation.exec(dt);
 				air_pressure_relaxation.exec(dt);
@@ -268,6 +265,7 @@ int main(int ac, char *av[])
 				water_density_relaxation.exec(dt);
 				air_density_relaxation.exec(dt);
 
+				slosh_making.exec(dt);
 				interpolation_observer_position.exec();
 
 				relaxation_time += dt;
