@@ -1,6 +1,6 @@
 /**
 * @file 	LNG_ETank.cpp
-* @brief 	Constraint tank is wrong!!
+* @brief 	Try not constrain tank
 * @details
 * @author
 */
@@ -48,11 +48,18 @@ int main(int ac, char* av[])
 	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
 	water_block.generateParticles<ParticleGeneratorLattice>();
 	water_block.addBodyStateForRecording<Vecd>("Position");
+	water_block.addBodyStateForRecording<Real>("Pressure");
+	water_block.addBodyStateForRecording<Vecd>("Velocity");
+	water_block.addBodyStateForRecording<Vecd>("PriorAcceleration");
+	water_block.addBodyStateForRecording<Vecd>("Acceleration");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
 	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f, mu_a);
 	air_block.generateParticles<ParticleGeneratorLattice>();
 	air_block.addBodyStateForRecording<Real>("Pressure");
+	air_block.addBodyStateForRecording<Vecd>("Velocity");
+	air_block.addBodyStateForRecording<Vecd>("PriorAcceleration");
+	air_block.addBodyStateForRecording<Vecd>("Acceleration");
 
 	ObserverBody tank_observer(sph_system, "TankObserver");
 	tank_observer.generateParticles<TankObserverParticleGenerator>();
@@ -72,8 +79,6 @@ int main(int ac, char* av[])
 	ComplexRelation water_air_complex(water_block, { &air_block });
 	ComplexRelation air_water_complex(air_block, { &water_block });
 	ComplexRelation water_air_tank_complex(water_block, RealBodyVector{ &air_block, &tank });
-
-	BodyRegionByParticle wave_maker(tank, makeShared<Tank>("SloshingMaking"));
 
 	//--------------------------------------------------------------------------------
 	//	Run particle relaxation for body-fitted distribution if chosen.
@@ -122,7 +127,6 @@ int main(int ac, char* av[])
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
 	//--------------------------------------------------------------------------------
-	SimpleDynamics<SloshMaking> slosh_making(wave_maker);
 	InteractionDynamics<InterpolatingAQuantity<Vecd>>
 		interpolation_observer_position(tank_observer_contact, "Position", "Position");
 
@@ -130,8 +134,10 @@ int main(int ac, char* av[])
 	//	Algorithms of fluid dynamics.
 	//--------------------------------------------------------------------------------
 	/** Time step initialization of fluid body. */
-	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
-	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<Gravity>(Vecd(0.0, -gravity_g, 0.0)));
+	SimpleDynamics<Sloshing> water_initial_velocity(water_block);
+	SimpleDynamics<Sloshing> air_initial_velocity(air_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block);
+	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block);
 
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
@@ -182,29 +188,17 @@ int main(int ac, char* av[])
 	/** Stress relaxation for the elastic body. */
 	Dynamics1Level<solid_dynamics::Integration1stHalfPK2> tank_stress_relaxation_1st_half(tank_inner);
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_2nd_half(tank_inner);
-
-	/** Exert constrain on tank. */
-	/*SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank, Vecd(1.0, 1.0, 1.0));
-	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(tank, "MassiveMeasure");
-	ReduceDynamics<QuantityMassPosition> compute_mass_position_(tank);
-	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
-	Matd moment_of_inertia = Matd::Zero();
-	for (int i = 0; i != Dimensions; ++i)
-	{
-		for (int j = 0; j != Dimensions; ++j)
-		{
-			ReduceDynamics<QuantityMomentOfInertia> compute_moment_of_inertia(tank, mass_center, i, j);
-			moment_of_inertia(i, j) = compute_moment_of_inertia.exec();
-		}
-	}
-	SimpleDynamics<Constrain3DSolidBodyRotation> constrain_rotation(tank, mass_center, moment_of_inertia);*/
-
+	
 	/** Update normal direction. */
 	SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> tank_update_normal_direction(tank);
 
 	//--------------------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//--------------------------------------------------------------------------------
+	BodyRegionByCell probe_s1(water_block, makeShared<ProbeShape>("PorbeS1"));
+	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight>>
+		probe_1(io_environment, probe_s1);
+
 	BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
 	ObservedQuantityRecording<Vecd> write_tank_move("Position", io_environment, tank_observer_contact);
 	ObservedQuantityRecording<Vecd> write_tank_nom("NormalDirection", io_environment, tank_observer_contact);
@@ -248,6 +242,7 @@ int main(int ac, char* av[])
 	//--------------------------------------------------------------------------------
 	/** Computing linear reproducing configuration for the tank. */
 	write_real_body_states.writeToFile(0);
+	probe_1.writeToFile(0);
 	write_tank_move.writeToFile(0);
 	write_tank_nom.writeToFile(0);
 
@@ -287,6 +282,9 @@ int main(int ac, char* av[])
 
 			while (relaxation_time < Dt)
 			{
+				water_initial_velocity.exec();
+				air_initial_velocity.exec();
+
 				Real dt_f = water_acoustic_time_step.exec();
 				dt_a = air_acoustic_time_step.exec();
 				dt = SMIN(SMIN(dt_f, dt_a), Dt);
@@ -299,7 +297,7 @@ int main(int ac, char* av[])
 				water_density_relaxation.exec(dt);
 				air_density_relaxation.exec(dt);
 
-				slosh_making.exec(dt);
+				//slosh_making.exec(dt);
 				interpolation_observer_position.exec();
 
 				/** Solid dynamics. */
@@ -310,9 +308,6 @@ int main(int ac, char* av[])
 				{
 					Real dt_s = SMIN(tank_acoustic_time_step.exec(), dt - dt_s_sum);
 					tank_stress_relaxation_1st_half.exec(dt_s);
-
-					/*constrain_rotation.exec(dt_s);
-					constrain_mass_center_1.exec(dt_s);*/
 
 					tank_stress_relaxation_2nd_half.exec(dt_s);
 					dt_s_sum += dt_s;
@@ -352,8 +347,10 @@ int main(int ac, char* av[])
 
 		TickCount t2 = TickCount::now();
 		compute_vorticity.exec();
+
 		/** Write run-time observation into file. */
 		write_real_body_states.writeToFile();
+		probe_1.writeToFile();
 		write_tank_move.writeToFile();
 		write_tank_nom.writeToFile();
 		write_viscous_force_on_tank.writeToFile(number_of_iterations);

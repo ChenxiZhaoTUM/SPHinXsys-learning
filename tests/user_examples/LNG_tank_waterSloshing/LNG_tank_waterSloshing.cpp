@@ -206,7 +206,7 @@ int main(int ac, char *av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 100;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 20;			                                      /** End time. */
+	Real End_Time = 15;			                                      /** End time. */
 	Real D_Time = 0.025;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */

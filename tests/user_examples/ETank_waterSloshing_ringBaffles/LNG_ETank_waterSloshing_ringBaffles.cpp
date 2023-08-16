@@ -1,10 +1,10 @@
 /**
 * @file 	LNG_ETank_waterSloshing.cpp
-* @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation
+* @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation, add 2 ring baffles
 * @details
 * @author
 */
-#include "LNG_ETank_waterSloshing.h"
+#include "LNG_ETank_waterSloshing_ringBaffles.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------

@@ -1,11 +1,11 @@
 /**
- * @file 	LNG_ETank.h
+ * @file 	LNG_ETank_waterSloshing.h
  * @brief 	Sloshing in marine LNG fuel tank under roll excitation
  * @author
  */
 
-#ifndef LNG_ETANK_H
-#define LNG_ETANK_H
+#ifndef LNG_ETANK_WATERSLOSHING_H
+#define LNG_ETANK_WATERSLOSHING_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -23,7 +23,7 @@ std::string probe_shape = "./input/base_case_probe_0.106.STL";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real resolution_ref = 0.008;			  /** Initial particle spacing*/
+Real resolution_ref = 0.006;			  /** Initial particle spacing*/
 Real length_scale = 1.0;							  /** Scale factor*/
 Vecd translation(0, 0.12, 0);
 BoundingBox system_domain_bounds(Vecd(-0.6, -0.2, -0.2), Vecd(0.6, 0.4, 0.2));
@@ -140,4 +140,115 @@ public:
 	}
 };
 
-#endif // LNG_ETANK_H
+//----------------------------------------------------------------------
+//	Define constrain class for tank translation and rotation.
+//----------------------------------------------------------------------
+typedef DataDelegateSimple<SolidParticles> SolidDataSimple;
+
+class QuantityMomentOfMomentum : public QuantitySummation<Vecd>
+{
+protected:
+	StdLargeVec<Real>& mass_;
+	StdLargeVec<Vecd>& pos_;
+	Vecd mass_center_;
+
+public:
+	explicit QuantityMomentOfMomentum(SPHBody& sph_body, Vecd mass_center)
+		: QuantitySummation<Vecd>(sph_body, "Velocity"),
+		mass_center_(mass_center), mass_(this->particles_->mass_), pos_(this->particles_->pos_)
+	{
+		this->quantity_name_ = "Moment of Momentum";
+	};
+	virtual ~QuantityMomentOfMomentum() {};
+
+	Vecd reduce(size_t index_i, Real dt = 0.0)
+	{
+		return (pos_[index_i] - mass_center_).cross(this->variable_[index_i]) * mass_[index_i];
+	};
+};
+
+class QuantityMomentOfInertia : public QuantitySummation<Real>
+{
+protected:
+	StdLargeVec<Vecd>& pos_;
+	Vecd mass_center_;
+	Real p_1_;
+	Real p_2_;
+
+public:
+	explicit QuantityMomentOfInertia(SPHBody& sph_body, Vecd mass_center, Real position_1, Real position_2)
+		: QuantitySummation<Real>(sph_body, "MassiveMeasure"),
+		pos_(this->particles_->pos_), mass_center_(mass_center), p_1_(position_1), p_2_(position_2)
+	{
+		this->quantity_name_ = "Moment of Inertia";
+	};
+	virtual ~QuantityMomentOfInertia() {};
+
+	Real reduce(size_t index_i, Real dt = 0.0)
+	{
+		if (p_1_ == p_2_)
+		{
+			return  ((pos_[index_i] - mass_center_).norm() * (pos_[index_i] - mass_center_).norm()
+				- (pos_[index_i][p_1_] - mass_center_[p_1_]) * (pos_[index_i][p_2_] - mass_center_[p_2_])) * this->variable_[index_i];
+		}
+		else
+		{
+			return -(pos_[index_i][p_1_] - mass_center_[p_1_]) * (pos_[index_i][p_2_] - mass_center_[p_2_]) * this->variable_[index_i];
+		}
+	};
+};
+
+class QuantityMassPosition : public QuantitySummation<Vecd>
+{
+protected:
+	StdLargeVec<Real>& mass_;
+
+
+public:
+	explicit QuantityMassPosition(SPHBody& sph_body)
+		: QuantitySummation<Vecd>(sph_body, "Position"),
+		mass_(this->particles_->mass_)
+	{
+		this->quantity_name_ = "Mass*Position";
+	};
+	virtual ~QuantityMassPosition() {};
+
+	Vecd reduce(size_t index_i, Real dt = 0.0)
+	{
+		return this->variable_[index_i] * mass_[index_i];
+	};
+};
+
+class Constrain3DSolidBodyRotation : public LocalDynamics, public SolidDataSimple
+{
+private:
+	Vecd mass_center_;
+	Matd moment_of_inertia_;
+	Vecd angular_velocity_;
+	Vecd linear_velocity_;
+	ReduceDynamics<QuantityMomentOfMomentum> compute_total_moment_of_momentum_;
+	StdLargeVec<Vecd>& vel_;
+	StdLargeVec<Vecd>& pos_;
+
+protected:
+	virtual void setupDynamics(Real dt = 0.0) override
+	{
+		angular_velocity_ = moment_of_inertia_.inverse() * compute_total_moment_of_momentum_.exec(dt);
+	}
+
+public:
+	explicit Constrain3DSolidBodyRotation(SPHBody& sph_body, Vecd mass_center, Matd inertia_tensor)
+		: LocalDynamics(sph_body), SolidDataSimple(sph_body),
+		vel_(particles_->vel_), pos_(particles_->pos_), compute_total_moment_of_momentum_(sph_body, mass_center),
+		mass_center_(mass_center), moment_of_inertia_(inertia_tensor) {}
+
+	virtual ~Constrain3DSolidBodyRotation() {};
+
+	void update(size_t index_i, Real dt = 0.0)
+	{
+		linear_velocity_ = angular_velocity_.cross((pos_[index_i] - mass_center_));
+		vel_[index_i] -= linear_velocity_;
+	}
+};
+
+#endif // LNG_ETANK_WATERSLOSHING_H
