@@ -15,8 +15,8 @@ using namespace SPH;
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
-std::string fuel_tank_inner = "./input/2ring_inner.STL";
-std::string air_0255 = "./input/2ring_air.STL";
+std::string fuel_tank_inner = "./input/2ring_baffles_inner.STL";
+std::string air_0255 = "./input/2ring_baffles_air.STL";
 std::string probe_shape = "./input/base_case_probe_0.106.STL";
 
 //----------------------------------------------------------------------

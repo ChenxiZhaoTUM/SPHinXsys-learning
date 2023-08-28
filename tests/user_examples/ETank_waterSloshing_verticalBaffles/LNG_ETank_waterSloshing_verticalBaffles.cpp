@@ -1,10 +1,10 @@
 /**
-* @file 	LNG_ETank_waterSloshing.cpp
+* @file 	LNG_ETank_waterSloshing_verticalBaffles.cpp
 * @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation
 * @details
 * @author
 */
-#include "LNG_ETank_waterSloshing.h"
+#include "LNG_ETank_waterSloshing_verticalBaffles.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------
@@ -17,9 +17,9 @@ int main(int ac, char* av[])
 	//--------------------------------------------------------------------------------
 	SPHSystem sph_system(system_domain_bounds, resolution_ref);
 	/** Tag for run particle relaxation for the initial body fitted distribution.   */
-	sph_system.setRunParticleRelaxation(false);
+	sph_system.setRunParticleRelaxation(true);
 	/** Tag for computation start with relaxed body fitted particles distribution.  */
-	sph_system.setReloadParticles(true);
+	sph_system.setReloadParticles(false);
 	/** Tag for computation from restart files. 0: start with initial condition.    */
 	sph_system.setRestartStep(0);
 	/** Handle command line arguments. */

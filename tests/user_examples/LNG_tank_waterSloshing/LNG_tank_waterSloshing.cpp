@@ -17,9 +17,9 @@ int main(int ac, char *av[])
     //--------------------------------------------------------------------------------
 	SPHSystem sph_system(system_domain_bounds, resolution_ref);
     /** Tag for run particle relaxation for the initial body fitted distribution.   */
-    sph_system.setRunParticleRelaxation(false);
+    sph_system.setRunParticleRelaxation(true);
     /** Tag for computation start with relaxed body fitted particles distribution.  */
-    sph_system.setReloadParticles(true);
+    sph_system.setReloadParticles(false);
 	/** Tag for computation from restart files. 0: start with initial condition.    */
 	sph_system.setRestartStep(0);
     /** Handle command line arguments. */
@@ -206,7 +206,7 @@ int main(int ac, char *av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 100;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 15;			                                      /** End time. */
+	Real End_Time = 20;			                                      /** End time. */
 	Real D_Time = 0.025;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */
