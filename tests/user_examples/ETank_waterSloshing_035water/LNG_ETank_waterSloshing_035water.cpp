@@ -4,7 +4,7 @@
 * @details
 * @author
 */
-#include "LNG_ETank_waterSloshing.h"
+#include "LNG_ETank_waterSloshing_05water.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------
@@ -143,7 +143,7 @@ int main(int ac, char* av[])
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
 		air_density_by_summation(air_block_contact, air_water_complex);
-	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>>
+	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex>
 		air_transport_correction(air_block_contact, air_water_complex);
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
 		water_viscous_acceleration(water_block_contact, water_air_complex);
@@ -241,7 +241,7 @@ int main(int ac, char* av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 10;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 12;			                                      /** End time. */
+	Real End_Time = 20;			                                      /** End time. */
 	Real D_Time = 0.05;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */

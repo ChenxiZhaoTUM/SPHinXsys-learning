@@ -1,11 +1,11 @@
 /**
- * @file 	LNG_ETank_waterSloshing.h
+ * @file 	ETank_waterSloshing_1rigid.h
  * @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation
  * @author
  */
 
-#ifndef LNG_ETANK_WATERSLOSHING_H
-#define LNG_ETANK_WATERSLOSHING_H
+#ifndef ETANK_WATERSLOSHING_1RIGID_H
+#define ETANK_WATERSLOSHING_1RIGID_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -15,10 +15,11 @@ using namespace SPH;
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
-std::string fuel_tank_inner = "./input/3D_grotle_tank_inner.STL";
-std::string water_05 = "./input/3D_grotle_water_0255.STL";
-std::string air_05 = "./input/3D_grotle_air_0255.STL";
+std::string fuel_tank_inner = "./input/1vertical_rigid_inner.STL";
+std::string air_0255 = "./input/1vertical_rigid_air.STL";
 std::string probe_shape = "./input/base_case_probe_0.106.STL";
+std::string baffle = "./input/elastic_baffle.STL";
+std::string baffle_fix = "./input/elastic_baffle_fix.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -53,6 +54,7 @@ public:
 	{
 		add<TriangleMeshShapeSTL>(fuel_tank_outer, translation, length_scale, "OuterWall");
 		subtract<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale, "InnerWall");
+		subtract<TriangleMeshShapeSTL>(baffle, translation, length_scale);
 	}
 };
 
@@ -61,7 +63,8 @@ class WaterBlock : public ComplexShape
 public:
 	explicit WaterBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(water_05, translation, length_scale);
+		add<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale);
+		subtract<TriangleMeshShapeSTL>(air_0255, translation, length_scale);
 	}
 };
 
@@ -70,7 +73,25 @@ class AirBlock : public ComplexShape
 public:
 	explicit AirBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(air_05, translation, length_scale);
+		add<TriangleMeshShapeSTL>(air_0255, translation, length_scale);
+	}
+};
+
+class BaffleBlock : public ComplexShape
+{
+public:
+	explicit BaffleBlock(const std::string& shape_name) : ComplexShape(shape_name)
+	{
+		add<TriangleMeshShapeSTL>(baffle, translation, length_scale);
+	}
+};
+
+class BaffleFix : public ComplexShape
+{
+public:
+	explicit BaffleFix(const std::string& shape_name) : ComplexShape(shape_name)
+	{
+		add<TriangleMeshShapeSTL>(baffle_fix, translation, length_scale);
 	}
 };
 
@@ -78,7 +99,7 @@ public:
 //	Define external excitation.
 //----------------------------------------------------------------------
 /** Roll sloshing */
-Real omega =  2 * PI * 0.5496 / 1.2;
+Real omega =  2 * PI * 0.5496;
 Real Theta0 = - 3.0 * PI / 180.0;
 
 class Sloshing

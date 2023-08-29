@@ -15,16 +15,16 @@ using namespace SPH;
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
-std::string fuel_tank_inner = "./input/3D_grotle_tank_inner.STL";
-std::string water_05 = "./input/3D_grotle_water_0255.STL";
-std::string air_05 = "./input/3D_grotle_air_0255.STL";
-std::string probe_shape = "./input/base_case_probe_0.106.STL";
+std::string fuel_tank_inner = "./input/inner_05.STL";
+std::string air_05 = "./input/air_05.STL";
+std::string probe_shape = "./input/base_case_probe_0.18.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real resolution_ref = 0.006;			  /** Initial particle spacing*/
 Real length_scale = 1.0;							  /** Scale factor*/
+Real length_scale2 = 0.01;
 Vecd translation(0, 0.12, 0);
 BoundingBox system_domain_bounds(Vecd(-0.6, -0.2, -0.2), Vecd(0.6, 0.4, 0.2));
 
@@ -52,7 +52,7 @@ public:
 	explicit Tank(const std::string& shape_name) :ComplexShape(shape_name)
 	{
 		add<TriangleMeshShapeSTL>(fuel_tank_outer, translation, length_scale, "OuterWall");
-		subtract<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale, "InnerWall");
+		subtract<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale2, "InnerWall");
 	}
 };
 
@@ -61,7 +61,8 @@ class WaterBlock : public ComplexShape
 public:
 	explicit WaterBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(water_05, translation, length_scale);
+		add<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale2);
+		subtract<TriangleMeshShapeSTL>(air_05, translation, length_scale2);
 	}
 };
 
@@ -70,7 +71,7 @@ class AirBlock : public ComplexShape
 public:
 	explicit AirBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(air_05, translation, length_scale);
+		add<TriangleMeshShapeSTL>(air_05, translation, length_scale2);
 	}
 };
 
@@ -78,7 +79,7 @@ public:
 //	Define external excitation.
 //----------------------------------------------------------------------
 /** Roll sloshing */
-Real omega =  2 * PI * 0.5496 / 1.2;
+Real omega =  2 * PI * 0.5496;
 Real Theta0 = - 3.0 * PI / 180.0;
 
 class Sloshing
