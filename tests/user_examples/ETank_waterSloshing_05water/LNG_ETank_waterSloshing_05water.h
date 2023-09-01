@@ -137,7 +137,8 @@ public:
 	explicit ProbeShape(const std::string& shape_name) : ComplexShape(shape_name)
 	{
 		Vec3d translation_probe(0.0, 0.0, 0.0);
-		add<TriangleMeshShapeSTL>(probe_shape, translation_probe, length_scale);
+		Real length_scale3 = 1000.0;
+		add<TriangleMeshShapeSTL>(probe_shape, translation_probe, length_scale3);
 	}
 };
 

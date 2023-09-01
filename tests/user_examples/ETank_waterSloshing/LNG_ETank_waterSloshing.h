@@ -78,7 +78,7 @@ public:
 //	Define external excitation.
 //----------------------------------------------------------------------
 /** Roll sloshing */
-Real omega =  2 * PI * 0.5496 / 1.2;
+Real omega =  2 * PI * 0.5496;
 Real Theta0 = - 3.0 * PI / 180.0;
 
 class Sloshing

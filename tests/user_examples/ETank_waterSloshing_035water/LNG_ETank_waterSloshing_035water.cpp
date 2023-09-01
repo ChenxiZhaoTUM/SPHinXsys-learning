@@ -4,7 +4,7 @@
 * @details
 * @author
 */
-#include "LNG_ETank_waterSloshing_05water.h"
+#include "LNG_ETank_waterSloshing_035water.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------
@@ -143,7 +143,7 @@ int main(int ac, char* av[])
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
 		air_density_by_summation(air_block_contact, air_water_complex);
-	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex>
+	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>>
 		air_transport_correction(air_block_contact, air_water_complex);
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
 		water_viscous_acceleration(water_block_contact, water_air_complex);

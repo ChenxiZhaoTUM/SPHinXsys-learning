@@ -78,8 +78,8 @@ int main(int ac, char* av[])
 
 	ContactRelation water_block_contact(water_block, RealBodyVector{ &tank, &baffle });
 	ContactRelation air_block_contact(air_block, RealBodyVector{ &tank, &baffle });
-	ContactRelation tank_contacts(tank, RealBodyVector{ &water_block, &air_block});
-	ContactRelation baffle_contacts(baffle, RealBodyVector{ &water_block, &air_block});
+	ContactRelation tank_contacts(tank, RealBodyVector{ &water_block, &air_block });
+	ContactRelation baffle_contacts(baffle, RealBodyVector{ &water_block, &air_block });
 	ContactRelation tank_observer_contact(tank_observer, { &tank });
 
 	ComplexRelation water_air_complex(water_block, { &air_block });
@@ -360,6 +360,7 @@ int main(int ac, char* av[])
 					constrain_mass_center_1.exec(dt_s);
 					constraint_baffle.exec();
 
+					tank_stress_relaxation_2nd_half.exec(dt_s);
 					/*baffle_stress_relaxation_2nd_half.exec(dt_s);*/
 					dt_s_sum += dt_s;
 					inner_ite_dt_s++;

@@ -1,11 +1,11 @@
 /**
- * @file 	ETank_waterSloshing_1beam.h
- * @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation
+ * @file 	LNG_ETank_waterSloshing_1rigidvertical.h
+ * @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation, add 2 ring baffles
  * @author
  */
 
-#ifndef ETANK_WATERSLOSHING_1BEAM_H
-#define ETANK_WATERSLOSHING_1BEAM_H
+#ifndef LNG_ETANK_WATERSLOSHING_1RIGIDVERTICAL_H
+#define LNG_ETANK_WATERSLOSHING_1RIGIDVERTICAL_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -18,8 +18,6 @@ std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
 std::string fuel_tank_inner = "./input/1vertical_rigid_inner.STL";
 std::string air_0255 = "./input/1vertical_rigid_air.STL";
 std::string probe_shape = "./input/base_case_probe_0.106.STL";
-std::string baffle = "./input/elastic_baffle.STL";
-std::string baffle_fix = "./input/elastic_baffle_fix.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -44,10 +42,6 @@ Real rho0_s = 7890.0;								 /** Solid density*/
 Real poisson = 0.27;								 /** Poisson ratio*/
 Real Youngs_modulus = 1.35e9;
 
-Real rho0_s2 = 2500.0;								 /** Solid density*/
-Real poisson2 = 0.47;								 /** Poisson ratio*/
-Real Youngs_modulus2 = 5e3;
-
 //----------------------------------------------------------------------
 //	Define SPH bodies.
 //----------------------------------------------------------------------
@@ -58,7 +52,6 @@ public:
 	{
 		add<TriangleMeshShapeSTL>(fuel_tank_outer, translation, length_scale, "OuterWall");
 		subtract<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale, "InnerWall");
-		subtract<TriangleMeshShapeSTL>(baffle, translation, length_scale);
 	}
 };
 
@@ -78,24 +71,6 @@ public:
 	explicit AirBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
 		add<TriangleMeshShapeSTL>(air_0255, translation, length_scale);
-	}
-};
-
-class BaffleBlock : public ComplexShape
-{
-public:
-	explicit BaffleBlock(const std::string& shape_name) : ComplexShape(shape_name)
-	{
-		add<TriangleMeshShapeSTL>(baffle, translation, length_scale);
-	}
-};
-
-class BaffleFix : public ComplexShape
-{
-public:
-	explicit BaffleFix(const std::string& shape_name) : ComplexShape(shape_name)
-	{
-		add<TriangleMeshShapeSTL>(baffle_fix, translation, length_scale);
 	}
 };
 
@@ -164,8 +139,6 @@ public:
 		add<TriangleMeshShapeSTL>(probe_shape, translation_probe, length_scale);
 	}
 };
-
-StdVec<Vecd> baffle_observation_location = {Vecd(0.0, 0.035, 0.0), Vecd(0.0, 0.035, 0.05), Vecd(0.0, 0.035, -0.05)};
 
 //----------------------------------------------------------------------
 //	Define constrain class for tank translation and rotation.
@@ -278,4 +251,4 @@ public:
 	}
 };
 
-#endif // ETANK_WATERSLOSHING_1BEAM_H
+#endif // LNG_ETANK_WATERSLOSHING_1RIGIDVERTICAL_H
