@@ -1,10 +1,10 @@
 /**
-* @file 	ETank_waterSloshing_1beam.cpp
+* @file 	ETank_waterSloshing_1beam_05water.cpp
 * @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation
 * @details
 * @author
 */
-#include "ETank_waterSloshing_1beam.h"
+#include "ETank_waterSloshing_1beam_05water.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------

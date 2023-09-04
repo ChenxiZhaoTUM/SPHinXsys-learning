@@ -1,11 +1,11 @@
 /**
- * @file 	LNG_ETank_waterSloshing.h
+ * @file 	ETank_waterSloshing_1rigid.h
  * @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation
  * @author
  */
 
-#ifndef LNG_ETANK_WATERSLOSHING_H
-#define LNG_ETANK_WATERSLOSHING_H
+#ifndef ETANK_WATERSLOSHING_1RIGID_H
+#define ETANK_WATERSLOSHING_1RIGID_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -18,6 +18,8 @@ std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
 std::string fuel_tank_inner = "./input/inner_05.STL";
 std::string air_05 = "./input/air_05.STL";
 std::string probe_shape = "./input/probe_0.18.STL";
+std::string baffle = "./input/elastic_baffle_0.1.STL";
+std::string baffle_fix = "./input/elastic_baffle_0.1_fix.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -63,6 +65,7 @@ public:
 	{
 		add<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale2);
 		subtract<TriangleMeshShapeSTL>(air_05, translation, length_scale2);
+		subtract<TriangleMeshShapeSTL>(baffle, translation, length_scale);
 	}
 };
 
@@ -72,6 +75,24 @@ public:
 	explicit AirBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
 		add<TriangleMeshShapeSTL>(air_05, translation, length_scale2);
+	}
+};
+
+class BaffleBlock : public ComplexShape
+{
+public:
+	explicit BaffleBlock(const std::string& shape_name) : ComplexShape(shape_name)
+	{
+		add<TriangleMeshShapeSTL>(baffle, translation, length_scale);
+	}
+};
+
+class BaffleFix : public ComplexShape
+{
+public:
+	explicit BaffleFix(const std::string& shape_name) : ComplexShape(shape_name)
+	{
+		add<TriangleMeshShapeSTL>(baffle_fix, translation, length_scale);
 	}
 };
 

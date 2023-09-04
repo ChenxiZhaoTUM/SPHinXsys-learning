@@ -1,5 +1,5 @@
 /**
- * @file 	ETank_waterSloshing_1beam.h
+ * @file 	ETank_waterSloshing_1beam_05water.h
  * @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation
  * @author
  */
@@ -15,17 +15,18 @@ using namespace SPH;
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
-std::string fuel_tank_inner = "./input/1vertical_rigid_inner.STL";
-std::string air_0255 = "./input/1vertical_rigid_air.STL";
-std::string probe_shape = "./input/base_case_probe_0.106.STL";
-std::string baffle = "./input/elastic_baffle.STL";
-std::string baffle_fix = "./input/elastic_baffle_fix.STL";
+std::string fuel_tank_inner = "./input/inner_05.STL";
+std::string air_05 = "./input/air_05.STL";
+std::string probe_shape = "./input/probe_0.18.STL";
+std::string baffle = "./input/elastic_baffle_0.1.STL";
+std::string baffle_fix = "./input/elastic_baffle_0.1_fix.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real resolution_ref = 0.006;			  /** Initial particle spacing*/
 Real length_scale = 1.0;							  /** Scale factor*/
+Real length_scale2 = 0.01;
 Vecd translation(0, 0.12, 0);
 BoundingBox system_domain_bounds(Vecd(-0.6, -0.2, -0.2), Vecd(0.6, 0.4, 0.2));
 
@@ -46,7 +47,7 @@ Real Youngs_modulus = 1.35e9;
 
 Real rho0_s2 = 2500.0;								 /** Solid density*/
 Real poisson2 = 0.47;								 /** Poisson ratio*/
-Real Youngs_modulus2 = 5e3;
+Real Youngs_modulus2 = 5e4;
 
 //----------------------------------------------------------------------
 //	Define SPH bodies.
@@ -57,8 +58,7 @@ public:
 	explicit Tank(const std::string& shape_name) :ComplexShape(shape_name)
 	{
 		add<TriangleMeshShapeSTL>(fuel_tank_outer, translation, length_scale, "OuterWall");
-		subtract<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale, "InnerWall");
-		subtract<TriangleMeshShapeSTL>(baffle, translation, length_scale);
+		subtract<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale2, "InnerWall");
 	}
 };
 
@@ -67,8 +67,9 @@ class WaterBlock : public ComplexShape
 public:
 	explicit WaterBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale);
-		subtract<TriangleMeshShapeSTL>(air_0255, translation, length_scale);
+		add<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale2);
+		subtract<TriangleMeshShapeSTL>(air_05, translation, length_scale2);
+		subtract<TriangleMeshShapeSTL>(baffle, translation, length_scale);
 	}
 };
 
@@ -77,7 +78,7 @@ class AirBlock : public ComplexShape
 public:
 	explicit AirBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(air_0255, translation, length_scale);
+		add<TriangleMeshShapeSTL>(air_05, translation, length_scale2);
 	}
 };
 
@@ -165,7 +166,7 @@ public:
 	}
 };
 
-StdVec<Vecd> baffle_observation_location = {Vecd(0.0, 0.035, 0.0), Vecd(0.0, 0.035, 0.05), Vecd(0.0, 0.035, -0.05)};
+StdVec<Vecd> baffle_observation_location = {Vecd(0.0, 0.07, 0.0), Vecd(0.0, 0.07, 0.05), Vecd(0.0, 0.055, 0.0), Vecd(0.0, 0.055, -0.05)};
 
 //----------------------------------------------------------------------
 //	Define constrain class for tank translation and rotation.
