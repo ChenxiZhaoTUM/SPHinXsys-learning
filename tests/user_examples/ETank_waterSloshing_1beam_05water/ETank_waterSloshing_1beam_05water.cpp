@@ -71,6 +71,8 @@ int main(int ac, char* av[])
 	ObserverBody baffle_observer(sph_system, "BaffleObserver");
     baffle_observer.generateParticles<ObserverParticleGenerator>(baffle_observation_location);
 
+	BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+	write_real_body_states.writeToFile(0);
 	//--------------------------------------------------------------------------------
 	//	Define body relation map.
 	//	The contact map gives the topological connections between the bodies.
@@ -212,7 +214,7 @@ int main(int ac, char* av[])
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> baffle_stress_relaxation_2nd_half(baffle_inner);
 
 	/** Exert constrain on tank. */
-	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank, Vecd(0, 1.2, 0));
+	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank);
 	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(tank, "MassiveMeasure");
 	ReduceDynamics<QuantityMassPosition> compute_mass_position_(tank);
 	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
@@ -242,7 +244,7 @@ int main(int ac, char* av[])
 	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight>>
 		probe_1(io_environment, probe_s1);
 
-	BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+	/*BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);*/
 	ObservedQuantityRecording<Vecd> write_tank_move("Position", io_environment, tank_observer_contact);
 	ObservedQuantityRecording<Vecd> write_tank_nom("NormalDirection", io_environment, tank_observer_contact);
 	ObservedQuantityRecording<Vecd> write_baffle_move("Position", io_environment, baffle_observer_contact);
@@ -294,7 +296,7 @@ int main(int ac, char* av[])
 	//	First output before the main loop.
 	//--------------------------------------------------------------------------------
 	/** Computing linear reproducing configuration for the tank. */
-	write_real_body_states.writeToFile(0);
+	/*write_real_body_states.writeToFile(0);*/
 	probe_1.writeToFile(0);
 	write_tank_move.writeToFile(0);
 	write_tank_nom.writeToFile(0);
