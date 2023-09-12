@@ -4,7 +4,7 @@
 * @details
 * @author
 */
-#include "LNG_ETank_waterSloshing_05water.h"
+#include "LNG_ETank_waterSloshing_065water.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------
@@ -143,7 +143,7 @@ int main(int ac, char* av[])
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
 		air_density_by_summation(air_block_contact, air_water_complex);
-	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex>
+	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>>
 		air_transport_correction(air_block_contact, air_water_complex);
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
 		water_viscous_acceleration(water_block_contact, water_air_complex);
@@ -190,7 +190,7 @@ int main(int ac, char* av[])
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_2nd_half(tank_inner);
 
 	/** Exert constrain on tank. */
-	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank, Vecd(0, 0.12, 0));
+	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank);
 	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(tank, "MassiveMeasure");
 	ReduceDynamics<QuantityMassPosition> compute_mass_position_(tank);
 	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();

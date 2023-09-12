@@ -190,7 +190,7 @@ int main(int ac, char* av[])
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_2nd_half(tank_inner);
 
 	/** Exert constrain on tank. */
-	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank, Vecd(0, 0.12, 0));
+	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank);
 	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(tank, "MassiveMeasure");
 	ReduceDynamics<QuantityMassPosition> compute_mass_position_(tank);
 	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
@@ -241,7 +241,7 @@ int main(int ac, char* av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 10;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 20;			                                      /** End time. */
+	Real End_Time = 10;			                                      /** End time. */
 	Real D_Time = 0.05;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */

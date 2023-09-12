@@ -190,7 +190,7 @@ int main(int ac, char* av[])
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_2nd_half(tank_inner);
 
 	/** Exert constrain on tank. */
-	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank, Vecd(0, 0.12, 0));
+	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(tank);
 	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(tank, "MassiveMeasure");
 	ReduceDynamics<QuantityMassPosition> compute_mass_position_(tank);
 	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
@@ -215,13 +215,13 @@ int main(int ac, char* av[])
 	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight>>
 		probe_1(io_environment, probe_s1);
 
-	BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-	ObservedQuantityRecording<Vecd> write_tank_move("Position", io_environment, tank_observer_contact);
-	ObservedQuantityRecording<Vecd> write_tank_nom("NormalDirection", io_environment, tank_observer_contact);
-	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
-		write_viscous_force_on_tank(io_environment, viscous_force_on_tack, "TotalViscousForceOnTank");
-	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
-		write_total_force_on_tank(io_environment, fluid_force_on_tank_update, "TotalForceOnTank");
+	//BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+	//ObservedQuantityRecording<Vecd> write_tank_move("Position", io_environment, tank_observer_contact);
+	//ObservedQuantityRecording<Vecd> write_tank_nom("NormalDirection", io_environment, tank_observer_contact);
+	//ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
+	//	write_viscous_force_on_tank(io_environment, viscous_force_on_tack, "TotalViscousForceOnTank");
+	//ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
+	//	write_total_force_on_tank(io_environment, fluid_force_on_tank_update, "TotalForceOnTank");
 
 	//--------------------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
@@ -241,7 +241,7 @@ int main(int ac, char* av[])
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 10;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 20;			                                      /** End time. */
+	Real End_Time = 10;			                                      /** End time. */
 	Real D_Time = 0.05;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */
@@ -257,10 +257,10 @@ int main(int ac, char* av[])
 	//	First output before the main loop.
 	//--------------------------------------------------------------------------------
 	/** Computing linear reproducing configuration for the tank. */
-	write_real_body_states.writeToFile(0);
+	//write_real_body_states.writeToFile(0);
 	probe_1.writeToFile(0);
-	write_tank_move.writeToFile(0);
-	write_tank_nom.writeToFile(0);
+	// write_tank_move.writeToFile(0);
+	// write_tank_nom.writeToFile(0);
 
 	//--------------------------------------------------------------------------------
 	//	Main loop starts here.
@@ -368,12 +368,12 @@ int main(int ac, char* av[])
 		compute_vorticity.exec();
 
 		/** Write run-time observation into file. */
-		write_real_body_states.writeToFile();
+		// write_real_body_states.writeToFile();
 		probe_1.writeToFile();
-		write_tank_move.writeToFile();
+		/*write_tank_move.writeToFile();
 		write_tank_nom.writeToFile();
 		write_viscous_force_on_tank.writeToFile(number_of_iterations);
-		write_total_force_on_tank.writeToFile(number_of_iterations);
+		write_total_force_on_tank.writeToFile(number_of_iterations);*/
 
 		TickCount t3 = TickCount::now();
 		interval += t3 - t2;

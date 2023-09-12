@@ -47,7 +47,7 @@ Real Youngs_modulus = 1.35e9;
 
 Real rho0_s2 = 2500.0;								 /** Solid density*/
 Real poisson2 = 0.47;								 /** Poisson ratio*/
-Real Youngs_modulus2 = 5e5;
+Real Youngs_modulus2 = 5e3;
 
 //----------------------------------------------------------------------
 //	Define SPH bodies.

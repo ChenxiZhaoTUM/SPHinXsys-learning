@@ -16,8 +16,8 @@ using namespace SPH;
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
 std::string fuel_tank_inner = "./input/inner_05.STL";
-std::string air_05 = "./input/air_05.STL";
-std::string probe_shape = "./input/base_case_probe_0.18.STL";
+std::string air_05 = "./input/air_0.65.STL";
+std::string probe_shape = "./input/base_case_probe_0.24.STL";
 
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
