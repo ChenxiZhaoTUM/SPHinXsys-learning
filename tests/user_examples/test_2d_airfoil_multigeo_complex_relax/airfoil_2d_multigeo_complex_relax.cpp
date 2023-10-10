@@ -16,10 +16,14 @@ std::string airfoil_flap_rear = "./input/airfoil_flap_rear.dat";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DL = 1.25;             /**< airfoil length rear part. */
-Real DL1 = 0.25;            /**< airfoil length front part. */
-Real DH = 0.25;             /**< airfoil height. */
-Real resolution_ref = 0.02; /**< Reference resolution. */
+//Real DL = 1.25;              /**< airfoil length rear part. */
+//Real DL1 = 0.25;             /**< airfoil length front part. */
+//Real DH = 0.25;              /**< airfoil height. */
+
+Real DL = 4.8;
+Real DL1 = 2.4;
+Real DH = 1;
+Real resolution_ref = 0.005; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -34,6 +38,31 @@ class ImportModel : public MultiPolygonShape
         multi_polygon_.addAPolygonFromFile(airfoil_flap_rear, ShapeBooleanOps::add);
     }
 };
+
+std::vector<Vecd> createWaterBlockShape()
+{
+    std::vector<Vecd> water_block_shape;
+    water_block_shape.push_back(Vecd(-DL1, -DH));
+    water_block_shape.push_back(Vecd(-DL1, DH));
+    water_block_shape.push_back(Vecd(DL, DH));
+    water_block_shape.push_back(Vecd(DL, -DH));
+    water_block_shape.push_back(Vecd(-DL1, -DH));
+
+    return water_block_shape;
+}
+
+class WaterBlock : public ComplexShape
+{
+  public:
+    explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
+    {
+        MultiPolygon outer_boundary(createWaterBlockShape());
+        add<MultiPolygonShape>(outer_boundary, "OuterBoundary");
+        ImportModel import_model("InnerBody");
+        subtract<ImportModel>(import_model);
+    }
+};
+
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
@@ -43,15 +72,25 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
+    sph_system.setRunParticleRelaxation(true); // tag to run particle relaxation when no commandline option
+#ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av);
+#endif
     IOEnvironment io_environment(sph_system);
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    RealBody input_body(sph_system, makeShared<ImportModel>("AirFoil"));
-    input_body.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    input_body.defineParticlesAndMaterial();
-    input_body.generateParticles<ParticleGeneratorLattice>();
+    RealBody airfoil(sph_system, makeShared<ImportModel>("AirFoil"));
+    // airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    airfoil.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    airfoil.defineParticlesAndMaterial();
+    airfoil.generateParticles<ParticleGeneratorLattice>();
+
+    RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
+    water_block.defineComponentLevelSetShape("OuterBoundary");
+    water_block.defineParticlesAndMaterial();
+    water_block.generateParticles<ParticleGeneratorLattice>();
+    
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -60,41 +99,48 @@ int main(int ac, char *av[])
     //  At last, we define the complex relaxations by combining previous defined
     //  inner and contact relations.
     //----------------------------------------------------------------------
-    InnerRelation input_body_inner(input_body);
+    InnerRelation airfoil_inner(airfoil);
+    ComplexRelation water_airfoil_complex(water_block, {&airfoil});
     //----------------------------------------------------------------------
     //	Methods used for particle relaxation.
     //----------------------------------------------------------------------
-    SimpleDynamics<RandomizeParticlePosition> random_input_body_particles(input_body);
-    relax_dynamics::RelaxationStepInner relaxation_step_inner(input_body_inner, true);
+    SimpleDynamics<RandomizeParticlePosition> random_airfoil_particles(airfoil);
+    SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
+    relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
+    relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_airfoil_complex, "OuterBoundary", true);
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp input_body_recording_to_vtp(io_environment, input_body);
-    MeshRecordingToPlt cell_linked_list_recording(io_environment, input_body.getCellLinkedList());
+    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    //MeshRecordingToPlt cell_linked_list_recording(io_environment, airfoil.getCellLinkedList());
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
     //----------------------------------------------------------------------
-    random_input_body_particles.exec(0.25);
+    random_airfoil_particles.exec(0.25);
+    random_water_particles.exec(0.25);
     relaxation_step_inner.SurfaceBounding().exec();
-    input_body.updateCellLinkedList();
+    relaxation_step_complex.SurfaceBounding().exec();
+    airfoil.updateCellLinkedList();
+    water_block.updateCellLinkedList();
     //----------------------------------------------------------------------
     //	First output before the simulation.
     //----------------------------------------------------------------------
-    input_body_recording_to_vtp.writeToFile();
-    cell_linked_list_recording.writeToFile();
+    write_real_body_states.writeToFile();
+    //cell_linked_list_recording.writeToFile();
     //----------------------------------------------------------------------
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
-    while (ite_p < 1000)
+    while (ite_p < 2000)
     {
         relaxation_step_inner.exec();
+        relaxation_step_complex.exec();
         ite_p += 1;
         if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
-            input_body_recording_to_vtp.writeToFile(ite_p);
+            write_real_body_states.writeToFile(ite_p);
         }
     }
     std::cout << "The physics relaxation process finish !" << std::endl;

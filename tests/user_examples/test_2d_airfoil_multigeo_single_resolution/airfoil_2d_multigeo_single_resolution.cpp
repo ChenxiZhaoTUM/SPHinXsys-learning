@@ -19,7 +19,7 @@ std::string airfoil_flap_rear = "./input/airfoil_flap_rear.dat";
 Real DL = 1.25;             /**< airfoil length rear part. */
 Real DL1 = 0.25;            /**< airfoil length front part. */
 Real DH = 0.25;             /**< airfoil height. */
-Real resolution_ref = 0.02; /**< Reference resolution. */
+Real resolution_ref = 0.005; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -29,9 +29,9 @@ class ImportModel : public MultiPolygonShape
   public:
     explicit ImportModel(const std::string &import_model_name) : MultiPolygonShape(import_model_name)
     {
-        //multi_polygon_.addAPolygonFromFile(airfoil_flap_front, ShapeBooleanOps::add);
+        multi_polygon_.addAPolygonFromFile(airfoil_flap_front, ShapeBooleanOps::add);
         multi_polygon_.addAPolygonFromFile(airfoil_wing, ShapeBooleanOps::add);
-       // multi_polygon_.addAPolygonFromFile(airfoil_flap_rear, ShapeBooleanOps::add);
+        multi_polygon_.addAPolygonFromFile(airfoil_flap_rear, ShapeBooleanOps::add);
     }
 };
 
@@ -54,7 +54,8 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody airfoil(sph_system, makeShared<ImportModel>("AirFoil"));
-    airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    airfoil.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial();
     airfoil.generateParticles<ParticleGeneratorLattice>();
     //----------------------------------------------------------------------
@@ -92,7 +93,7 @@ int main(int ac, char *av[])
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
-    while (ite_p < 1000)
+    while (ite_p < 2000)
     {
         relaxation_step_inner.exec();
         ite_p += 1;
