@@ -20,16 +20,16 @@ Real DL = 4.8;
 Real DL1 = 1.2;
 Real DH = 1;
 Real airfoil_h = 0.1;
-Real resolution_ref = 0.03; /**< Reference resolution. */
+Real resolution_ref = 0.01; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	Material properties of the fluid.
 //----------------------------------------------------------------------
-Real rho0_f = 1.0;                                       /**< Density. */
-Real U_f = 1.0;                                          /**< freestream velocity. */
-Real c_f = 10.0 * U_f;                                   /**< Speed of sound. */
-Real Re = 5000.0;                                         /**< Reynolds number. */
-Real mu_f = rho0_f * U_f * (2.0 * airfoil_h) / Re;       /**< Dynamics viscosity. */
+Real rho0_f = 1.0;                                 /**< Density. */
+Real U_f = 1.0;                                    /**< freestream velocity. */
+Real c_f = 10.0 * U_f;                             /**< Speed of sound. */
+Real Re = 100.0;                                   /**< Reynolds number. */
+Real mu_f = rho0_f * U_f * (2.0 * airfoil_h) / Re; /**< Dynamics viscosity. */
 //----------------------------------------------------------------------
 //	Define geometries and body shapes
 //----------------------------------------------------------------------
@@ -44,27 +44,18 @@ class AirfoilModel : public MultiPolygonShape
     }
 };
 
-std::vector<Vecd> createWaterBlockShape()
-{
-    std::vector<Vecd> water_block_shape;
-    water_block_shape.push_back(Vecd(-DL1, -DH));
-    water_block_shape.push_back(Vecd(-DL1, DH));
-    water_block_shape.push_back(Vecd(DL, DH));
-    water_block_shape.push_back(Vecd(DL, -DH));
-    water_block_shape.push_back(Vecd(-DL1, -DH));
+Vec2d waterblock_halfsize = Vec2d(0.5 * (DL + DL1), DH);
+Vec2d waterblock_translation = Vec2d(1.8, 0.0);
 
-    return water_block_shape;
-}
-
-class WaterBlock : public ComplexShape
+class WaterBlock : public MultiPolygonShape
 {
   public:
-    explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
+    explicit WaterBlock(const std::string &import_model_name) : MultiPolygonShape(import_model_name)
     {
-        MultiPolygon outer_boundary(createWaterBlockShape());
-        add<MultiPolygonShape>(outer_boundary, "OuterBoundary");
-        AirfoilModel import_model("InnerBody");
-        subtract<AirfoilModel>(import_model);
+        multi_polygon_.addABox(Transform(waterblock_translation), waterblock_halfsize, ShapeBooleanOps::add);
+        multi_polygon_.addAPolygonFromFile(airfoil_flap_front, ShapeBooleanOps::sub);
+        multi_polygon_.addAPolygonFromFile(airfoil_wing, ShapeBooleanOps::sub);
+        multi_polygon_.addAPolygonFromFile(airfoil_flap_rear, ShapeBooleanOps::sub);
     }
 };
 
@@ -100,8 +91,8 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.sph_adaptation_->resetKernel<KernelTabulated<KernelLaguerreGauss>>(20);
-    water_block.defineComponentLevelSetShape("OuterBoundary");
+    // water_block.sph_adaptation_->resetKernel<KernelTabulated<KernelLaguerreGauss>>(20);
+    water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? water_block.generateParticles<ParticleGeneratorReload>(io_environment, water_block.getName())
@@ -110,9 +101,9 @@ int main(int ac, char *av[])
     water_block.addBodyStateForRecording<Real>("Pressure");
 
     SolidBody airfoil(sph_system, makeShared<AirfoilModel>("Airfoil"));
-    airfoil.defineAdaptationRatios(1.3, 3.0);
-    airfoil.sph_adaptation_->resetKernel<KernelTabulated<KernelLaguerreGauss>>(20);
-    //airfoil.defineBodyLevelSetShape();
+    // airfoil.defineAdaptationRatios(1.3, 3.0);
+    // airfoil.sph_adaptation_->resetKernel<KernelTabulated<KernelLaguerreGauss>>(20);
+    // airfoil.defineBodyLevelSetShape();
     airfoil.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial<SolidParticles, Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
@@ -141,14 +132,14 @@ int main(int ac, char *av[])
         BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
         ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
         relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
-        relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_airfoil_complex, "OuterBoundary", true);
+        relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_block_inner, true);
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
         random_airfoil_particles.exec(0.25);
         random_water_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
-        relaxation_step_complex.SurfaceBounding().exec();
+        relaxation_step_inner_water.SurfaceBounding().exec();
 
         airfoil.updateCellLinkedList();
         water_block.updateCellLinkedList();
@@ -159,7 +150,7 @@ int main(int ac, char *av[])
         while (ite_p < 1000)
         {
             relaxation_step_inner.exec();
-            relaxation_step_complex.exec();
+            relaxation_step_inner_water.exec();
             ite_p += 1;
             if (ite_p % 200 == 0)
             {

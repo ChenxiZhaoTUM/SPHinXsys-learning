@@ -37,6 +37,7 @@ class ImportModel : public MultiPolygonShape
 
 Vec2d waterblock_halfsize = Vec2d(0.5 * (DL + DL1), DH);
 Vec2d waterblock_translation = Vec2d(1.2, 0.0);
+
 class WaterBlock : public MultiPolygonShape
 {
   public:
