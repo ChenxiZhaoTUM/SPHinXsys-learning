@@ -63,6 +63,8 @@ Real rho0_s = 2700.0; /**< Reference solid density. */
 Real poisson = 0.34;  /**< Poisson ratio. */
 Real Ae = 6.75e10;    /**< Normalized Youngs Modulus. */
 Real Youngs_modulus = Ae;
+Real physical_viscosity = 8000;
+// Real physical_viscosity = sqrt(rho0_s * Youngs_modulus) * Gate_width * Gate_width / DL / 4;
 //----------------------------------------------------------------------
 //	Geometry definition.
 //----------------------------------------------------------------------
@@ -189,38 +191,41 @@ std::vector<Vecd> createGateConstrainShapeRight()
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
-int main()
+int main(int ac, char *av[])
 {
     //----------------------------------------------------------------------
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
-    SPHSystem system(system_domain_bounds, particle_spacing_ref);
-    /** Set the starting time to zero. */
-    GlobalStaticVariables::physical_time_ = 0.0;
-    IOEnvironment io_environment(system);
+    SPHSystem sph_system(system_domain_bounds, particle_spacing_ref);
+    sph_system.handleCommandlineOptions(ac, av);
+    IOEnvironment io_environment(sph_system);
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    FluidBody water_block(system, makeShared<WaterBlock>("WaterBody"));
+    FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f);
     water_block.generateParticles<ParticleGeneratorLattice>();
+    water_block.addBodyStateForRecording<Real>("Pressure");
 
-    SolidBody wall_boundary(system, makeShared<WallBoundary>("Wall"));
+    SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("Wall"));
     wall_boundary.defineParticlesAndMaterial<SolidParticles, Solid>();
     wall_boundary.generateParticles<ParticleGeneratorLattice>();
 
-    SolidBody gate(system, makeShared<Gate>("Gate"));
+    SolidBody gate(sph_system, makeShared<Gate>("Gate"));
     gate.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     gate.generateParticles<ParticleGeneratorLattice>();
     //----------------------------------------------------------------------
     //	Particle and body creation of gate observer.
     //----------------------------------------------------------------------
-    ObserverBody gate_observer(system, "Observer");
+    ObserverBody gate_observer(sph_system, "Observer");
     gate_observer.generateParticles<ObserverParticleGenerator>(observation_location);
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
     //	Basically the the range of bodies to build neighbor particle lists.
+    //  Generally, we first define all the inner relations, then the contact relations.
+    //  At last, we define the complex relaxations by combining previous defined
+    //  inner and contact relations.
     //----------------------------------------------------------------------
     InnerRelation water_block_inner(water_block);
     InnerRelation gate_inner(gate);
@@ -240,10 +245,14 @@ int main()
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
     /** Pressure relaxation using verlet time stepping. */
     Dynamics1Level<fluid_dynamics::Integration1stHalfRiemannWithWall> pressure_relaxation(water_block_complex);
-    Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWall> density_relaxation(water_block_complex);
+    // Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWall> density_relaxation(water_block_complex);
+    Dynamics1Level<fluid_dynamics::Integration2ndHalfRiemannWithWall> density_relaxation(water_block_complex);
+
     InteractionDynamics<fluid_dynamics::ViscousAccelerationWithWall> viscous_acceleration(water_block_complex);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, DampingPairwiseInner>>>
         fluid_damping(0.2, water_block_complex, "Velocity", mu_f);
+    DampingWithRandomChoice<InteractionSplit<DampingBySplittingInner<Vecd>>>
+        gate_damping(0.2, gate_inner, "Velocity", physical_viscosity);
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<NormalDirectionFromBodyShape> gate_normal_direction(gate);
     /** Corrected configuration. */
@@ -266,18 +275,20 @@ int main()
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
     /** Output body states for visualization. */
-    BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, system.real_bodies_);
+    BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, sph_system.real_bodies_);
     /** Output the observed displacement of gate free end. */
     RegressionTestEnsembleAverage<ObservedQuantityRecording<Vecd>>
         write_beam_tip_displacement("Position", io_environment, gate_observer_contact);
+    ReducedQuantityRecording<ReduceDynamics<TotalMechanicalEnergy>>
+        write_kinetic_energy(io_environment, gate);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
     //----------------------------------------------------------------------
     /** initialize cell linked lists for all bodies. */
-    system.initializeSystemCellLinkedLists();
+    sph_system.initializeSystemCellLinkedLists();
     /** initialize configurations for all bodies. */
-    system.initializeSystemConfigurations();
+    sph_system.initializeSystemConfigurations();
     /** computing surface normal direction for the wall. */
     wall_boundary_normal_direction.exec();
     /** computing surface normal direction for the insert body. */
@@ -289,6 +300,7 @@ int main()
     //----------------------------------------------------------------------
     write_real_body_states_to_vtp.writeToFile(0);
     write_beam_tip_displacement.writeToFile(0);
+    write_kinetic_energy.writeToFile(0);
     //----------------------------------------------------------------------
     //	Basic control parameters for time stepping.
     //----------------------------------------------------------------------
@@ -303,7 +315,7 @@ int main()
     //----------------------------------------------------------------------
     //	Main loop of time stepping starts here.
     //----------------------------------------------------------------------
-    while (GlobalStaticVariables::physical_time_ < end_time)
+    while (GlobalStaticVariables::physical_time_ < 20.0)
     {
         Real integration_time = 0.0;
         /** Integrate time (loop) until the next output time. */
@@ -333,6 +345,10 @@ int main()
                         dt_s = dt - dt_s_sum;
                     gate_stress_relaxation_first_half.exec(dt_s);
                     gate_constraint.exec();
+
+                    gate_damping.exec(dt_s);
+
+                    gate_constraint.exec();
                     gate_stress_relaxation_second_half.exec(dt_s);
                     dt_s_sum += dt_s;
                     dt_s = gate_computing_time_step_size.exec();
@@ -360,6 +376,7 @@ int main()
 
             /** Output the observed data. */
             write_beam_tip_displacement.writeToFile(number_of_iterations);
+            write_kinetic_energy.writeToFile(number_of_iterations);
         }
         TickCount t2 = TickCount::now();
         write_real_body_states_to_vtp.writeToFile();
@@ -372,6 +389,7 @@ int main()
     std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
     write_beam_tip_displacement.testResult();
+
 
     return 0;
 }

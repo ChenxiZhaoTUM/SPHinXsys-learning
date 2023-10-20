@@ -13,43 +13,23 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Rectangular Tank
 //----------------------------------------------------------------------
-//Real DL = 5.0;                         /**< Channel length. */
-//Real DH = 5.0;                          /**< Channel height. */
-//Real resolution_ref = 0.1;              /**< Global reference resolution. */
-//
-//Real BW = resolution_ref * 4.0;         /**< Boundary width, determined by specific layer of boundary particles. */
-//
-///** Domain bounds of the system. */
-//BoundingBox system_domain_bounds(Vec2d(-DL - BW, -BW), Vec2d(DL + BW, DH + BW));
+Real DL = 5.0;                         /**< Channel length. */
+Real DH = 5.0;                          /**< Channel height. */
+Real resolution_ref = 0.1;              /**< Global reference resolution. */
+Real BW = resolution_ref * 4.0;         /**< Boundary width, determined by specific layer of boundary particles. */
 
-//----------------------------------------------------------------------
-//	Global parameters on the fluid properties
-//----------------------------------------------------------------------
-//Real rho0_f = 1000.0;                                         /**< Density. */
-//Real gravity_g = 9.81;					                      /**< Gravity. */
-//Real U_max = 2.0 * sqrt(gravity_g * 0.5 * DH); /**< Characteristic velocity. */
-//Real c_f = 10.0 * U_max;				 /**< Reference sound speed. */
-//Real mu_water = 653.9e-6;
-//Real viscous_dynamics = rho0_f * U_max * 2 * DL; /**< Dynamics viscosity. */
-
-//----------------------------------------------------------------------
-//	Vertical Tank
-//----------------------------------------------------------------------
-Real resolution_ref = 0.001;              /**< Global reference resolution. */
-std::string water = "./input/water.dat";
-std::string tank_inner = "./input/tank_inner.dat";
-std::string tank_outer = "./input/tank_outer.dat";
-BoundingBox system_domain_bounds(Vec2d(-0.2, -0.090), Vec2d(0.2, 1.0));
+/** Domain bounds of the system. */
+BoundingBox system_domain_bounds(Vec2d(-DL - BW, -BW), Vec2d(DL + BW, DH + BW));
 
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1000.0;                                         /**< Density. */
 Real gravity_g = 9.81;					                      /**< Gravity. */
-Real U_max = 2.0 * sqrt(gravity_g * 0.5); /**< Characteristic velocity. */
+Real U_max = 2.0 * sqrt(gravity_g * 0.5 * DH); /**< Characteristic velocity. */
 Real c_f = 10.0 * U_max;				 /**< Reference sound speed. */
 Real mu_water = 653.9e-6;
-Real viscous_dynamics = rho0_f * U_max * 0.28; /**< Dynamics viscosity. */
+Real viscous_dynamics = rho0_f * U_max * 2 * DL; /**< Dynamics viscosity. */
 
 //----------------------------------------------------------------------
 //	Global parameters on the solid properties
@@ -58,87 +38,70 @@ Real rho0_s = 7890; /**< Reference density.*/
 Real poisson = 0.27; /**< Poisson ratio.*/
 Real Ae = 135.0e9;    /**< Normalized Youngs Modulus. */
 Real Youngs_modulus = Ae;
+Real physical_viscosity = 1.3e5;
+// Real physical_viscosity = sqrt(rho0_s * Youngs_modulus) * BW * BW / (2 * DL) / 4;
 //----------------------------------------------------------------------
 //	define geometry of SPH bodies
 //----------------------------------------------------------------------
-///** create a water block shape */
-//std::vector<Vecd> createWaterBlockShape()
-//{
-//    // geometry
-//    std::vector<Vecd> water_block_shape;
-//    water_block_shape.push_back(Vecd(-DL, 0.0));
-//    water_block_shape.push_back(Vecd(-DL, DH / 2));
-//    water_block_shape.push_back(Vecd(DL, DH / 2));
-//    water_block_shape.push_back(Vecd(DL, 0.0));
-//    water_block_shape.push_back(Vecd(-DL, 0.0));
-//
-//    return water_block_shape;
-//}
-///** create outer wall shape */
-//std::vector<Vecd> createOuterWallShape()
-//{
-//    std::vector<Vecd> outer_wall_shape;
-//    outer_wall_shape.push_back(Vecd(-DL - BW, -BW));
-//    outer_wall_shape.push_back(Vecd(-DL - BW, DH + BW));
-//    outer_wall_shape.push_back(Vecd(DL + BW, DH + BW));
-//    outer_wall_shape.push_back(Vecd(DL + BW, -BW));
-//    outer_wall_shape.push_back(Vecd(-DL - BW, -BW));
-//
-//    return outer_wall_shape;
-//}
-///**
-// * @brief create inner wall shape
-// */
-//std::vector<Vecd> createInnerWallShape()
-//{
-//    std::vector<Vecd> inner_wall_shape;
-//    inner_wall_shape.push_back(Vecd(-DL, 0.0));
-//    inner_wall_shape.push_back(Vecd(-DL, DH));
-//    inner_wall_shape.push_back(Vecd(DL, DH));
-//    inner_wall_shape.push_back(Vecd(DL, 0.0));
-//    inner_wall_shape.push_back(Vecd(-DL, 0.0));
-//
-//    return inner_wall_shape;
-//}
+/** create a water block shape */
+std::vector<Vecd> createWaterBlockShape()
+{
+    // geometry
+    std::vector<Vecd> water_block_shape;
+    water_block_shape.push_back(Vecd(-DL, 0.0));
+    water_block_shape.push_back(Vecd(-DL, DH / 2));
+    water_block_shape.push_back(Vecd(DL, DH / 2));
+    water_block_shape.push_back(Vecd(DL, 0.0));
+    water_block_shape.push_back(Vecd(-DL, 0.0));
+
+    return water_block_shape;
+}
+/** create outer wall shape */
+std::vector<Vecd> createOuterWallShape()
+{
+    std::vector<Vecd> outer_wall_shape;
+    outer_wall_shape.push_back(Vecd(-DL - BW, -BW));
+    outer_wall_shape.push_back(Vecd(-DL - BW, DH + BW));
+    outer_wall_shape.push_back(Vecd(DL + BW, DH + BW));
+    outer_wall_shape.push_back(Vecd(DL + BW, -BW));
+    outer_wall_shape.push_back(Vecd(-DL - BW, -BW));
+
+    return outer_wall_shape;
+}
+/**
+ * @brief create inner wall shape
+ */
+std::vector<Vecd> createInnerWallShape()
+{
+    std::vector<Vecd> inner_wall_shape;
+    inner_wall_shape.push_back(Vecd(-DL, 0.0));
+    inner_wall_shape.push_back(Vecd(-DL, DH));
+    inner_wall_shape.push_back(Vecd(DL, DH));
+    inner_wall_shape.push_back(Vecd(DL, 0.0));
+    inner_wall_shape.push_back(Vecd(-DL, 0.0));
+
+    return inner_wall_shape;
+}
 
 //----------------------------------------------------------------------
 //	Define case dependent geometries
 //----------------------------------------------------------------------
-//class WaterBlock : public MultiPolygonShape
-//{
-//  public:
-//    explicit WaterBlock(const std::string &shape_name) : MultiPolygonShape(shape_name)
-//    {
-//        multi_polygon_.addAPolygon(createWaterBlockShape(), ShapeBooleanOps::add);
-//    }
-//};
-//class WallBoundary : public MultiPolygonShape
-//{
-//  public:
-//    explicit WallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
-//    {
-//        multi_polygon_.addAPolygon(createOuterWallShape(), ShapeBooleanOps::add);
-//        multi_polygon_.addAPolygon(createInnerWallShape(), ShapeBooleanOps::sub);
-//    }
-//};
-
 class WaterBlock : public MultiPolygonShape
 {
-public:
-	explicit WaterBlock(const std::string &shape_name) : MultiPolygonShape(shape_name)
-	{
-		multi_polygon_.addAPolygonFromFile(water, ShapeBooleanOps::add);
-	}
+  public:
+    explicit WaterBlock(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    {
+        multi_polygon_.addAPolygon(createWaterBlockShape(), ShapeBooleanOps::add);
+    }
 };
-
 class WallBoundary : public MultiPolygonShape
-{	
-public:
-	explicit WallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
-	{
-		multi_polygon_.addAPolygonFromFile(tank_outer, ShapeBooleanOps::add);
-		multi_polygon_.addAPolygonFromFile(tank_inner, ShapeBooleanOps::sub);
-	}
+{
+  public:
+    explicit WallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    {
+        multi_polygon_.addAPolygon(createOuterWallShape(), ShapeBooleanOps::add);
+        multi_polygon_.addAPolygon(createInnerWallShape(), ShapeBooleanOps::sub);
+    }
 };
 
 typedef DataDelegateSimple<SolidParticles> SolidDataSimple;

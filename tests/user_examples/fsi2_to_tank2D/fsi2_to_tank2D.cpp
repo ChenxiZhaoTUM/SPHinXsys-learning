@@ -18,11 +18,6 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    // Tag for run particle relaxation for the initial body fitted distribution.
-	sph_system.setRunParticleRelaxation(false);
-	// Tag for computation start with relaxed body fitted particles distribution.
-	sph_system.setReloadParticles(true);
-
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av); // handle command line arguments
 #endif
@@ -38,16 +33,7 @@ int main(int ac, char *av[])
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("Tank"));
     wall_boundary.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
-    //wall_boundary.generateParticles<ParticleGeneratorLattice>();
-    if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-	{
-		wall_boundary.generateParticles<ParticleGeneratorReload>(io_environment, wall_boundary.getName());
-	}
-	else
-	{
-		wall_boundary.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-		wall_boundary.generateParticles<ParticleGeneratorLattice>();
-	}
+    wall_boundary.generateParticles<ParticleGeneratorLattice>();
 
     InnerRelation tank_inner(wall_boundary);
 	//----------------------------------------------------------------------
@@ -133,6 +119,7 @@ int main(int ac, char *av[])
         fluid_force_on_solid_update(wall_water_contact, viscous_force_on_solid);
     /** Compute the average velocity of the insert body. */
     solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(wall_boundary);
+
     //----------------------------------------------------------------------
     //	Algorithms of solid dynamics.
     //----------------------------------------------------------------------
@@ -143,6 +130,8 @@ int main(int ac, char *av[])
     Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_second_half(tank_inner);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, DampingPairwiseInner>>>
         fluid_damping(0.2, water_block_complex, "Velocity", viscous_dynamics);
+    DampingWithRandomChoice<InteractionSplit<DampingBySplittingInner<Vecd>>>
+        tank_damping(0.2, tank_inner, "Velocity", physical_viscosity);
 
     SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center_1(wall_boundary, Vecd(1.0, 1.0));
 	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(wall_boundary, "MassiveMeasure");
@@ -161,6 +150,8 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
         write_total_viscous_force_on_tank(io_environment, viscous_force_on_solid, "TotalViscousForceOnSolid");
+    ReducedQuantityRecording<ReduceDynamics<TotalMechanicalEnergy>>
+        write_kinetic_energy(io_environment, wall_boundary);
 
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -192,6 +183,7 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     write_real_body_states.writeToFile();
+    write_kinetic_energy.writeToFile(0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -238,6 +230,11 @@ int main(int ac, char *av[])
                     constrain_rotation.exec();
 					constrain_mass_center_1.exec();
 
+                    tank_damping.exec(dt_s);
+
+                    constrain_rotation.exec();
+					constrain_mass_center_1.exec();
+
                     tank_stress_relaxation_second_half.exec(dt_s);
                     dt_s_sum += dt_s;
                     inner_ite_dt_s++;
@@ -270,6 +267,7 @@ int main(int ac, char *av[])
         compute_vorticity.exec();
         write_real_body_states.writeToFile();
         write_total_viscous_force_on_tank.writeToFile(number_of_iterations);
+        write_kinetic_energy.writeToFile(number_of_iterations);
 
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
