@@ -23,6 +23,7 @@ int main(int ac, char *av[])
     water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     water_block.generateParticles<ParticleGeneratorLattice>();
     water_block.addBodyStateForRecording<Real>("VolumetricMeasure");
+    water_block.addBodyStateForRecording<Real>("Pressure");
 
     SolidBody wall_boundary(system, makeShared<WallBoundary>("Wall"));
     wall_boundary.defineParticlesAndMaterial<SolidParticles, Solid>();
@@ -58,6 +59,8 @@ int main(int ac, char *av[])
     BodyRegionByCell wave_probe_buffer(water_block, makeShared<TransformShape<GeometricShapeBox>>(
                                                         Transform(gauge_translation), gauge_halfsize, "FreeSurfaceGauge"));
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight>>> wave_gauge(io_environment, wave_probe_buffer);
+    ReducedQuantityRecording<ReduceDynamics<TotalMechanicalEnergy>>
+        write_water_kinetic_energy(io_environment, water_block, "WaterKineticEnergy");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -70,6 +73,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     write_real_body_states.writeToFile(0);
     wave_gauge.writeToFile(0);
+    write_water_kinetic_energy.writeToFile(0);
     //----------------------------------------------------------------------
     //	Basic control parameters for time stepping.
     //----------------------------------------------------------------------
@@ -133,7 +137,12 @@ int main(int ac, char *av[])
 
         TickCount t2 = TickCount::now();
         if (total_time >= relax_time)
+        {
             write_real_body_states.writeToFile();
+            write_water_kinetic_energy.writeToFile(number_of_iterations);
+        }
+            
+
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }

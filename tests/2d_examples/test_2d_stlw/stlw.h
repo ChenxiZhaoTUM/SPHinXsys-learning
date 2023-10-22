@@ -9,7 +9,7 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real total_physical_time = 10.0; /**< TOTAL SIMULATION TIME*/
+Real total_physical_time = 200.0; /**< TOTAL SIMULATION TIME*/
 Real DL = 3.0;                   /**< Tank length. */
 Real DH = 4.0;                   /**< Tank height. */
 Real WH = 2.0;                   /**< Water block height. */

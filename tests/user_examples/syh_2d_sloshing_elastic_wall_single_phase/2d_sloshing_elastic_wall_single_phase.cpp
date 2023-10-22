@@ -8,6 +8,8 @@
  * @author 	Xiangyu Hu, Chi Zhang and Luhui Han
  */
 #include "sphinxsys.h"
+
+#define PI (3.14159265358979323846)
 using namespace SPH;
 
 //----------------------------------------------------------------------
@@ -57,6 +59,31 @@ public:
 	{
 		multi_polygon_.addAPolygonFromFile(tank_outer, ShapeBooleanOps::add);
 		multi_polygon_.addAPolygonFromFile(tank_inner, ShapeBooleanOps::sub);
+	}
+};
+
+Real f = 1.0;
+Real a = 0.08;
+
+class VariableGravity : public Gravity
+{
+	Real time_ = 0;
+public:
+	VariableGravity() : Gravity(Vecd(0.0, -gravity_g)) {};
+	virtual Vecd InducedAcceleration(Vecd& position) override
+	{
+		time_ = GlobalStaticVariables::physical_time_;
+
+		if (time_ < 0.5)
+		{
+			global_acceleration_[0] = 0.0;
+		}
+		else
+		{
+			global_acceleration_[0] = 4.0 * PI * PI * f * f * a * sin(2 * PI * f * (time_ - 0.5));
+		}
+
+		return global_acceleration_;
 	}
 };
 
@@ -255,7 +282,8 @@ int main(int ac, char *av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     /** Initialize particle acceleration. */
-    SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g)));
+    //SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g)));
+    SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block, makeShared<VariableGravity>());
     /** Evaluation of density by summation approach. */
     //InteractionWithUpdate<fluid_dynamics::DensitySummationComplex> update_density_by_summation(water_block_complex);
     InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex> update_density_by_summation(water_block_complex);
@@ -271,6 +299,8 @@ int main(int ac, char *av[])
     InteractionDynamics<fluid_dynamics::ViscousAccelerationWithWall> viscous_acceleration(water_block_complex);
     /** Computing vorticity in the flow. */
     InteractionDynamics<fluid_dynamics::VorticityInner> compute_vorticity(water_block_complex.getInnerRelation());
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, DampingPairwiseInner>>>
+        fluid_damping(0.2, water_block_complex, "Velocity", viscous_dynamics);
 
     //----------------------------------------------------------------------
     //	Algorithms of FSI.
@@ -293,8 +323,6 @@ int main(int ac, char *av[])
     /** Stress relaxation for the inserted body. */
     Dynamics1Level<solid_dynamics::Integration1stHalfPK2> tank_stress_relaxation_first_half(tank_inner);
     Dynamics1Level<solid_dynamics::Integration2ndHalf> tank_stress_relaxation_second_half(tank_inner);
-    DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, DampingPairwiseInner>>>
-        fluid_damping(0.2, water_block_complex, "Velocity", viscous_dynamics);
     DampingWithRandomChoice<InteractionSplit<DampingBySplittingInner<Vecd>>>
         tank_damping(0.2, tank_inner, "Velocity", physical_viscosity);
 
@@ -316,7 +344,9 @@ int main(int ac, char *av[])
     ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
         write_total_viscous_force_on_tank(io_environment, viscous_force_on_solid, "TotalViscousForceOnSolid");
     ReducedQuantityRecording<ReduceDynamics<TotalMechanicalEnergy>>
-        write_kinetic_energy(io_environment, wall_boundary);
+        write_tank_kinetic_energy(io_environment, wall_boundary, "TankKineticEnergy");
+    ReducedQuantityRecording<ReduceDynamics<TotalMechanicalEnergy>>
+        write_water_kinetic_energy(io_environment, water_block, "WaterKineticEnergy");
 
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -348,7 +378,8 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     write_real_body_states.writeToFile();
-    write_kinetic_energy.writeToFile(0);
+    write_tank_kinetic_energy.writeToFile(0);
+    write_water_kinetic_energy.writeToFile(0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -374,7 +405,10 @@ int main(int ac, char *av[])
             {
                 Real dt = SMIN(get_fluid_time_step_size.exec(), Dt);
 
-                fluid_damping.exec(dt);
+                if (GlobalStaticVariables::physical_time_ < 0.5)
+                {
+                    fluid_damping.exec(dt);
+                }
 
                 /** Fluid pressure relaxation */
                 pressure_relaxation.exec(dt);
@@ -395,11 +429,13 @@ int main(int ac, char *av[])
                     constrain_rotation.exec();
 					constrain_mass_center_1.exec();
 
-                    tank_damping.exec(dt_s);
-
-                    constrain_rotation.exec();
-					constrain_mass_center_1.exec();
-
+                    if (GlobalStaticVariables::physical_time_ < 0.5)
+                    {
+                        tank_damping.exec(dt_s);
+                        constrain_rotation.exec();
+					    constrain_mass_center_1.exec();
+                    }
+                    
                     tank_stress_relaxation_second_half.exec(dt_s);
                     dt_s_sum += dt_s;
                     inner_ite_dt_s++;
@@ -432,7 +468,8 @@ int main(int ac, char *av[])
         compute_vorticity.exec();
         write_real_body_states.writeToFile();
         write_total_viscous_force_on_tank.writeToFile(number_of_iterations);
-        write_kinetic_energy.writeToFile(number_of_iterations);
+        write_tank_kinetic_energy.writeToFile(number_of_iterations);
+        write_water_kinetic_energy.writeToFile(number_of_iterations);
 
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
