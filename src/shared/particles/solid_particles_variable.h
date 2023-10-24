@@ -131,6 +131,22 @@ class VonMisesStress : public BaseDerivedVariable<Real>,
     ElasticSolid &elastic_solid_;
 };
 
+class SigmaXX : public BaseDerivedVariable<Real>,
+                       public ElasticSolidDataSimple,
+                       public LocalDynamics
+{
+  public:
+    explicit SigmaXX(SPHBody &sph_body);
+    virtual ~SigmaXX(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real rho0_;
+    StdLargeVec<Real> &rho_;
+    StdLargeVec<Matd> &F_;
+    ElasticSolid &elastic_solid_;
+};
+
 /**
  * @class VonMisesStrain
  * @brief computing von Mises strain

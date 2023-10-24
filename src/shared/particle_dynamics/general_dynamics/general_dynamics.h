@@ -305,7 +305,7 @@ class TotalMechanicalEnergy
     Gravity *gravity_;
 
   public:
-    TotalMechanicalEnergy(SPHBody &sph_body, SharedPtr<Gravity> = makeShared<Gravity>(Vecd::Zero()));
+    TotalMechanicalEnergy(SPHBody &sph_body, const std::string &mechanical_energy_name = "TotalMechanicalEnergy", SharedPtr<Gravity> = makeShared<Gravity>(Vecd::Zero()));
     virtual ~TotalMechanicalEnergy(){};
 
     Real reduce(size_t index_i, Real dt = 0.0);

@@ -49,6 +49,11 @@ VonMisesStress::VonMisesStress(SPHBody &sph_body)
       LocalDynamics(sph_body), rho0_(sph_body_.base_material_->ReferenceDensity()),
       rho_(particles_->rho_), F_(particles_->F_), elastic_solid_(particles_->elastic_solid_) {}
 //=============================================================================================//
+SigmaXX::SigmaXX(SPHBody &sph_body)
+    : BaseDerivedVariable<Real>(sph_body, "SigmaXX"), ElasticSolidDataSimple(sph_body),
+      LocalDynamics(sph_body), rho0_(sph_body_.base_material_->ReferenceDensity()),
+      rho_(particles_->rho_), F_(particles_->F_), elastic_solid_(particles_->elastic_solid_) {}
+//=============================================================================================//
 VonMisesStrain::VonMisesStrain(SPHBody &sph_body)
     : BaseDerivedVariable<Real>(sph_body, "VonMisesStrain"),
       ElasticSolidDataSimple(sph_body), LocalDynamics(sph_body) {}
