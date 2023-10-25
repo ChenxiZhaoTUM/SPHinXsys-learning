@@ -51,6 +51,18 @@ void VonMisesStress::update(size_t index_i, Real dt)
         sqrt(sigmaxx * sigmaxx + sigmayy * sigmayy - sigmaxx * sigmayy + 3.0 * sigmaxy * sigmaxy);
 }
 //=============================================================================================//
+void SigmaXX::update(size_t index_i, Real dt)
+{
+    Real J = rho0_ / rho_[index_i];
+    Matd F = F_[index_i];
+    Matd stress_PK1 = F * elastic_solid_.StressPK2(F, index_i);
+    Matd sigma = (stress_PK1 * F.transpose()) / J;
+
+    Real sigmaxx = sigma(0, 0);
+    
+    derived_variable_[index_i] = sigmaxx;
+}
+//=============================================================================================//
 void MidSurfaceVonMisesStress::update(size_t index_i, Real dt)
 {
     Matd sigma = mid_surface_cauchy_stress_[index_i];
