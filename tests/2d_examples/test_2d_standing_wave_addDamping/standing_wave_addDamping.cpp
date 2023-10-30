@@ -23,7 +23,8 @@ Real rho0_f = 1000.0;                    /**< Reference density of fluid. */
 Real gravity_g = 9.81;                   /**< Gravity force of fluid. */
 Real U_ref = 2.0 * sqrt(gravity_g * LH); /**< Characteristic velocity. */
 Real c_f = 10.0 * U_ref;                 /**< Reference sound speed. */
-//----------------------------------------------------------------------
+Real viscous_dynamics = rho0_f * U_ref * LL;
+    //----------------------------------------------------------------------
 //	Geometric shapes used in this case.
 //----------------------------------------------------------------------
 Vec2d outer_wall_halfsize = Vec2d(0.5 * DL + BW, 0.5 * DH + BW);
@@ -204,6 +205,10 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> fluid_acoustic_time_step(water_block);
     /** We can output a method-specific particle data for debug */
     water_block.addBodyStateForRecording<Real>("Pressure");
+
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vecd, DampingPairwiseInner>>>
+        fluid_damping(0.2, water_block_complex, "Velocity", viscous_dynamics);
+    ReduceDynamics<TotalMechanicalEnergy> get_kinetic_energy(water_block);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -211,7 +216,7 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp body_states_recording(io_environment, sph_system.real_bodies_);
     RestartIO restart_io(io_environment, sph_system.real_bodies_);
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalMechanicalEnergy>>
-        write_water_mechanical_energy(io_environment, water_block, "TotalMechanicalEnergy", gravity_ptr);
+        write_water_mechanical_energy(io_environment, water_block,"TotalMechanicalEnergy", gravity_ptr);
     /** WaveProbes. */
     BodyRegionByCell wave_probe_buffer_(water_block, makeShared<MultiPolygonShape>(createWaveProbeShape(), "WaveProbe"));
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<UpperFrontInAxisDirection<BodyPartByCell>>>
@@ -241,6 +246,8 @@ int main(int ac, char *av[])
     int restart_output_interval = screen_output_interval * 10;
     Real end_time = 10.0;
     Real output_interval = 0.05;
+    Real total_time = 0.0;
+    BOOL Damping_EXEC = false;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -280,11 +287,34 @@ int main(int ac, char *av[])
             {
                 /** inner loop for dual-time criteria time-stepping.  */
                 acoustic_dt = fluid_acoustic_time_step.exec();
+
+                Real total_kinetic_energy = get_kinetic_energy.exec();
+
+                if (!Damping_EXEC)
+                {
+                    if (total_kinetic_energy > 1.0e-7)
+                    {
+                        fluid_damping.exec(acoustic_dt);
+                    }
+                }
+
                 fluid_pressure_relaxation_correct.exec(acoustic_dt);
                 fluid_density_relaxation.exec(acoustic_dt);
                 relaxation_time += acoustic_dt;
                 integration_time += acoustic_dt;
-                GlobalStaticVariables::physical_time_ += acoustic_dt;
+
+                if (!Damping_EXEC && total_kinetic_energy <= 1.0e-7)
+                {
+                    Damping_EXEC = true;
+                }
+
+                if (Damping_EXEC)
+                {
+                    GlobalStaticVariables::physical_time_ += acoustic_dt;
+                }
+
+                write_water_mechanical_energy.writeToFile(number_of_iterations);
+                wave_probe.writeToFile(number_of_iterations);
             }
             interval_computing_fluid_pressure_relaxation += TickCount::now() - time_instance;
 
@@ -295,13 +325,13 @@ int main(int ac, char *av[])
                           << GlobalStaticVariables::physical_time_
                           << "	advection_dt = " << advection_dt << "	acoustic_dt = " << acoustic_dt << "\n";
 
-                if (number_of_iterations % observation_sample_interval == 0 && number_of_iterations != sph_system.RestartStep())
+                /*if (number_of_iterations % observation_sample_interval == 0 && number_of_iterations != sph_system.RestartStep() && Damping_EXEC)
                 {
                     write_water_mechanical_energy.writeToFile(number_of_iterations);
                     wave_probe.writeToFile(number_of_iterations);
                 }
                 if (number_of_iterations % restart_output_interval == 0)
-                    restart_io.writeToFile(number_of_iterations);
+                    restart_io.writeToFile(number_of_iterations);*/
             }
             number_of_iterations++;
 
@@ -312,8 +342,14 @@ int main(int ac, char *av[])
             interval_updating_configuration += TickCount::now() - time_instance;
         }
 
-        body_states_recording.writeToFile();
         TickCount t2 = TickCount::now();
+
+        body_states_recording.writeToFile();
+
+        /*if (Damping_EXEC)
+        {
+            body_states_recording.writeToFile();
+        }*/
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
