@@ -20,7 +20,7 @@ Real DL = 4.8;
 Real DL1 = 1.2;
 Real DH = 1;
 Real airfoil_h = 0.1;
-Real resolution_ref = 0.03; /**< Reference resolution. */
+Real resolution_ref = 0.01; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	Material properties of the fluid.
@@ -226,7 +226,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 1000;
     Real end_time = 15;
-    Real output_interval = 0.5; /**< time stamps for output. */
+    Real output_interval = 0.1; /**< time stamps for output. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
