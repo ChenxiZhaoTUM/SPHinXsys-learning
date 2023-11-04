@@ -189,7 +189,7 @@ class Integration1stHalf : public BaseIntegration1stHalf
             Vecd e_ij = inner_neighborhood.e_ij_[n];
             Real r_ij = inner_neighborhood.r_ij_[n];
             Real dim_r_ij_1 = Dimensions / r_ij;
-            Vecd pos_jump = pos_[index_i] - pos_[index_j];
+            /*Vecd pos_jump = pos_[index_i] - pos_[index_j];
             Vecd vel_jump = vel_[index_i] - vel_[index_j];
             Real strain_rate = dim_r_ij_1 * dim_r_ij_1 * pos_jump.dot(vel_jump);
             Real weight = inner_neighborhood.W_ij_[n] * inv_W0_;
@@ -198,7 +198,17 @@ class Integration1stHalf : public BaseIntegration1stHalf
             acceleration += inv_rho0_ * inner_neighborhood.dW_ijV_j_[n] *
                             (stress_PK1_B_[index_i] + stress_PK1_B_[index_j] +
                              numerical_dissipation_factor_ * weight * numerical_stress_ij) *
-                            e_ij;
+                            e_ij;*/
+
+            /*Vecd pair_distance = pos_[index_i] - pos_[index_j];
+            Matd pair_inverse_F = 0.5 * (inverse_F_[index_i] + inverse_F_[index_j]);
+            Vecd e_ij_difference = pair_inverse_F * pair_distance / r_ij - e_ij;
+            
+            max_e_ij_difference = max_e_ij_difference.norm() > e_ij_difference.norm()
+                ? max_e_ij_difference : e_ij_difference;*/
+            
+            acceleration += inv_rho0_ * inner_neighborhood.dW_ijV_j_[n] *
+                (stress_PK1_B_[index_i] + stress_PK1_B_[index_j]) * e_ij;
         }
 
         acc_[index_i] = acceleration;

@@ -32,6 +32,7 @@ int main(int ac, char* av[])
 	//	Creating body, materials and particles.
 	//--------------------------------------------------------------------------------
 	SolidBody tank(sph_system, makeShared<Tank>("Tank"));
+	//tank.defineAdaptation<SPHAdaptation>(1.3, 2.0);
 	tank.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
 	if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
 	{
@@ -127,15 +128,20 @@ int main(int ac, char* av[])
 	//--------------------------------------------------------------------------------
 	//	Algorithms of fluid dynamics.
 	//--------------------------------------------------------------------------------
+	SimpleDynamics<InitialDensity> initial_density_condition(water_block);
+
 	/** Time step initialization of fluid body. */
-	SimpleDynamics<TimeStepInitializationForVariableGravity> initialize_a_water_step(water_block, makeShared<VariableGravity>());
-	SimpleDynamics<TimeStepInitializationForVariableGravity> initialize_a_air_step(air_block, makeShared<VariableGravity>());
+	/*SimpleDynamics<TimeStepInitializationForVariableGravity> initialize_a_water_step(water_block, makeShared<VariableGravity>());
+	SimpleDynamics<TimeStepInitializationForVariableGravity> initialize_a_air_step(air_block, makeShared<VariableGravity>());*/
+
+	SimpleDynamics<TimeStepInitialization> initialize_a_water_step(water_block, makeShared<VariableGravitySecond>());
+	SimpleDynamics<TimeStepInitialization> initialize_a_air_step(air_block, makeShared<VariableGravitySecond>());
 
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex>
 		water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
 	InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
 		air_density_by_summation(air_block_contact, air_water_complex);
-	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>>
+	InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex<AllParticles>>
 		air_transport_correction(air_block_contact, air_water_complex);
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
 		water_viscous_acceleration(water_block_contact, water_air_complex);
@@ -228,17 +234,17 @@ int main(int ac, char* av[])
 	sph_system.initializeSystemCellLinkedLists();
 	/** Initialize configurations for all bodies. */
 	sph_system.initializeSystemConfigurations();
+	initial_density_condition.exec();
 	/** Computing surface normal direction for the tank. */
 	tank_corrected_configuration.exec();
 	tank_normal_direction.exec();
-
 	//--------------------------------------------------------------------------------
 	//	Setup computing and initial conditions.
 	//--------------------------------------------------------------------------------
 	size_t number_of_iterations = sph_system.RestartStep();
 	int screen_output_interval = 10;
 	int restart_output_interval = screen_output_interval * 10;
-	Real End_Time = 12;			                                      /** End time. */
+	Real End_Time = 13;			                                      /** End time. */
 	Real D_Time = 0.05;								/** time stamps for output. */
 	Real Dt = 0.0;				   /** Default advection time step sizes for fluid. */
 	Real dt = 0.0; 					/** Default acoustic time step sizes for fluid. */
@@ -299,7 +305,7 @@ int main(int ac, char* av[])
 				dt_a = air_acoustic_time_step.exec();
 				dt = SMIN(SMIN(dt_f, dt_a), Dt);
 
-				if (GlobalStaticVariables::physical_time_ < 0.5)
+				if (GlobalStaticVariables::physical_time_ < 1.0)
                 {
                     fluid_damping.exec(dt);
                 }
@@ -327,12 +333,16 @@ int main(int ac, char* av[])
 					constrain_rotation.exec(dt_s);
 					constrain_mass_center_1.exec(dt_s);
 
-					if (GlobalStaticVariables::physical_time_ < 0.5)
-                    {
-                        tank_damping.exec(dt_s);
-                        constrain_rotation.exec();
-					    constrain_mass_center_1.exec();
-                    }
+					if (GlobalStaticVariables::physical_time_ < 1.0)
+					{
+						tank_damping.exec(dt_s);
+						constrain_rotation.exec();
+						constrain_mass_center_1.exec();
+					}
+
+                    /*tank_damping.exec(dt_s);
+                    constrain_rotation.exec();
+					constrain_mass_center_1.exec();*/
 
 					tank_stress_relaxation_2nd_half.exec(dt_s);
 					dt_s_sum += dt_s;

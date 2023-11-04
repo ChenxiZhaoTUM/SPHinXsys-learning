@@ -27,7 +27,7 @@ BoundingBox system_domain_bounds(Vecd(-0.6, -0.2), Vecd(0.6, 0.4));
 //----------------------------------------------------------------------
 Real rho0_f = 1000.0;                                         /**< Density. */
 Real gravity_g = 9.81;					                      /**< Gravity. */
-Real U_max = 2.0 * sqrt(gravity_g * 0.5); /**< Characteristic velocity. */
+Real U_max = 2.0 * sqrt(gravity_g * 0.0612); /**< Characteristic velocity. */
 Real c_f = 10.0 * U_max;				 /**< Reference sound speed. */
 Real mu_water = 653.9e-6;
 Real viscous_dynamics = rho0_f * U_max * 0.64; /**< Dynamics viscosity. */
@@ -35,9 +35,13 @@ Real viscous_dynamics = rho0_f * U_max * 0.64; /**< Dynamics viscosity. */
 //----------------------------------------------------------------------
 //	Global parameters on the solid properties
 //----------------------------------------------------------------------
-Real rho0_s = 2800.0; /**< Reference density.*/
-Real poisson = 0.33; /**< Poisson ratio.*/
-Real Ae = 70.0e9; /**< Normalized Youngs Modulus. */
+Real rho0_s = 7890;
+Real poisson = 0.27; 		/**< Poisson ratio.*/
+Real Ae = 135.0e9;
+
+//Real rho0_s = 2800.0; /**< Reference density.*/
+//Real poisson = 0.33; /**< Poisson ratio.*/
+//Real Ae = 70.0e9; /**< Normalized Youngs Modulus. */
 Real Youngs_modulus = Ae;
 Real physical_viscosity = 1.3e4;
 // Real physical_viscosity = sqrt(rho0_s * Youngs_modulus) * 0.03 * 0.03 / 0.24 / 4;
@@ -350,10 +354,9 @@ int main(int ac, char *av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     /** Initialize particle acceleration. */
-    //SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g)));
+    //SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block, makeShared<VariableGravity>());
     SimpleDynamics<TimeStepInitializationForVariableGravity> initialize_a_fluid_step(water_block, makeShared<VariableGravity>());
     /** Evaluation of density by summation approach. */
-    //InteractionWithUpdate<fluid_dynamics::DensitySummationComplex> update_density_by_summation(water_block_complex);
     InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex> update_density_by_summation(water_block_complex);
     /** Time step size without considering sound wave speed. */
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_max);

@@ -1,5 +1,5 @@
 /**
- * @file 	LNG_ETank_waterSloshing.h
+ * @file 	elastic_tank_basic_case.h
  * @brief 	Sloshing in marine LNG fuel tank with elastic material under roll excitation
  * @author
  */
@@ -14,7 +14,7 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
-std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
+std::string fuel_tank_outer = "./input/tank_outer_0.018.STL";
 std::string fuel_tank_inner = "./input/3D_grotle_tank_inner.STL";
 std::string water_05 = "./input/3D_grotle_water_0255.STL";
 std::string air_05 = "./input/3D_grotle_air_0255.STL";
@@ -23,7 +23,7 @@ std::string probe_shape = "./input/base_case_probe_0.106.STL";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real resolution_ref = 0.010;			  /** Initial particle spacing*/
+Real resolution_ref = 0.009;			  /** Initial particle spacing*/
 Real length_scale = 1.0;							  /** Scale factor*/
 Vecd translation(0, 0.12, 0);
 BoundingBox system_domain_bounds(Vecd(-0.6, -0.2, -0.2), Vecd(0.6, 0.4, 0.2));
@@ -81,6 +81,26 @@ public:
 	}
 };
 
+class InitialDensity
+    : public fluid_dynamics::FluidInitialCondition
+{
+  public:
+      InitialDensity(SPHBody &sph_body)
+        : fluid_dynamics::FluidInitialCondition(sph_body),
+          fluid_particles_(dynamic_cast<BaseParticles *>(&sph_body.getBaseParticles())),
+          p_(*fluid_particles_->getVariableByName<Real>("Pressure")), rho_(fluid_particles_->rho_){};
+
+    void update(size_t index_i, Real dt)
+    {
+        p_[index_i] = rho0_f * gravity_g * (0.0612 - pos_[index_i][1]);
+        rho_[index_i] = p_[index_i] / pow(c_f, 2) + rho0_f;
+    }
+
+  protected:
+    BaseParticles *fluid_particles_;
+    StdLargeVec<Real> &p_, &rho_;
+};
+
 //----------------------------------------------------------------------
 //	Define external excitation.
 //----------------------------------------------------------------------
@@ -111,10 +131,10 @@ class VariableGravity : public ExternalForceForVariableGravity
 	virtual Vecd InducedAccelerationForVariableGravity(Vecd &position, Vecd &velocity) override
 	{
 		time_= GlobalStaticVariables::physical_time_;
-		Real Theta = Theta0 * sin(omega * (time_ - 0.5));
-		Real ThetaV = Theta0 * omega * cos(omega * (time_ - 0.5));
+		Real Theta = Theta0 * sin(omega * (time_ - 1.0));
+		Real ThetaV = Theta0 * omega * cos(omega * (time_ - 1.0));
 
-		if (time_ < 0.5)
+		if (time_ < 1.0)
 		{
 			global_acceleration_[0] = 0.0;
 			global_acceleration_[1] = -gravity_g;
@@ -155,6 +175,41 @@ class TimeStepInitializationForVariableGravity
 	void update(size_t index_i, Real dt = 0.0)
 	{
 		acc_prior_[index_i] = variable_gravity_->InducedAccelerationForVariableGravity(pos_[index_i], vel_[index_i]);
+	}
+};
+
+//----------------------------------------------------------------------
+//	Define external excitation 02.
+//----------------------------------------------------------------------
+class VariableGravitySecond : public Gravity
+{
+	Real time_ = 0;
+
+public:
+	VariableGravitySecond() : Gravity(Vecd(0.0, -gravity_g, 0.0)) {};
+	virtual Vecd InducedAcceleration(Vecd& position) override
+	{
+		time_= GlobalStaticVariables::physical_time_;
+		Real Theta = Theta0 * sin(omega * (time_ - 1.0));
+		Real ThetaV = Theta0 * omega * cos(omega * (time_ - 1.0));
+
+		Real alpha = std::atan2(position[1], position[0]);
+		Real distance = std::sqrt(pow(position[0], 2) + pow(position[1], 2));
+		Real Vx = Theta * distance * std::sin(alpha);
+		Real Vy = Theta * distance * std::cos(alpha);
+
+		if (time_ < 1.0)
+		{
+			global_acceleration_[0] = 0.0;
+			global_acceleration_[1] = -gravity_g;
+		}
+		else
+		{
+			global_acceleration_[0] = -gravity_g * sin(Theta) - ThetaV * ThetaV * position[0] + 2 * ThetaV * Vy;
+			global_acceleration_[1] = -gravity_g * cos(Theta) + ThetaV * ThetaV * position[1] - 2 * ThetaV * Vx;
+		}
+
+		return global_acceleration_;
 	}
 };
 
