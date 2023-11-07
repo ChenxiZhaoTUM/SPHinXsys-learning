@@ -80,6 +80,118 @@ class FarFieldBoundary : public fluid_dynamics::NonReflectiveBoundaryCorrection
     };
     virtual ~FarFieldBoundary(){};
 };
+
+class PressureObserverParticleGeneratorFront : public ObserverParticleGenerator
+{
+  public:
+    explicit PressureObserverParticleGeneratorFront(SPHBody &sph_body) : ObserverParticleGenerator(sph_body)
+    {
+        std::fstream dataFile(airfoil_flap_front);
+        Vecd temp_point;
+        Real temp1 = 0.0, temp2 = 0.0;
+        if (dataFile.fail())
+        {
+            std::cout << "File can not open.\n"
+                        << std::endl;
+            ;
+        }
+
+        while (!dataFile.fail() && !dataFile.eof())
+        {
+            dataFile >> temp1 >> temp2;
+            temp_point[0] = temp1;
+            temp_point[1] = temp2;
+            positions_.push_back(temp_point);
+        }
+        dataFile.close();
+    }
+};
+
+class PressureObserverParticleGeneratorWing : public ObserverParticleGenerator
+{
+  public:
+    explicit PressureObserverParticleGeneratorWing(SPHBody &sph_body) : ObserverParticleGenerator(sph_body)
+    {
+        std::fstream dataFile(airfoil_wing);
+        Vecd temp_point;
+        Real temp1 = 0.0, temp2 = 0.0;
+        if (dataFile.fail())
+        {
+            std::cout << "File can not open.\n"
+                        << std::endl;
+            ;
+        }
+
+        while (!dataFile.fail() && !dataFile.eof())
+        {
+            dataFile >> temp1 >> temp2;
+            temp_point[0] = temp1;
+            temp_point[1] = temp2;
+            positions_.push_back(temp_point);
+        }
+        dataFile.close();
+    }
+};
+
+class PressureObserverParticleGeneratorRear : public ObserverParticleGenerator
+{
+  public:
+    explicit PressureObserverParticleGeneratorRear(SPHBody &sph_body) : ObserverParticleGenerator(sph_body)
+    {
+        std::fstream dataFile(airfoil_flap_rear);
+        Vecd temp_point;
+        Real temp1 = 0.0, temp2 = 0.0;
+        if (dataFile.fail())
+        {
+            std::cout << "File can not open.\n"
+                        << std::endl;
+            ;
+        }
+
+        while (!dataFile.fail() && !dataFile.eof())
+        {
+            dataFile >> temp1 >> temp2;
+            temp_point[0] = temp1;
+            temp_point[1] = temp2;
+            positions_.push_back(temp_point);
+        }
+        dataFile.close();
+    }
+};
+
+class OutputObserverPositionAndPressure : public BaseIO,
+                                            public ObservingAQuantity<Real>
+{
+public:
+    OutputObserverPositionAndPressure(IOEnvironment& io_environment, BaseContactRelation& contact_relation, const std::string &airfoil_body_name)
+        : BaseIO(io_environment),
+        ObservingAQuantity<Real>(contact_relation, "Pressure"),
+        observer_(contact_relation.getSPHBody()),
+        base_particles_(observer_.getBaseParticles()),
+        airfoil_body_name_(airfoil_body_name){};
+
+    void writeToFile(size_t iteration_step = 0) override
+    {
+        this->exec();
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + "observer_position_and_pressure_ " + airfoil_body_name_ + convertPhysicalTimeToString(GlobalStaticVariables::physical_time_) + ".dat";
+	    std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+
+        for (size_t i = 0; i != base_particles_.total_real_particles_; ++i)
+        {
+            out_file << "particle " << i << ": Position " << base_particles_.pos_[i][0] << " " << base_particles_.pos_[i][1] 
+                << " Pressure " <<  (*this->interpolated_quantities_)[i] << " " << std::endl;
+        }
+        out_file.close();
+    }
+
+protected:
+    SPHBody &observer_;
+    BaseParticles &base_particles_;
+    std::string airfoil_body_name_;
+
+};
+
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
@@ -118,6 +230,15 @@ int main(int ac, char *av[])
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? airfoil.generateParticles<ParticleGeneratorReload>(io_environment, airfoil.getName())
         : airfoil.generateParticles<ParticleGeneratorLattice>();
+
+    ObserverBody front_pressure_observer(sph_system, "FrontPressureObserver");
+    front_pressure_observer.generateParticles<PressureObserverParticleGeneratorFront>();
+
+    ObserverBody wing_pressure_observer(sph_system, "WingPressureObserver");
+    wing_pressure_observer.generateParticles<PressureObserverParticleGeneratorWing>();
+
+    ObserverBody rear_pressure_observer(sph_system, "RearPressureObserver");
+    rear_pressure_observer.generateParticles<PressureObserverParticleGeneratorRear>();
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -127,6 +248,9 @@ int main(int ac, char *av[])
     InnerRelation water_block_inner(water_block);
     ComplexRelation water_airfoil_complex(water_block, {&airfoil});
     ContactRelation airfoil_water_contact(airfoil, {&water_block});
+    ContactRelation front_observer_water_contact(front_pressure_observer, { &water_block });
+    ContactRelation wing_observer_water_contact(wing_pressure_observer, { &water_block });
+    ContactRelation rear_observer_water_contact(rear_pressure_observer, { &water_block });
     //----------------------------------------------------------------------
     //	Run particle relaxation for body-fitted distribution if chosen.
     //----------------------------------------------------------------------
@@ -199,7 +323,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>>
         write_total_viscous_force_on_inserted_body(io_environment, viscous_force_on_solid, "TotalViscousForceOnSolid");
     ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>
@@ -207,6 +331,10 @@ int main(int ac, char *av[])
     ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>
         write_total_force_on_inserted_body(io_environment, fluid_force_on_solid_update, "TotalForceOnSolid");
     ReducedQuantityRecording<MaximumSpeed> write_maximum_speed(io_environment, water_block);
+    OutputObserverPositionAndPressure write_front_pressure(io_environment, front_observer_water_contact, "Front");
+    OutputObserverPositionAndPressure write_wing_pressure(io_environment, wing_observer_water_contact, "Wing");
+    OutputObserverPositionAndPressure write_rear_pressure(io_environment, rear_observer_water_contact, "Rear");
+
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -274,6 +402,11 @@ int main(int ac, char *av[])
         write_total_force_on_inserted_body.writeToFile(number_of_iterations);
 
         write_maximum_speed.writeToFile(number_of_iterations);
+
+        write_front_pressure.writeToFile(number_of_iterations);
+        write_wing_pressure.writeToFile(number_of_iterations);
+        write_rear_pressure.writeToFile(number_of_iterations);
+
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
