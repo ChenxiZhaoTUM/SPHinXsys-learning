@@ -17,7 +17,7 @@ std::string full_path_to_stl_file = "./input/bun_zipper_res2.stl";
 Real DX = 0.06;
 Real DY = 0.05;
 Real DZ = 0.1;
-Real resolution_ref = 0.001; /**< Reference resolution. */
+Real resolution_ref = 0.005; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vecd(-DX, -DY, 0), Vecd(DX, DY, DZ));
 //----------------------------------------------------------------------
 //	import model as a complex shape
