@@ -65,7 +65,7 @@ class AirBlock : public ComplexShape
 public:
 	explicit AirBlock(const std::string &shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(air_05, translation, length_scale, "AirProfile");
+		add<TriangleMeshShapeSTL>(air_05, translation, length_scale);
 	}
 };
 

@@ -292,6 +292,42 @@ class RelaxationStepComplex : public BaseDynamics<void>
 };
 
 /**
+ * @class RelaxationStepWithWall
+ * @brief wall as inner should be relaxed first, then complex relation is imported in RelaxationStepWithWall to relax "inner body" 
+ */
+class RelaxationStepWithWall : public BaseDynamics<void>
+{
+public:
+    explicit RelaxationStepWithWall(ComplexRelation &complex_relation)
+        : BaseDynamics<void>(complex_relation.getSPHBody()),
+        real_body_(complex_relation.getInnerRelation().real_body_),
+        complex_relation_(complex_relation),
+        get_time_step_square_(*real_body_), update_particle_position_(*real_body_)
+    {
+        relaxation_acceleration_complex_ =
+                makeUnique<InteractionDynamics<RelaxationAccelerationComplex>>(complex_relation);
+    }
+
+    virtual ~RelaxationStepWithWall(){};
+
+    virtual void exec(Real dt = 0.0) override
+    {
+        real_body_->updateCellLinkedList();
+        complex_relation_.updateConfiguration();
+        relaxation_acceleration_complex_->exec();
+        Real dt_square = get_time_step_square_.exec();
+        update_particle_position_.exec(dt_square);
+    }
+
+protected:
+    RealBody *real_body_;
+    ComplexRelation &complex_relation_;
+    UniquePtr<BaseDynamics<void>> relaxation_acceleration_complex_;
+    ReduceDynamics<GetTimeStepSizeSquare> get_time_step_square_;
+    SimpleDynamics<UpdateParticlePosition> update_particle_position_;
+};
+
+/**
  * @class ShellMidSurfaceBounding
  * @brief constrain particles by constraining particles to mid-surface.
  * Note that level_set_refinement_ratio should be smaller than particle_spacing_ref_ / (0.05 * thickness_)

@@ -39,11 +39,13 @@ int main(int ac, char *av[])
 	}
 	else
 	{
-		tank.defineComponentLevelSetShape("OuterWall");
-		tank.defineComponentLevelSetShape("InnerWall");
+		/*tank.defineComponentLevelSetShape("OuterWall");
+		tank.defineComponentLevelSetShape("InnerWall");*/
+		tank.defineBodyLevelSetShape()->writeLevelSet(io_environment);
 		tank.generateParticles<ParticleGeneratorLattice>();
 	}
 	tank.addBodyStateForRecording<Vecd>("NormalDirection");
+	tank.addBodyStateForRecording<Real>("Density");
 
 	FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
 	water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
@@ -59,6 +61,7 @@ int main(int ac, char *av[])
 	water_block.addBodyStateForRecording<Vecd>("Position");
 	water_block.addBodyStateForRecording<Real>("Pressure");
 	water_block.addBodyStateForRecording<Vecd>("Velocity");
+	water_block.addBodyStateForRecording<Real>("Density");
 
 	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
 	air_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_a, c_f, mu_a);
@@ -68,12 +71,12 @@ int main(int ac, char *av[])
 	}
 	else
 	{
-		//air_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-		air_block.defineComponentLevelSetShape("AirProfile");
+		air_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
 		air_block.generateParticles<ParticleGeneratorLattice>();
 	}
 	air_block.addBodyStateForRecording<Real>("Pressure");
 	air_block.addBodyStateForRecording<Vecd>("Velocity");
+	air_block.addBodyStateForRecording<Real>("Density");
 
 	ObserverBody tank_observer(sph_system, "TankObserver");
 	tank_observer.generateParticles<TankObserverParticleGenerator>();
@@ -95,6 +98,8 @@ int main(int ac, char *av[])
 	ComplexRelation water_air_complex(water_block, { &air_block });
 	ComplexRelation air_water_complex(air_block, { &water_block });
 	ComplexRelation tank_complex(tank, RealBodyVector{ &water_block, &air_block });
+	ComplexRelation water_tank_complex(water_block, { &tank});
+	ComplexRelation air_complex(air_block, RealBodyVector{ &water_block, &tank });
 
 	BodyRegionByParticle wave_maker(tank, makeShared<Tank>("SloshingMaking"));
 
@@ -119,9 +124,12 @@ int main(int ac, char *av[])
 		ReloadParticleIO write_water_particle_reload_files(io_environment, water_block, "WaterBody");
 		ReloadParticleIO write_air_particle_reload_files(io_environment, air_block, "AirBody");
 		/** A Physics relaxation step. */
-		relax_dynamics::RelaxationStepInner water_relaxation_step_inner(water_inner);
-		relax_dynamics::RelaxationStepComplex air_relaxation_step_complex(air_water_complex, "AirProfile", true);
-		relax_dynamics::RelaxationStepComplex tank_relaxation_step_complex(tank_complex, "OuterWall", true);
+		relax_dynamics::RelaxationStepInner tank_relaxation_step_inner(tank_inner, true);
+		relax_dynamics::RelaxationStepWithWall water_relaxation_step_complex(water_tank_complex);
+		relax_dynamics::RelaxationStepWithWall air_relaxation_step_complex(air_complex);
+
+		relax_dynamics::ComplexRelaxationDynamics<ComplexInteraction<RelaxationInner, RelaxationContact, RelaxationContact>> 
+			relaxation_step_complex(tank_inner, water_contacts, air_contacts);
 
 		//----------------------------------------------------------------------------
 		//	Particle relaxation starts here.
@@ -129,9 +137,9 @@ int main(int ac, char *av[])
 		random_tank_particles.exec(0.25);
 		random_water_particles.exec(0.25);
 		random_air_particles.exec(0.25);
-		water_relaxation_step_inner.SurfaceBounding().exec();
-		air_relaxation_step_complex.SurfaceBounding().exec();
-		tank_relaxation_step_complex.SurfaceBounding().exec();
+		tank_relaxation_step_inner.SurfaceBounding().exec();
+		/*water_relaxation_step_complex.SurfaceBounding().exec();*/
+		//tank_relaxation_step_complex.SurfaceBounding().exec();
 		write_water_to_vtp.writeToFile(0);
 		write_air_to_vtp.writeToFile(0);
 		write_tank_to_vtp.writeToFile(0);
@@ -139,9 +147,9 @@ int main(int ac, char *av[])
 		int ite_p = 0;
 		while (ite_p < 2000)
 		{
-			water_relaxation_step_inner.exec();
+			tank_relaxation_step_inner.exec();
+			water_relaxation_step_complex.exec();
 			air_relaxation_step_complex.exec();
-			tank_relaxation_step_complex.exec();
 			ite_p += 1;
 			if (ite_p % 200 == 0)
 			{
