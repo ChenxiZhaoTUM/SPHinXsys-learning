@@ -310,5 +310,29 @@ class TotalMechanicalEnergy
 
     Real reduce(size_t index_i, Real dt = 0.0);
 };
+
+/**
+ * @class TotalMechanicalEnergy
+ * @brief Compute the total mechanical (kinematic and potential) energy
+ */
+class TotalKineticEnergy
+    : public LocalDynamicsReduce<Real, ReduceSum<Real>>,
+      public GeneralDataDelegateSimple
+{
+  private:
+    SharedPtrKeeper<Gravity> gravity_ptr_keeper_;
+
+  protected:
+    StdLargeVec<Real> &mass_;
+    StdLargeVec<Vecd> &vel_, &pos_;
+    Gravity *gravity_;
+
+  public:
+    TotalKineticEnergy(SPHBody &sph_body, const std::string &mechanical_energy_name, SharedPtr<Gravity> = makeShared<Gravity>(Vecd::Zero()));
+    virtual ~TotalKineticEnergy(){};
+
+    Real reduce(size_t index_i, Real dt = 0.0);
+};
+
 } // namespace SPH
 #endif // GENERAL_DYNAMICS_H

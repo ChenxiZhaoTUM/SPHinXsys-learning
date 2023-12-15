@@ -6,6 +6,8 @@
  * @author 	Yongchuan Yu and Xiangyu Hu
  */
 #include "sphinxsys.h"
+#include "relative_error_for_consistency.h"
+
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
@@ -92,6 +94,9 @@ int main(int ac, char *av[])
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    RelativeErrorSum relative_error_sum_for_consistency(io_environment, zigzag, water_block);
+    ReducedQuantityRecording<TotalKineticEnergy> write_zigzag_kinetic_energy(io_environment, zigzag, "ZigZag_Kinetic_Energy");
+    ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
     //MeshRecordingToPlt cell_linked_list_recording(io_environment, zigzag.getCellLinkedList());
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -112,6 +117,9 @@ int main(int ac, char *av[])
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
+    relative_error_sum_for_consistency.writeToFile(ite_p);
+    write_zigzag_kinetic_energy.writeToFile(ite_p);
+    write_water_kinetic_energy.writeToFile(ite_p);
     while (ite_p < 2000)
     {
         relaxation_step_inner.exec();
@@ -121,6 +129,10 @@ int main(int ac, char *av[])
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
+
+            relative_error_sum_for_consistency.writeToFile(ite_p);
+            write_zigzag_kinetic_energy.writeToFile(ite_p);
+            write_water_kinetic_energy.writeToFile(ite_p);
         }
     }
     std::cout << "The physics relaxation process finish !" << std::endl;

@@ -74,6 +74,7 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_airfoil_particles(airfoil);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
     SimpleDynamics<relax_dynamics::UpdateSmoothingLengthRatioByShape> update_smoothing_length_ratio(airfoil);
+    ReducedQuantityRecording<TotalMechanicalEnergy> write_airfoil_kinetic_energy(io_environment, airfoil);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -91,6 +92,8 @@ int main(int ac, char *av[])
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
+    airfoil_recording_to_vtp.writeToFile(ite_p);
+    write_airfoil_kinetic_energy.writeToFile(ite_p);
     while (ite_p < 2000)
     {
         update_smoothing_length_ratio.exec();
@@ -100,6 +103,7 @@ int main(int ac, char *av[])
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             airfoil_recording_to_vtp.writeToFile(ite_p);
+            write_airfoil_kinetic_energy.writeToFile(ite_p);
         }
     }
     std::cout << "The physics relaxation process finished !" << std::endl;

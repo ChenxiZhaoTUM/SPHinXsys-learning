@@ -90,5 +90,19 @@ Real TotalMechanicalEnergy::reduce(size_t index_i, Real dt)
     return 0.5 * mass_[index_i] * vel_[index_i].squaredNorm() + mass_[index_i] * gravity_->getPotential(pos_[index_i]);
 }
 //=================================================================================================//
+TotalKineticEnergy::TotalKineticEnergy(SPHBody &sph_body, const std::string &mechanical_energy_name, SharedPtr<Gravity> gravity_ptr)
+    : LocalDynamicsReduce<Real, ReduceSum<Real>>(sph_body, Real(0)),
+      GeneralDataDelegateSimple(sph_body), mass_(particles_->mass_),
+      vel_(particles_->vel_), pos_(particles_->pos_),
+      gravity_(gravity_ptr_keeper_.assignPtr(gravity_ptr))
+{
+    quantity_name_ = mechanical_energy_name;
+}
+//=================================================================================================//
+Real TotalKineticEnergy::reduce(size_t index_i, Real dt)
+{
+    return 0.5 * mass_[index_i] * vel_[index_i].squaredNorm() + mass_[index_i] * gravity_->getPotential(pos_[index_i]);
+}
+//=================================================================================================//
 } // namespace SPH
   //=================================================================================================//
