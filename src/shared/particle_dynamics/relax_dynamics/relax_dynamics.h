@@ -85,11 +85,21 @@ class RelaxationAccelerationInner : public LocalDynamics, public RelaxDataDelega
     {
         Vecd acceleration = Vecd::Zero();
         const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+
+        Real sum_temp = 0;
+
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             acceleration -= 2.0 * inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
+
+            sum_temp += inner_neighborhood.dW_ijV_j_[n];
         }
         acc_[index_i] = acceleration;
+
+        /*std::string output_folder = "./output";
+		std::string filefullpath = output_folder + "/" + "sum_temp_" + std::to_string(dt) + ".dat";
+		std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+		out_file << sum_temp << " " << index_i << std::endl;*/
     };
 
   protected:
@@ -128,7 +138,7 @@ class UpdateParticlePosition : public LocalDynamics,
 {
   protected:
     SPHAdaptation *sph_adaptation_;
-    StdLargeVec<Vecd> &pos_, &acc_;
+    StdLargeVec<Vecd> &pos_, &acc_, &vel_;
 
   public:
     explicit UpdateParticlePosition(SPHBody &sph_body);
@@ -176,6 +186,7 @@ class RelaxationAccelerationComplex : public LocalDynamics,
     {
         Vecd acceleration = Vecd::Zero();
         Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             acceleration -= 2.0 * inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];

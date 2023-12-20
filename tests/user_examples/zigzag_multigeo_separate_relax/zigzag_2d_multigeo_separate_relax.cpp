@@ -66,13 +66,11 @@ int main(int ac, char *av[])
     zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     zigzag.defineParticlesAndMaterial();
     zigzag.generateParticles<ParticleGeneratorLattice>();
-    zigzag.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
     water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
-    water_block.addBodyStateForRecording<Real>("Density");
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -83,6 +81,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     InnerRelation zigzag_inner(zigzag);
     InnerRelation water_inner(water_block);
+    ComplexRelation zigzag_water_complex(zigzag, {&water_block});
+    ComplexRelation water_zigzag_complex(water_block, {&zigzag});
     //----------------------------------------------------------------------
     //	Methods used for particle relaxation.
     //----------------------------------------------------------------------
@@ -94,9 +94,20 @@ int main(int ac, char *av[])
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    RelativeErrorSum relative_error_sum_for_consistency(io_environment, zigzag, water_block);
+    
     ReducedQuantityRecording<TotalKineticEnergy> write_zigzag_kinetic_energy(io_environment, zigzag, "ZigZag_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
+
+    InteractionDynamics<ZeroOrderConsistency> zigzag_0order_consistency_value(zigzag_water_complex);
+    InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_zigzag_complex);
+    zigzag.addBodyStateForRecording<Real>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Real>("ZeroOrderConsistencyValue");
+
+    WriteFuncRelativeErrorSum write_relative_error_sum_for_consistency(io_environment, zigzag, water_block);
+
+    //InteractionDynamics<ZeroOrderConsistencyInner> zigzag_0order_consistency_value(zigzag_inner);
+    //zigzag.addBodyStateForRecording<Real>("ZeroOrderConsistencyValueInner");
+
     //MeshRecordingToPlt cell_linked_list_recording(io_environment, zigzag.getCellLinkedList());
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -108,6 +119,8 @@ int main(int ac, char *av[])
     relaxation_step_inner_water.SurfaceBounding().exec();
     zigzag.updateCellLinkedList();
     water_block.updateCellLinkedList();
+    zigzag_water_complex.updateConfiguration();
+    water_zigzag_complex.updateConfiguration();
     //----------------------------------------------------------------------
     //	First output before the simulation.
     //----------------------------------------------------------------------
@@ -117,25 +130,29 @@ int main(int ac, char *av[])
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
-    relative_error_sum_for_consistency.writeToFile(ite_p);
-    write_zigzag_kinetic_energy.writeToFile(ite_p);
-    write_water_kinetic_energy.writeToFile(ite_p);
     while (ite_p < 2000)
     {
         relaxation_step_inner.exec();
         relaxation_step_inner_water.exec();
+        
+        zigzag_0order_consistency_value.exec();
+        water_0order_consistency_value.exec();
+       
+        write_zigzag_kinetic_energy.writeToFile(ite_p);
+        write_water_kinetic_energy.writeToFile(ite_p);
+
         ite_p += 1;
         if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
-
-            relative_error_sum_for_consistency.writeToFile(ite_p);
-            write_zigzag_kinetic_energy.writeToFile(ite_p);
-            write_water_kinetic_energy.writeToFile(ite_p);
         }
+
+        zigzag_water_complex.updateConfiguration();
+        water_zigzag_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
+    write_relative_error_sum_for_consistency.writeToFile(ite_p);
 
     return 0;
 }

@@ -39,11 +39,19 @@ RelaxationAccelerationInnerWithLevelSetCorrection::
 UpdateParticlePosition::UpdateParticlePosition(SPHBody &sph_body)
     : LocalDynamics(sph_body), RelaxDataDelegateSimple(sph_body),
       sph_adaptation_(sph_body.sph_adaptation_),
-      pos_(particles_->pos_), acc_(particles_->acc_) {}
+      pos_(particles_->pos_), acc_(particles_->acc_), vel_(particles_->vel_){}
 //=================================================================================================//
 void UpdateParticlePosition::update(size_t index_i, Real dt_square)
 {
+    Vecd velocity = Vecd::Zero();
     pos_[index_i] += acc_[index_i] * dt_square * 0.5 / sph_adaptation_->SmoothingLengthRatio(index_i);
+    velocity = acc_[index_i] * sqrt(dt_square);
+    vel_[index_i] = velocity;
+    
+ //   std::string output_folder = "./output";
+	//std::string filefullpath = output_folder + "/" + "velocity_" + std::to_string(sqrt(dt_square)) + ".dat";
+	//std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+ //   out_file << this->vel_[index_i][0] << " " << this->vel_[index_i][1] << " " << index_i << std::endl;
 }
 //=================================================================================================//
 UpdateSmoothingLengthRatioByShape::

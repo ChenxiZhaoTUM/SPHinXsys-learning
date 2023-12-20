@@ -17,7 +17,7 @@ std::string full_path_to_stl_file = "./input/Tyrannosaurus Rex.stl";
 Real DX = 10;
 Real DY = 15;
 Real DZ = 27;
-Real resolution_ref = 0.3; /**< Reference resolution. */
+Real resolution_ref = 0.05; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vecd(-DX, -DY, -DZ), Vecd(DX, DY, DZ));
 //----------------------------------------------------------------------
 //	import model as a complex shape

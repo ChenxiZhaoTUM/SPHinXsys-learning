@@ -10,9 +10,7 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
-std::string airfoil_flap_front = "./input/airfoil_flap_front.dat";
-std::string airfoil_wing = "./input/airfoil_wing.dat";
-std::string airfoil_flap_rear = "./input/airfoil_flap_rear.dat";
+std::string airfoil = "./input/NACA0012.dat";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
@@ -28,7 +26,7 @@ BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 Real rho0_f = 1.0;                                       /**< Density. */
 Real U_f = 1.0;                                          /**< freestream velocity. */
 Real c_f = 10.0 * U_f;                                   /**< Speed of sound. */
-Real Re = 5000.0;                                         /**< Reynolds number. */
+Real Re = 100.0;                                         /**< Reynolds number. */
 Real mu_f = rho0_f * U_f * (2.0 * airfoil_h) / Re;       /**< Dynamics viscosity. */
 //----------------------------------------------------------------------
 //	Define geometries and body shapes
@@ -38,9 +36,7 @@ class AirfoilModel : public MultiPolygonShape
   public:
     explicit AirfoilModel(const std::string &import_model_name) : MultiPolygonShape(import_model_name)
     {
-        multi_polygon_.addAPolygonFromFile(airfoil_flap_front, ShapeBooleanOps::add);
-        multi_polygon_.addAPolygonFromFile(airfoil_wing, ShapeBooleanOps::add);
-        multi_polygon_.addAPolygonFromFile(airfoil_flap_rear, ShapeBooleanOps::add);
+        multi_polygon_.addAPolygonFromFile(airfoil, ShapeBooleanOps::add);
     }
 };
 
@@ -90,9 +86,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
-    sph_system.setRunParticleRelaxation(false);
+    sph_system.setRunParticleRelaxation(true);
     // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(true);
+    sph_system.setReloadParticles(false);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av);
     IOEnvironment io_environment(sph_system);

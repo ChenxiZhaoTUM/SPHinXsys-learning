@@ -92,18 +92,17 @@ int main(int ac, char *av[])
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
-    airfoil_recording_to_vtp.writeToFile(ite_p);
-    write_airfoil_kinetic_energy.writeToFile(ite_p);
     while (ite_p < 2000)
     {
         update_smoothing_length_ratio.exec();
         relaxation_step_inner.exec();
+        write_airfoil_kinetic_energy.writeToFile(ite_p);
+
         ite_p += 1;
         if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             airfoil_recording_to_vtp.writeToFile(ite_p);
-            write_airfoil_kinetic_energy.writeToFile(ite_p);
         }
     }
     std::cout << "The physics relaxation process finished !" << std::endl;
