@@ -86,13 +86,13 @@ class RelaxationAccelerationInner : public LocalDynamics, public RelaxDataDelega
         Vecd acceleration = Vecd::Zero();
         const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
 
-        Real sum_temp = 0;
+        //Real sum_temp = 0;
 
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             acceleration -= 2.0 * inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
 
-            sum_temp += inner_neighborhood.dW_ijV_j_[n];
+            //sum_temp += inner_neighborhood.dW_ijV_j_[n];
         }
         acc_[index_i] = acceleration;
 

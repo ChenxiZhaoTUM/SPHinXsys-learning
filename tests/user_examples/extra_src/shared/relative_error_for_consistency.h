@@ -126,7 +126,7 @@ public:
 
 	inline void interaction(size_t index_i, Real dt = 0.0)
 	{
-		Real sum_temp = 0;
+		Vecd sum_temp = Vecd::Zero();
 		Neighborhood& inner_neighborhood = inner_configuration_[index_i];
 
 		/*std::string output_folder = "./output";
@@ -136,7 +136,7 @@ public:
 
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{
-			sum_temp += inner_neighborhood.dW_ijV_j_[n];
+			sum_temp += inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
 		}
 
 		for (size_t k = 0; k < contact_configuration_.size(); ++k)
@@ -144,7 +144,7 @@ public:
 			Neighborhood& contact_neighborhood = (*contact_configuration_[k])[index_i];
 			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
 			{
-				sum_temp += contact_neighborhood.dW_ijV_j_[n];
+				sum_temp += contact_neighborhood.dW_ijV_j_[n] * contact_neighborhood.e_ij_[n];
 			}
 		}
 
@@ -152,5 +152,5 @@ public:
 	}
 
 protected:
-	StdLargeVec<Real> zero_order_consistency_value_;
+	StdLargeVec<Vecd> zero_order_consistency_value_;
 };
