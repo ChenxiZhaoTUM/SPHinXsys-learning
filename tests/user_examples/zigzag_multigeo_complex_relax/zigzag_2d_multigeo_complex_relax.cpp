@@ -107,8 +107,8 @@ int main(int ac, char *av[])
 
     InteractionDynamics<ZeroOrderConsistency> zigzag_0order_consistency_value(zigzag_water_complex);
     InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_zigzag_complex);
-    zigzag.addBodyStateForRecording<Real>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Real>("ZeroOrderConsistencyValue");
+    zigzag.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, zigzag, water_block);
