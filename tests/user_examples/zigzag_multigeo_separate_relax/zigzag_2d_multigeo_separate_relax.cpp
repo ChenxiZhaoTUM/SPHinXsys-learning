@@ -12,12 +12,12 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
-std::string zigzag_geo = "./input/zigzag_modify.dat";
+std::string zigzag_geo = "./input/zigzag_0.75.dat";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DL = 1.5;
-Real DH = 1.5;
+Real DL = 0.75;
+Real DH = 0.75;
 Real resolution_ref = 0.05; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
@@ -62,8 +62,8 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody zigzag(sph_system, makeShared<ImportModel>("ZigZag"));
-    // zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     zigzag.defineParticlesAndMaterial();
     zigzag.generateParticles<ParticleGeneratorLattice>();
 
@@ -93,22 +93,16 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    
     ReducedQuantityRecording<TotalKineticEnergy> write_zigzag_kinetic_energy(io_environment, zigzag, "ZigZag_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
     InteractionDynamics<ZeroOrderConsistency> zigzag_0order_consistency_value(zigzag_water_complex);
     InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_zigzag_complex);
-    zigzag.addBodyStateForRecording<Real>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Real>("ZeroOrderConsistencyValue");
+    zigzag.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
-    WriteFuncRelativeErrorSum write_relative_error_sum_for_consistency(io_environment, zigzag, water_block);
-
-    //InteractionDynamics<ZeroOrderConsistencyInner> zigzag_0order_consistency_value(zigzag_inner);
-    //zigzag.addBodyStateForRecording<Real>("ZeroOrderConsistencyValueInner");
-
-    //MeshRecordingToPlt cell_linked_list_recording(io_environment, zigzag.getCellLinkedList());
+    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, zigzag, water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -152,7 +146,7 @@ int main(int ac, char *av[])
         water_zigzag_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
-    write_relative_error_sum_for_consistency.writeToFile(ite_p);
+    write_function_relative_error_sum.writeToFile(ite_p);
 
     return 0;
 }

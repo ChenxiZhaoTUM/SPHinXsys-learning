@@ -6,6 +6,8 @@
  * @author 	Yongchuan Yu and Xiangyu Hu
  */
 #include "sphinxsys.h"
+#include "relative_error_for_consistency.h"
+
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
@@ -16,10 +18,10 @@ std::string airfoil_flap_rear = "./input/airfoil_flap_rear.dat";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DL = 4.8;
-Real DL1 = 2.4;
-Real DH = 1;
-Real resolution_ref = 0.005; /**< Reference resolution. */
+Real DL = 1.5;
+Real DL1 = 0.5;
+Real DH = 0.5;
+Real resolution_ref = 0.002; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -72,11 +74,13 @@ int main(int ac, char *av[])
     airfoil.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial();
     airfoil.generateParticles<ParticleGeneratorLattice>();
+    airfoil.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
     water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
+    water_block.addBodyStateForRecording<Real>("Density");
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -87,6 +91,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     InnerRelation airfoil_inner(airfoil);
     InnerRelation water_inner(water_block);
+    ComplexRelation airfoil_water_complex(airfoil, {&water_block});
+    ComplexRelation water_airfoil_complex(water_block, {&airfoil});
     //----------------------------------------------------------------------
     //	Methods used for particle relaxation.
     //----------------------------------------------------------------------
@@ -94,11 +100,17 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
     relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_inner, true);
-    //----------------------------------------------------------------------
-    //	Define simple file input and outputs functions.
-    //----------------------------------------------------------------------
+   
+    ReducedQuantityRecording<TotalKineticEnergy> write_airfoil_kinetic_energy(io_environment, airfoil, "Airfoil_Kinetic_Energy");
+    ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
+
+    InteractionDynamics<ZeroOrderConsistency> airfoil_0order_consistency_value(airfoil_water_complex);
+    InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_airfoil_complex);
+    airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    //MeshRecordingToPlt cell_linked_list_recording(io_environment, airfoil.getCellLinkedList());
+    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, airfoil, water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -109,6 +121,8 @@ int main(int ac, char *av[])
     relaxation_step_inner_water.SurfaceBounding().exec();
     airfoil.updateCellLinkedList();
     water_block.updateCellLinkedList();
+    airfoil_water_complex.updateConfiguration();
+    water_airfoil_complex.updateConfiguration();
     //----------------------------------------------------------------------
     //	First output before the simulation.
     //----------------------------------------------------------------------
@@ -122,14 +136,25 @@ int main(int ac, char *av[])
     {
         relaxation_step_inner.exec();
         relaxation_step_inner_water.exec();
+        
+        airfoil_0order_consistency_value.exec();
+        water_0order_consistency_value.exec();
+
+        write_airfoil_kinetic_energy.writeToFile(ite_p);
+        write_water_kinetic_energy.writeToFile(ite_p);
+
         ite_p += 1;
         if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
         }
+
+        airfoil_water_complex.updateConfiguration();
+        water_airfoil_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
+    write_function_relative_error_sum.writeToFile(ite_p);
 
     return 0;
 }

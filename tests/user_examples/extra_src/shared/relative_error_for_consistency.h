@@ -28,10 +28,10 @@ public:
 		Real f_sph = 0;
 		const Neighborhood& inner_neighborhood = inner_configuration_[index_i];
 
-		std::string output_folder = "./output";
-		std::string filefullpath = output_folder + "/" + "neighborSize_" + std::to_string(dt) + ".dat";
-		std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-		out_file << inner_neighborhood.current_size_ << " " << index_i << std::endl;
+		//std::string output_folder = "./output";
+		//std::string filefullpath = output_folder + "/" + "neighborSize_" + std::to_string(dt) + ".dat";
+		//std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+		//out_file << inner_neighborhood.current_size_ << " " << index_i << std::endl;
 
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{

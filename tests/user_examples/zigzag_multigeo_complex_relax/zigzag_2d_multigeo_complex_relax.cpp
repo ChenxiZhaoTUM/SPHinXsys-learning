@@ -12,13 +12,13 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
-std::string zigzag_geo = "./input/zigzag_modify.dat";
+std::string zigzag_geo = "./input/zigzag_0.75.dat";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DL = 1.5;
-Real DH = 1.5;
-Real resolution_ref = 0.05; /**< Reference resolution. */
+Real DL = 0.75;
+Real DH = 0.75;
+Real resolution_ref = 0.025; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -74,15 +74,17 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody zigzag(sph_system, makeShared<ImportModel>("ZigZag"));
-    // zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     zigzag.defineParticlesAndMaterial();
     zigzag.generateParticles<ParticleGeneratorLattice>();
+    zigzag.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
     water_block.defineComponentLevelSetShape("OuterBoundary");
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
+    water_block.addBodyStateForRecording<Real>("Density");
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.

@@ -6,6 +6,8 @@
  * @author 	Yongchuan Yu and Xiangyu Hu
  */
 #include "sphinxsys.h"
+#include "relative_error_for_consistency.h"
+
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
@@ -82,6 +84,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     InnerRelation starfish_inner(starfish);
     InnerRelation water_inner(water_block);
+    ComplexRelation water_starfish_complex(water_block, {&starfish});
+    ComplexRelation starfish_water_complex(starfish, {&water_block});
     //----------------------------------------------------------------------
     //	Methods used for particle relaxation.
     //----------------------------------------------------------------------
@@ -89,11 +93,17 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(starfish_inner, true);
     relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_inner, true);
-    //----------------------------------------------------------------------
-    //	Define simple file input and outputs functions.
-    //----------------------------------------------------------------------
+    
+    ReducedQuantityRecording<TotalKineticEnergy> write_starfish_kinetic_energy(io_environment, starfish, "Starfish_Kinetic_Energy");
+    ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
+
+    InteractionDynamics<ZeroOrderConsistency> starfish_0order_consistency_value(starfish_water_complex);
+    InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_starfish_complex);
+    starfish.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    //MeshRecordingToPlt cell_linked_list_recording(io_environment, starfish.getCellLinkedList());
+    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, starfish, water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -104,6 +114,8 @@ int main(int ac, char *av[])
     relaxation_step_inner_water.SurfaceBounding().exec();
     starfish.updateCellLinkedList();
     water_block.updateCellLinkedList();
+    starfish_water_complex.updateConfiguration();
+    water_starfish_complex.updateConfiguration();
     //----------------------------------------------------------------------
     //	First output before the simulation.
     //----------------------------------------------------------------------
@@ -117,14 +129,25 @@ int main(int ac, char *av[])
     {
         relaxation_step_inner.exec();
         relaxation_step_inner_water.exec();
+
+        starfish_0order_consistency_value.exec();
+        water_0order_consistency_value.exec();
+
+        write_starfish_kinetic_energy.writeToFile(ite_p);
+        write_water_kinetic_energy.writeToFile(ite_p);
+
         ite_p += 1;
         if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
         }
+  
+        starfish_water_complex.updateConfiguration();
+        water_starfish_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
+    write_function_relative_error_sum.writeToFile(ite_p);
 
     return 0;
 }
