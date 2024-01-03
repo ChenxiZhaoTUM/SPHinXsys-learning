@@ -27,7 +27,10 @@ Real GetTimeStepSizeSquare::outputResult(Real reduced_value)
 //=================================================================================================//
 RelaxationAccelerationInner::RelaxationAccelerationInner(BaseInnerRelation &inner_relation)
     : LocalDynamics(inner_relation.getSPHBody()), RelaxDataDelegateInner(inner_relation),
-      acc_(particles_->acc_), pos_(particles_->pos_) {}
+      acc_(particles_->acc_), pos_(particles_->pos_)
+{
+    particles_->registerVariable(zero_order_consistency_value_, "ZeroOrderConsistencyValue");
+}
 //=================================================================================================//
 RelaxationAccelerationInnerWithLevelSetCorrection::
     RelaxationAccelerationInnerWithLevelSetCorrection(BaseInnerRelation &inner_relation)
@@ -76,7 +79,10 @@ RelaxationAccelerationComplex::
     RelaxationAccelerationComplex(ComplexRelation &complex_relation)
     : LocalDynamics(complex_relation.getSPHBody()),
       RelaxDataDelegateComplex(complex_relation),
-      acc_(particles_->acc_), pos_(particles_->pos_) {}
+      acc_(particles_->acc_), pos_(particles_->pos_)
+{
+    particles_->registerVariable(zero_order_consistency_value_, "ZeroOrderConsistencyValue");
+}
 //=================================================================================================//
 ShapeSurfaceBounding::ShapeSurfaceBounding(NearShapeSurface &near_shape_surface)
     : BaseLocalDynamics<BodyPartByCell>(near_shape_surface),

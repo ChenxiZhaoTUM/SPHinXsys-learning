@@ -56,7 +56,6 @@ class WaterBlock : public ComplexShape
         subtract<ImportModel>(import_model);
     }
 };
-
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
@@ -104,17 +103,14 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(starfish_inner, true);
     relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_starfish_complex, "OuterBoundary", true);
+    starfish.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     
     ReducedQuantityRecording<TotalKineticEnergy> write_starfish_kinetic_energy(io_environment, starfish, "Starfish_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
-    InteractionDynamics<ZeroOrderConsistency> starfish_0order_consistency_value(starfish_water_complex);
-    InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_starfish_complex);
-    starfish.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-
-    //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    //BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
     WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, starfish, water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -141,9 +137,6 @@ int main(int ac, char *av[])
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
-
-        starfish_0order_consistency_value.exec();
-        water_0order_consistency_value.exec();
 
         write_starfish_kinetic_energy.writeToFile(ite_p);
         write_water_kinetic_energy.writeToFile(ite_p);

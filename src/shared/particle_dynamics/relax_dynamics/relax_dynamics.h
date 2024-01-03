@@ -84,26 +84,24 @@ class RelaxationAccelerationInner : public LocalDynamics, public RelaxDataDelega
     inline void interaction(size_t index_i, Real dt = 0.0)
     {
         Vecd acceleration = Vecd::Zero();
+        Vecd sum_temp = Vecd::Zero();
+
         const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
 
-        //Real sum_temp = 0;
 
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             acceleration -= 2.0 * inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
 
-            //sum_temp += inner_neighborhood.dW_ijV_j_[n];
+            sum_temp += inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
         }
         acc_[index_i] = acceleration;
-
-        /*std::string output_folder = "./output";
-		std::string filefullpath = output_folder + "/" + "sum_temp_" + std::to_string(dt) + ".dat";
-		std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-		out_file << sum_temp << " " << index_i << std::endl;*/
+        zero_order_consistency_value_[index_i] = sum_temp;
     };
 
   protected:
     StdLargeVec<Vecd> &acc_, &pos_;
+    StdLargeVec<Vecd> zero_order_consistency_value_;
 };
 
 /**
@@ -121,6 +119,9 @@ class RelaxationAccelerationInnerWithLevelSetCorrection : public RelaxationAccel
     {
         RelaxationAccelerationInner::interaction(index_i, dt);
         acc_[index_i] -= 2.0 * level_set_shape_->computeKernelGradientIntegral(
+                                   pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
+
+        zero_order_consistency_value_[index_i] += level_set_shape_->computeKernelGradientIntegral(
                                    pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
     };
 
@@ -185,11 +186,14 @@ class RelaxationAccelerationComplex : public LocalDynamics,
     inline void interaction(size_t index_i, Real dt = 0.0)
     {
         Vecd acceleration = Vecd::Zero();
+        Vecd sum_temp = Vecd::Zero();
+
         Neighborhood &inner_neighborhood = inner_configuration_[index_i];
 
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             acceleration -= 2.0 * inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
+            sum_temp += inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
         }
 
         /** Contact interaction. */
@@ -199,14 +203,17 @@ class RelaxationAccelerationComplex : public LocalDynamics,
             for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
             {
                 acceleration -= 2.0 * contact_neighborhood.dW_ijV_j_[n] * contact_neighborhood.e_ij_[n];
+                sum_temp += contact_neighborhood.dW_ijV_j_[n] * contact_neighborhood.e_ij_[n];
             }
         }
 
         acc_[index_i] = acceleration;
+        zero_order_consistency_value_[index_i] = sum_temp;
     };
 
   protected:
     StdLargeVec<Vecd> &acc_, &pos_;
+    StdLargeVec<Vecd> zero_order_consistency_value_;
 };
 
 /**
@@ -271,6 +278,9 @@ class RelaxationAccelerationComplexWithLevelSetCorrection : public RelaxationAcc
         RelaxationAccelerationComplex::interaction(index_i, dt);
 
         acc_[index_i] -= 2.0 * level_set_shape_->computeKernelGradientIntegral(
+                                   pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
+
+        zero_order_consistency_value_[index_i] += level_set_shape_->computeKernelGradientIntegral(
                                    pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
     };
 
