@@ -25,7 +25,7 @@ std::string airfoil_flap_rear = "./input/airfoil_flap_rear.dat";
 Real DL = 1.5;
 Real DL1 = 0.5;
 Real DH = 0.5;
-Real resolution_ref = 0.002; /**< Reference resolution. */
+Real resolution_ref = 0.001; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -64,7 +64,6 @@ class WaterBlock : public ComplexShape
         subtract<ImportModel>(import_model);
     }
 };
-
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
@@ -84,7 +83,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     RealBody airfoil(sph_system, makeShared<ImportModel>("AirFoil"));
     // airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    airfoil.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.05)->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial();
     airfoil.generateParticles<ParticleGeneratorLattice>();
     airfoil.addBodyStateForRecording<Real>("Density");
@@ -112,14 +111,11 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
     relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_airfoil_complex, "OuterBoundary", true);
+    airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     
     ReducedQuantityRecording<TotalKineticEnergy> write_airfoil_kinetic_energy(io_environment, airfoil, "Airfoil_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
-
-    InteractionDynamics<ZeroOrderConsistency> airfoil_0order_consistency_value(airfoil_water_complex);
-    InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_airfoil_complex);
-    airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, airfoil, water_block);
@@ -148,9 +144,6 @@ int main(int ac, char *av[])
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
-        
-        airfoil_0order_consistency_value.exec();
-        water_0order_consistency_value.exec();
 
         write_airfoil_kinetic_energy.writeToFile(ite_p);
         write_water_kinetic_energy.writeToFile(ite_p);

@@ -18,7 +18,7 @@ std::string zigzag_geo = "./input/zigzag_0.75.dat";
 //----------------------------------------------------------------------
 Real DL = 0.75;
 Real DH = 0.75;
-Real resolution_ref = 0.025; /**< Reference resolution. */
+Real resolution_ref = 0.075; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -55,7 +55,6 @@ class WaterBlock : public ComplexShape
         subtract<ImportModel>(import_model);
     }
 };
-
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
@@ -74,8 +73,8 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody zigzag(sph_system, makeShared<ImportModel>("ZigZag"));
-    zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    //zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    //zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     zigzag.defineParticlesAndMaterial();
     zigzag.generateParticles<ParticleGeneratorLattice>();
     zigzag.addBodyStateForRecording<Real>("Density");
@@ -103,14 +102,11 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(zigzag_inner, true);
     relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_zigzag_complex, "OuterBoundary", true);
+    zigzag.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
     ReducedQuantityRecording<TotalKineticEnergy> write_zigzag_kinetic_energy(io_environment, zigzag, "ZigZag_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
-
-    InteractionDynamics<ZeroOrderConsistency> zigzag_0order_consistency_value(zigzag_water_complex);
-    InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_zigzag_complex);
-    zigzag.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, zigzag, water_block);
@@ -135,13 +131,10 @@ int main(int ac, char *av[])
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
-    while (ite_p < 2000)
+    while (ite_p < 4000)
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
-
-        zigzag_0order_consistency_value.exec();
-        water_0order_consistency_value.exec();
 
         write_zigzag_kinetic_energy.writeToFile(ite_p);
         write_water_kinetic_energy.writeToFile(ite_p);
