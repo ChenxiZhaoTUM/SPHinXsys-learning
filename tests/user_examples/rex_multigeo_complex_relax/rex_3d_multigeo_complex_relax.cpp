@@ -19,7 +19,7 @@ std::string full_path_to_stl_file = "./input/Tyrannosaurus Rex.stl";
 Real DX = 10;
 Real DY = 15;
 Real DZ = 27;
-Real resolution_ref = 0.05; /**< Reference resolution. */
+Real resolution_ref = 0.08; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vecd(-DX, -DY, -DZ), Vecd(DX, DY, DZ));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -92,14 +92,11 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(bunny_inner, true);
     relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_bunny_complex, "OuterBoundary", true);
+    bunny.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     
     ReducedQuantityRecording<TotalKineticEnergy> write_bunny_kinetic_energy(io_environment, bunny, "Bunny_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
-
-    InteractionDynamics<ZeroOrderConsistency> bunny_0order_consistency_value(bunny_water_complex);
-    InteractionDynamics<ZeroOrderConsistency> water_0order_consistency_value(water_bunny_complex);
-    bunny.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, bunny, water_block);
@@ -128,9 +125,6 @@ int main(int ac, char *av[])
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
-
-        bunny_0order_consistency_value.exec();
-        water_0order_consistency_value.exec();
 
         write_bunny_kinetic_energy.writeToFile(ite_p);
         write_water_kinetic_energy.writeToFile(ite_p);

@@ -23,7 +23,7 @@ BoundingBox system_domain_bounds(Vec2d(-DL, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
 //----------------------------------------------------------------------
-Vec2d starfish_translation = Vec2d(-0.31, -0.2);
+Vec2d starfish_translation = Vec2d(-0.33, -0.23);
 class ImportModel : public MultiPolygonShape
 {
   public:
