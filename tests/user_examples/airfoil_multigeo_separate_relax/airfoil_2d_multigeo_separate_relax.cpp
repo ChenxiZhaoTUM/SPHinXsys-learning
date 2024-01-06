@@ -21,7 +21,7 @@ std::string airfoil_flap_rear = "./input/airfoil_flap_rear.dat";
 Real DL = 1.5;
 Real DL1 = 0.5;
 Real DH = 0.5;
-Real resolution_ref = 0.0025; /**< Reference resolution. */
+Real resolution_ref = 0.001; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -70,13 +70,13 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     RealBody airfoil(sph_system, makeShared<ImportModel>("AirFoil"));
     // airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    airfoil.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.05)->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial();
     airfoil.generateParticles<ParticleGeneratorLattice>();
     airfoil.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    water_block.defineBodyLevelSetShape()->cleanLevelSet(1.05)->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
     water_block.addBodyStateForRecording<Real>("Density");

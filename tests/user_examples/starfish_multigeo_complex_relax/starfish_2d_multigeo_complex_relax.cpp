@@ -18,12 +18,12 @@ std::string starfish_geo = "./input/starfish_sorted.dat";
 //----------------------------------------------------------------------
 Real DL = 1.5;
 Real DH = 1.5;
-Real resolution_ref = 0.075; /**< Reference resolution. */
+Real resolution_ref = 0.1; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
 //----------------------------------------------------------------------
-Vec2d starfish_translation = Vec2d(-0.33, -0.23);
+Vec2d starfish_translation = Vec2d(-0.34, -0.3);
 class ImportModel : public MultiPolygonShape
 {
   public:
@@ -109,8 +109,8 @@ int main(int ac, char *av[])
     ReducedQuantityRecording<TotalKineticEnergy> write_starfish_kinetic_energy(io_environment, starfish, "Starfish_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    //BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
+    //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
     WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, starfish, water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
