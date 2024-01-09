@@ -18,7 +18,7 @@ std::string zigzag_geo = "./input/zigzag_0.75.dat";
 //----------------------------------------------------------------------
 Real DL = 0.75;
 Real DH = 0.75;
-Real resolution_ref = 0.075; /**< Reference resolution. */
+Real resolution_ref = 0.05; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -73,8 +73,8 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody zigzag(sph_system, makeShared<ImportModel>("ZigZag"));
-    //zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     zigzag.defineParticlesAndMaterial();
     zigzag.generateParticles<ParticleGeneratorLattice>();
     zigzag.addBodyStateForRecording<Real>("Density");
