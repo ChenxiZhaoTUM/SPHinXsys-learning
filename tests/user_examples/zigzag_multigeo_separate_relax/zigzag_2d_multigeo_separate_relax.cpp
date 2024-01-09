@@ -62,15 +62,15 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody zigzag(sph_system, makeShared<ImportModel>("ZigZag"));
-    //zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    zigzag.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //zigzag.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     zigzag.defineParticlesAndMaterial();
     zigzag.generateParticles<ParticleGeneratorLattice>();
     zigzag.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    //water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
     water_block.addBodyStateForRecording<Real>("Density");
