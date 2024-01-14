@@ -70,13 +70,13 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     RealBody airfoil(sph_system, makeShared<ImportModel>("AirFoil"));
     // airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.05)->writeLevelSet(io_environment);
+    airfoil.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial();
     airfoil.generateParticles<ParticleGeneratorLattice>();
     airfoil.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.defineBodyLevelSetShape()->cleanLevelSet(1.05)->writeLevelSet(io_environment);
+    water_block.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
     water_block.addBodyStateForRecording<Real>("Density");

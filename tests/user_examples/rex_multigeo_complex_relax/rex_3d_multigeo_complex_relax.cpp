@@ -14,12 +14,12 @@ using namespace SPH;
 //----------------------------------------------------------------------
 std::string full_path_to_stl_file = "./input/Tyrannosaurus Rex.stl";
 //----------------------------------------------------------------------
-//	Basic geometry parameters and numerical setup.
+//	Basic geometry parameters and numerical setup.=
 //----------------------------------------------------------------------
 Real DX = 10;
 Real DY = 15;
 Real DZ = 27;
-Real resolution_ref = 0.08; /**< Reference resolution. */
+Real resolution_ref = 0.1; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vecd(-DX, -DY, -DZ), Vecd(DX, DY, DZ));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -63,8 +63,8 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody bunny(sph_system, makeShared<Bunny>("Bunny"));
-    bunny.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    //bunny.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    //bunny.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    bunny.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(io_environment);
     bunny.defineParticlesAndMaterial();
     bunny.generateParticles<ParticleGeneratorLattice>();
     bunny.addBodyStateForRecording<Real>("Density");

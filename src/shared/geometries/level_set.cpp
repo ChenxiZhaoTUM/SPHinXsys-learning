@@ -31,7 +31,7 @@ LevelSet::LevelSet(BoundingBox tentative_bounds, Real data_spacing, size_t buffe
                    Shape &shape, SPHAdaptation &sph_adaptation)
     : MeshWithGridDataPackages<GridDataPackage<4, 1>>(tentative_bounds, data_spacing, buffer_size),
       BaseLevelSet(shape, sph_adaptation),
-      global_h_ratio_(0.5*sph_adaptation.ReferenceSpacing() / data_spacing),
+      global_h_ratio_(sph_adaptation.ReferenceSpacing() / data_spacing),
       phi_(*registerMeshVariable<Real>("Levelset")),
       near_interface_id_(*registerMeshVariable<int>("NearInterfaceID")),
       phi_gradient_(*registerMeshVariable<Vecd>("LevelsetGradient")),
