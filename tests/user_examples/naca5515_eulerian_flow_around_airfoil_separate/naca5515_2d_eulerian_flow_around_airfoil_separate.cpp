@@ -15,7 +15,7 @@ std::string airfoil = "./input/NACA5515_5deg.dat";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real L = 1.0;
-Real DL = 3 * L;
+Real DL = 4 * L;
 Real DL1 = 2 * L;
 Real DH = L;
 Real airfoil_h = 0.1;

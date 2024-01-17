@@ -15,20 +15,19 @@ std::string airfoil = "./input/NACA5515_5deg.dat";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real L = 1.0;
-Real DL = 3 * L;
-Real DL1 = 2 * L;
-Real DH = L;
-Real airfoil_h = 0.1;
-Real resolution_ref = 0.01; /**< Reference resolution. */
+Real DL = 7 * L;
+Real DL1 = 3 * L;
+Real DH = 4 * L;
+Real resolution_ref = 0.008; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	Material properties of the fluid.
 //----------------------------------------------------------------------
 Real rho0_f = 1.0;                                       /**< Density. */
-Real U_f = 0.42;                                          /**< freestream velocity. */
+Real U_f = 1.0;                                          /**< freestream velocity. */
 Real c_f = 10.0 * U_f;                                   /**< Speed of sound. */
 Real Re = 420.0;                                         /**< Reynolds number. */
-Real mu_f = 1.0e-3;       /**< Dynamics viscosity. */
+Real mu_f = rho0_f * U_f * L / Re;       /**< Dynamics viscosity. */
 StdVec<Vecd> observation_location = {Vecd(0.2*L, 0.086*L)};
 //----------------------------------------------------------------------
 //	Define geometries and body shapes
@@ -78,6 +77,66 @@ class FarFieldBoundary : public fluid_dynamics::NonReflectiveBoundaryCorrection
     };
     virtual ~FarFieldBoundary(){};
 };
+
+class PressureObserverParticleGeneratorWing : public ObserverParticleGenerator
+{
+  public:
+    explicit PressureObserverParticleGeneratorWing(SPHBody &sph_body) : ObserverParticleGenerator(sph_body)
+    {
+        std::fstream dataFile(airfoil);
+        Vecd temp_point;
+        Real temp1 = 0.0, temp2 = 0.0;
+        if (dataFile.fail())
+        {
+            std::cout << "File can not open.\n"
+                        << std::endl;
+            ;
+        }
+
+        while (!dataFile.fail() && !dataFile.eof())
+        {
+            dataFile >> temp1 >> temp2;
+            temp_point[0] = temp1;
+            temp_point[1] = temp2;
+            positions_.push_back(temp_point);
+        }
+        dataFile.close();
+    }
+};
+
+class OutputObserverPositionAndPressure : public BaseIO,
+                                            public ObservingAQuantity<Real>
+{
+public:
+    OutputObserverPositionAndPressure(IOEnvironment& io_environment, BaseContactRelation& contact_relation, const std::string &airfoil_body_name)
+        : BaseIO(io_environment),
+        ObservingAQuantity<Real>(contact_relation, "Pressure"),
+        observer_(contact_relation.getSPHBody()),
+        base_particles_(observer_.getBaseParticles()),
+        airfoil_body_name_(airfoil_body_name){};
+
+    void writeToFile(size_t iteration_step = 0) override
+    {
+        this->exec();
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + "observer_position_and_pressure_ " + airfoil_body_name_ + convertPhysicalTimeToString(GlobalStaticVariables::physical_time_) + ".dat";
+	    std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+
+        for (size_t i = 0; i != base_particles_.total_real_particles_; ++i)
+        {
+            out_file << "particle " << i << ": Position " << base_particles_.pos_[i][0] << " " << base_particles_.pos_[i][1] 
+                << " Pressure " <<  (*this->interpolated_quantities_)[i] << " " << std::endl;
+        }
+        out_file.close();
+    }
+
+protected:
+    SPHBody &observer_;
+    BaseParticles &base_particles_;
+    std::string airfoil_body_name_;
+
+};
+
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
@@ -88,9 +147,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
-    sph_system.setRunParticleRelaxation(true);
+    sph_system.setRunParticleRelaxation(false);
     // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(false);
+    sph_system.setReloadParticles(true);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av);
     IOEnvironment io_environment(sph_system);
@@ -98,8 +157,8 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     SolidBody airfoil(sph_system, makeShared<AirfoilModel>("Airfoil"));
-    //airfoil.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(io_environment);
-    airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
+    //airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial<SolidParticles, Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? airfoil.generateParticles<ParticleGeneratorReload>(io_environment, airfoil.getName())
@@ -117,6 +176,9 @@ int main(int ac, char *av[])
 
     ObserverBody fluid_observer(sph_system, "FluidObserver");
     fluid_observer.generateParticles<ObserverParticleGenerator>(observation_location);
+
+    ObserverBody wing_pressure_observer(sph_system, "WingPressureObserver");
+    wing_pressure_observer.generateParticles<PressureObserverParticleGeneratorWing>();
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -127,6 +189,7 @@ int main(int ac, char *av[])
     ComplexRelation water_airfoil_complex(water_block, {&airfoil});
     ContactRelation airfoil_water_contact(airfoil, {&water_block});
     ContactRelation fluid_observer_contact(fluid_observer, {&water_block});
+    ContactRelation wing_observer_water_contact(wing_pressure_observer, { &water_block });
     //----------------------------------------------------------------------
     //	Run particle relaxation for body-fitted distribution if chosen.
     //----------------------------------------------------------------------
@@ -214,6 +277,7 @@ int main(int ac, char *av[])
     ReducedQuantityRecording<MaximumSpeed> write_maximum_speed(io_environment, water_block);
     ObservedQuantityRecording<Real>
         write_recorded_water_pressure("Pressure", io_environment, fluid_observer_contact);
+    OutputObserverPositionAndPressure write_wing_pressure(io_environment, wing_observer_water_contact, "Wing");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -284,12 +348,15 @@ int main(int ac, char *av[])
         write_total_force_on_inserted_body.writeToFile(number_of_iterations);
         write_maximum_speed.writeToFile(number_of_iterations);
         write_recorded_water_pressure.writeToFile(number_of_iterations);
+        
+
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
 
-    TickCount t4 = TickCount::now();
+    write_wing_pressure.writeToFile(number_of_iterations);
 
+    TickCount t4 = TickCount::now();
     TimeInterval tt;
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;

@@ -126,21 +126,24 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	First output before the simulation.
     //----------------------------------------------------------------------
+    int ite_p = 0;
     write_real_body_states.writeToFile();
+    write_zigzag_kinetic_energy.writeToFile(ite_p);
+    write_water_kinetic_energy.writeToFile(ite_p);
     //cell_linked_list_recording.writeToFile();
     //----------------------------------------------------------------------
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
-    int ite_p = 0;
     while (ite_p < 4000)
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
 
+        ite_p += 1;
+
         write_zigzag_kinetic_energy.writeToFile(ite_p);
         write_water_kinetic_energy.writeToFile(ite_p);
-
-        ite_p += 1;
+        
         if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
