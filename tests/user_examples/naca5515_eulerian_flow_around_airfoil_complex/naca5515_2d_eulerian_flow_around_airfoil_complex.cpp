@@ -15,10 +15,10 @@ std::string airfoil = "./input/NACA5515_5deg.dat";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real L = 1.0;
-Real DL = 7 * L;
-Real DL1 = 3 * L;
-Real DH = 4 * L;
-Real resolution_ref = 0.008; /**< Reference resolution. */
+Real DL = 5 * L;
+Real DL1 = 2 * L;
+Real DH = 3 * L;
+Real resolution_ref = 0.004; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	Material properties of the fluid.
@@ -157,6 +157,7 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     SolidBody airfoil(sph_system, makeShared<AirfoilModel>("Airfoil"));
+    //airfoil.defineAdaptationRatios(1.15, 2.0);
     airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
     //airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial<SolidParticles, Solid>();
@@ -207,7 +208,7 @@ int main(int ac, char *av[])
         airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
         water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
-        BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+        BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
         ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
@@ -267,7 +268,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
     ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>
         write_total_viscous_force_on_inserted_body(io_environment, viscous_force_on_solid, "TotalViscousForceOnSolid");
     ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>
