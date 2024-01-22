@@ -15,20 +15,19 @@ std::string airfoil = "./input/NACA5515_5deg.dat";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real L = 1.0;
-Real DL = 4 * L;
+Real DL = 5 * L;
 Real DL1 = 2 * L;
-Real DH = L;
-Real airfoil_h = 0.1;
-Real resolution_ref = 0.01; /**< Reference resolution. */
+Real DH = 3 * L;
+Real resolution_ref = 0.004; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	Material properties of the fluid.
 //----------------------------------------------------------------------
 Real rho0_f = 1.0;                                       /**< Density. */
-Real U_f = 0.42;                                          /**< freestream velocity. */
+Real U_f = 1.0;                                          /**< freestream velocity. */
 Real c_f = 10.0 * U_f;                                   /**< Speed of sound. */
 Real Re = 420.0;                                         /**< Reynolds number. */
-Real mu_f = 1.0e-3;       /**< Dynamics viscosity. */
+Real mu_f = rho0_f * U_f * L / Re;       /**< Dynamics viscosity. */
 StdVec<Vecd> observation_location = {Vecd(0.2*L, 0.086*L)};
 //----------------------------------------------------------------------
 //	Define geometries and body shapes
@@ -77,9 +76,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
-    sph_system.setRunParticleRelaxation(true);
+    sph_system.setRunParticleRelaxation(false);
     // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(false);
+    sph_system.setReloadParticles(true);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av);
     IOEnvironment io_environment(sph_system);
@@ -87,8 +86,9 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     SolidBody airfoil(sph_system, makeShared<AirfoilModel>("Airfoil"));
-    //airfoil.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(io_environment);
-    airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //airfoil.defineAdaptationRatios(1.15, 2.0);
+    //airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial<SolidParticles, Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? airfoil.generateParticles<ParticleGeneratorReload>(io_environment, airfoil.getName())
@@ -96,7 +96,7 @@ int main(int ac, char *av[])
     airfoil.addBodyStateForRecording<Real>("Density");
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    //water_block.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(io_environment);
+    //water_block.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
     water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
@@ -134,7 +134,7 @@ int main(int ac, char *av[])
         airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
         water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
-        BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+        BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
         ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
@@ -194,7 +194,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
     ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>
         write_total_viscous_force_on_inserted_body(io_environment, viscous_force_on_solid, "TotalViscousForceOnSolid");
     ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>
