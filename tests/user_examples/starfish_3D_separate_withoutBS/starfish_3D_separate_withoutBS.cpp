@@ -56,14 +56,15 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody starfish(sph_system, makeShared<Bunny>("StarFish"));
-    // starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    starfish.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //starfish.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     starfish.defineParticlesAndMaterial();
     starfish.generateParticles<ParticleGeneratorLattice>();
     starfish.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
     water_block.addBodyStateForRecording<Real>("Density");
@@ -94,7 +95,6 @@ int main(int ac, char *av[])
 
     //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
-    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, starfish, water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -134,7 +134,6 @@ int main(int ac, char *av[])
         water_starfish_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
-    write_function_relative_error_sum.writeToFile(ite_p);
 
     return 0;
 }

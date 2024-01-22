@@ -60,8 +60,8 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody starfish(sph_system, makeShared<Bunny>("StarFish"));
-    // starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    starfish.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //starfish.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     starfish.defineParticlesAndMaterial();
     starfish.generateParticles<ParticleGeneratorLattice>();
     starfish.addBodyStateForRecording<Real>("Density");
