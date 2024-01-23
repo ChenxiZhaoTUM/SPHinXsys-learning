@@ -6,6 +6,7 @@
  */
 #include "eulerian_fluid_dynamics.hpp" // eulerian classes for weakly compressible fluid only.
 #include "sphinxsys.h"
+#include "relative_error_for_consistency.h"
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -83,9 +84,9 @@ int main(int ac, char *av[])
     BoundingBox system_domain_bounds(Vec2d(-DL_sponge, -DH_sponge), Vec2d(DL, DH + DH_sponge));
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
-    sph_system.setRunParticleRelaxation(false);
+    sph_system.setRunParticleRelaxation(true);
     // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(true);
+    sph_system.setReloadParticles(false);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av);
     IOEnvironment io_environment(sph_system);
@@ -93,18 +94,14 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.sph_adaptation_->resetKernel<KernelTabulated<KernelLaguerreGauss>>(20);
-    water_block.defineComponentLevelSetShape("OuterBoundary");
+    water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? water_block.generateParticles<ParticleGeneratorReload>(io_environment, water_block.getName())
         : water_block.generateParticles<ParticleGeneratorLattice>();
-    water_block.addBodyStateForRecording<int>("Indicator");
 
     SolidBody cylinder(sph_system, makeShared<Cylinder>("Cylinder"));
-    cylinder.defineAdaptationRatios(1.3, 2.0);
-    cylinder.sph_adaptation_->resetKernel<KernelTabulated<KernelLaguerreGauss>>(20);
-    cylinder.defineBodyLevelSetShape();
+    cylinder.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     cylinder.defineParticlesAndMaterial<SolidParticles, Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? cylinder.generateParticles<ParticleGeneratorReload>(io_environment, cylinder.getName())
@@ -123,6 +120,7 @@ int main(int ac, char *av[])
     if (sph_system.RunParticleRelaxation())
     {
         InnerRelation cylinder_inner(cylinder); // extra body topology only for particle relaxation
+        InnerRelation water_inner(water_block); // extra body topology only for particle relaxation
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
@@ -131,21 +129,24 @@ int main(int ac, char *av[])
         BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
         ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
         relax_dynamics::RelaxationStepInner relaxation_step_inner(cylinder_inner, true);
-        relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_block_complex, "OuterBoundary", true);
+        relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_inner, true);
+        cylinder.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+        water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+   
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
         random_inserted_body_particles.exec(0.25);
         random_water_body_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
-        relaxation_step_complex.SurfaceBounding().exec();
+        relaxation_step_inner_water.SurfaceBounding().exec();
         write_real_body_states.writeToFile(0);
 
         int ite_p = 0;
         while (ite_p < 1000)
         {
             relaxation_step_inner.exec();
-            relaxation_step_complex.exec();
+            relaxation_step_inner_water.exec();
             ite_p += 1;
             if (ite_p % 200 == 0)
             {
@@ -207,7 +208,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     size_t number_of_iterations = 0;
     int screen_output_interval = 1000;
-    Real end_time = 300.0;
+    Real end_time = 80.0;
     Real output_interval = 5.0; /**< time stamps for output. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
@@ -243,13 +244,13 @@ int main(int ac, char *av[])
                           << "	dt = " << dt << "\n";
             }
             number_of_iterations++;
-
-            write_total_viscous_force_on_inserted_body.writeToFile(number_of_iterations);
-            write_total_force_on_inserted_body.writeToFile(number_of_iterations);
         }
 
         TickCount t2 = TickCount::now();
         write_real_body_states.writeToFile();
+
+        write_total_viscous_force_on_inserted_body.writeToFile(number_of_iterations);
+        write_total_force_on_inserted_body.writeToFile(number_of_iterations);
 
         write_maximum_speed.writeToFile(number_of_iterations);
         TickCount t3 = TickCount::now();
@@ -261,7 +262,7 @@ int main(int ac, char *av[])
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
-    //write_total_viscous_force_on_inserted_body.testResult();
+    write_total_viscous_force_on_inserted_body.testResult();
 
     return 0;
 }
