@@ -99,15 +99,13 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
     relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_inner, true);
-    airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-   
+    
     ReducedQuantityRecording<TotalKineticEnergy> write_airfoil_kinetic_energy(io_environment, airfoil, "Airfoil_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
     //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
-    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, airfoil, water_block);
+    ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -124,7 +122,6 @@ int main(int ac, char *av[])
     //	First output before the simulation.
     //----------------------------------------------------------------------
     write_real_body_states.writeToFile();
-    //cell_linked_list_recording.writeToFile();
     //----------------------------------------------------------------------
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
@@ -148,7 +145,7 @@ int main(int ac, char *av[])
         water_airfoil_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
-    write_function_relative_error_sum.writeToFile(ite_p);
 
+    write_real_body_particle_reload_files.writeToFile(0);
     return 0;
 }

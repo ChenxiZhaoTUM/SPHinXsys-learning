@@ -18,7 +18,7 @@ std::string starfish_geo = "./input/starfish_sorted.dat";
 //----------------------------------------------------------------------
 Real DL = 1.5;
 Real DH = 1.5;
-Real resolution_ref = 0.1; /**< Reference resolution. */
+Real resolution_ref = 0.075; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -74,8 +74,7 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody starfish(sph_system, makeShared<ImportModel>("StarFish"));
-    // starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    starfish.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     starfish.defineParticlesAndMaterial();
     starfish.generateParticles<ParticleGeneratorLattice>();
     starfish.addBodyStateForRecording<Real>("Density");
@@ -103,15 +102,17 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(starfish_inner, true);
     relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_starfish_complex, "OuterBoundary", true);
+
+    InteractionDynamics<ZeroOrderConsistencyInteraction> zero_order_consistency_solid(starfish_inner);
+    InteractionDynamics<ZeroOrderConsistencyInteractionComplex> zero_order_consistency_fluid(water_starfish_complex, "OuterBoundary");
     starfish.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    
+
     ReducedQuantityRecording<TotalKineticEnergy> write_starfish_kinetic_energy(io_environment, starfish, "Starfish_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
     //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
-    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, starfish, water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -128,7 +129,6 @@ int main(int ac, char *av[])
     //	First output before the simulation.
     //----------------------------------------------------------------------
     write_real_body_states.writeToFile();
-    //cell_linked_list_recording.writeToFile();
     //----------------------------------------------------------------------
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
@@ -152,7 +152,10 @@ int main(int ac, char *av[])
         water_starfish_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
-    write_function_relative_error_sum.writeToFile(ite_p);
+
+    zero_order_consistency_solid.exec();
+    zero_order_consistency_fluid.exec();
+    write_real_body_states.writeToFile(ite_p);
 
     return 0;
 }

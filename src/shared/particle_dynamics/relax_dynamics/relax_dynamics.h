@@ -84,24 +84,16 @@ class RelaxationAccelerationInner : public LocalDynamics, public RelaxDataDelega
     inline void interaction(size_t index_i, Real dt = 0.0)
     {
         Vecd acceleration = Vecd::Zero();
-        Vecd sum_temp = Vecd::Zero();
-
         const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
-
-
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             acceleration -= 2.0 * inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
-
-            sum_temp += inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
         }
         acc_[index_i] = acceleration;
-        zero_order_consistency_value_[index_i] = sum_temp;
     };
 
   protected:
     StdLargeVec<Vecd> &acc_, &pos_;
-    StdLargeVec<Vecd> zero_order_consistency_value_;
 };
 
 /**
@@ -120,9 +112,6 @@ class RelaxationAccelerationInnerWithLevelSetCorrection : public RelaxationAccel
         RelaxationAccelerationInner::interaction(index_i, dt);
         acc_[index_i] -= 2.0 * level_set_shape_->computeKernelGradientIntegral(
                                    pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
-
-        zero_order_consistency_value_[index_i] += level_set_shape_->computeKernelGradientIntegral(
-                                   pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
     };
 
   protected:
@@ -139,7 +128,7 @@ class UpdateParticlePosition : public LocalDynamics,
 {
   protected:
     SPHAdaptation *sph_adaptation_;
-    StdLargeVec<Vecd> &pos_, &acc_, &vel_;
+    StdLargeVec<Vecd> &pos_, &acc_;
 
   public:
     explicit UpdateParticlePosition(SPHBody &sph_body);
@@ -186,14 +175,10 @@ class RelaxationAccelerationComplex : public LocalDynamics,
     inline void interaction(size_t index_i, Real dt = 0.0)
     {
         Vecd acceleration = Vecd::Zero();
-        Vecd sum_temp = Vecd::Zero();
-
         Neighborhood &inner_neighborhood = inner_configuration_[index_i];
-
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             acceleration -= 2.0 * inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
-            sum_temp += inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
         }
 
         /** Contact interaction. */
@@ -203,17 +188,14 @@ class RelaxationAccelerationComplex : public LocalDynamics,
             for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
             {
                 acceleration -= 2.0 * contact_neighborhood.dW_ijV_j_[n] * contact_neighborhood.e_ij_[n];
-                sum_temp += contact_neighborhood.dW_ijV_j_[n] * contact_neighborhood.e_ij_[n];
             }
         }
 
         acc_[index_i] = acceleration;
-        zero_order_consistency_value_[index_i] = sum_temp;
     };
 
   protected:
     StdLargeVec<Vecd> &acc_, &pos_;
-    StdLargeVec<Vecd> zero_order_consistency_value_;
 };
 
 /**
@@ -279,9 +261,6 @@ class RelaxationAccelerationComplexWithLevelSetCorrection : public RelaxationAcc
 
         acc_[index_i] -= 2.0 * level_set_shape_->computeKernelGradientIntegral(
                                    pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
-
-        zero_order_consistency_value_[index_i] += level_set_shape_->computeKernelGradientIntegral(
-                                   pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
     };
 
   protected:
@@ -310,42 +289,6 @@ class RelaxationStepComplex : public BaseDynamics<void>
     ReduceDynamics<GetTimeStepSizeSquare> get_time_step_square_;
     SimpleDynamics<UpdateParticlePosition> update_particle_position_;
     SimpleDynamics<ShapeSurfaceBounding> surface_bounding_;
-};
-
-/**
- * @class RelaxationStepWithWall
- * @brief wall as inner should be relaxed first, then complex relation is imported in RelaxationStepWithWall to relax "inner body" 
- */
-class RelaxationStepWithWall : public BaseDynamics<void>
-{
-public:
-    explicit RelaxationStepWithWall(ComplexRelation &complex_relation)
-        : BaseDynamics<void>(complex_relation.getSPHBody()),
-        real_body_(complex_relation.getInnerRelation().real_body_),
-        complex_relation_(complex_relation),
-        get_time_step_square_(*real_body_), update_particle_position_(*real_body_)
-    {
-        relaxation_acceleration_complex_ =
-                makeUnique<InteractionDynamics<RelaxationAccelerationComplex>>(complex_relation);
-    }
-
-    virtual ~RelaxationStepWithWall(){};
-
-    virtual void exec(Real dt = 0.0) override
-    {
-        real_body_->updateCellLinkedList();
-        complex_relation_.updateConfiguration();
-        relaxation_acceleration_complex_->exec();
-        Real dt_square = get_time_step_square_.exec();
-        update_particle_position_.exec(dt_square);
-    }
-
-protected:
-    RealBody *real_body_;
-    ComplexRelation &complex_relation_;
-    UniquePtr<BaseDynamics<void>> relaxation_acceleration_complex_;
-    ReduceDynamics<GetTimeStepSizeSquare> get_time_step_square_;
-    SimpleDynamics<UpdateParticlePosition> update_particle_position_;
 };
 
 /**

@@ -130,8 +130,6 @@ int main(int ac, char *av[])
         ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
         relax_dynamics::RelaxationStepInner relaxation_step_inner(cylinder_inner, true);
         relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_inner, true);
-        cylinder.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-        water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
    
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.

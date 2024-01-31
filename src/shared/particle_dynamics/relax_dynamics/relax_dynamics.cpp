@@ -27,10 +27,7 @@ Real GetTimeStepSizeSquare::outputResult(Real reduced_value)
 //=================================================================================================//
 RelaxationAccelerationInner::RelaxationAccelerationInner(BaseInnerRelation &inner_relation)
     : LocalDynamics(inner_relation.getSPHBody()), RelaxDataDelegateInner(inner_relation),
-      acc_(particles_->acc_), pos_(particles_->pos_)
-{
-    particles_->registerVariable(zero_order_consistency_value_, "ZeroOrderConsistencyValue");
-}
+      acc_(particles_->acc_), pos_(particles_->pos_) {}
 //=================================================================================================//
 RelaxationAccelerationInnerWithLevelSetCorrection::
     RelaxationAccelerationInnerWithLevelSetCorrection(BaseInnerRelation &inner_relation)
@@ -42,19 +39,11 @@ RelaxationAccelerationInnerWithLevelSetCorrection::
 UpdateParticlePosition::UpdateParticlePosition(SPHBody &sph_body)
     : LocalDynamics(sph_body), RelaxDataDelegateSimple(sph_body),
       sph_adaptation_(sph_body.sph_adaptation_),
-      pos_(particles_->pos_), acc_(particles_->acc_), vel_(particles_->vel_){}
+      pos_(particles_->pos_), acc_(particles_->acc_) {}
 //=================================================================================================//
 void UpdateParticlePosition::update(size_t index_i, Real dt_square)
 {
-    Vecd velocity = Vecd::Zero();
     pos_[index_i] += acc_[index_i] * dt_square * 0.5 / sph_adaptation_->SmoothingLengthRatio(index_i);
-    velocity = acc_[index_i] * sqrt(dt_square);
-    vel_[index_i] = velocity;
-    
- //   std::string output_folder = "./output";
-	//std::string filefullpath = output_folder + "/" + "velocity_" + std::to_string(sqrt(dt_square)) + ".dat";
-	//std::ofstream out_file(filefullpath.c_str(), std::ios::app);
- //   out_file << this->vel_[index_i][0] << " " << this->vel_[index_i][1] << " " << index_i << std::endl;
 }
 //=================================================================================================//
 UpdateSmoothingLengthRatioByShape::
@@ -79,10 +68,7 @@ RelaxationAccelerationComplex::
     RelaxationAccelerationComplex(ComplexRelation &complex_relation)
     : LocalDynamics(complex_relation.getSPHBody()),
       RelaxDataDelegateComplex(complex_relation),
-      acc_(particles_->acc_), pos_(particles_->pos_)
-{
-    particles_->registerVariable(zero_order_consistency_value_, "ZeroOrderConsistencyValue");
-}
+      acc_(particles_->acc_), pos_(particles_->pos_) {}
 //=================================================================================================//
 ShapeSurfaceBounding::ShapeSurfaceBounding(NearShapeSurface &near_shape_surface)
     : BaseLocalDynamics<BodyPartByCell>(near_shape_surface),

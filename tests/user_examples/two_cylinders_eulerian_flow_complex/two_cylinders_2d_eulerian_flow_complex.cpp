@@ -162,9 +162,6 @@ int main(int ac, char *av[])
         relax_dynamics::RelaxationStepInner relaxation_step_inner_cylinder01(cylinder01_inner, true);
         relax_dynamics::RelaxationStepInner relaxation_step_inner_cylinder02(cylinder02_inner, true);
         relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_cylinder_complex, "OuterBoundary", true);
-        cylinder01.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-        cylinder02.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-        water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
         BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
         ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);

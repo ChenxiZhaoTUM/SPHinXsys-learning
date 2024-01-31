@@ -92,14 +92,16 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(bunny_inner, true);
     relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_bunny_complex, "OuterBoundary", true);
+
+    InteractionDynamics<ZeroOrderConsistencyInteraction> zero_order_consistency_solid(bunny_inner);
+    InteractionDynamics<ZeroOrderConsistencyInteractionComplex> zero_order_consistency_fluid(water_bunny_complex, "OuterBoundary");
     bunny.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     
     ReducedQuantityRecording<TotalKineticEnergy> write_bunny_kinetic_energy(io_environment, bunny, "Bunny_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, bunny, water_block);
+    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -140,7 +142,10 @@ int main(int ac, char *av[])
         water_bunny_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
-    write_function_relative_error_sum.writeToFile(ite_p);
+
+    zero_order_consistency_solid.exec();
+    zero_order_consistency_fluid.exec();
+    write_real_body_states.writeToFile(ite_p);
 
     return 0;
 }

@@ -4,8 +4,9 @@
  * @details We consider a Eulerian flow passing by a cylinder in 2D.
  * @author 	Zhentong Wang and Xiangyu Hu
  */
-#include "eulerian_fluid_dynamics.hpp" // eulerian classes for weakly compressible fluid only.
 #include "sphinxsys.h"
+#include "eulerian_fluid_dynamics.hpp" // eulerian classes for weakly compressible fluid only.
+#include "relative_error_for_consistency.h"
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
@@ -51,6 +52,30 @@ class WaterBlock : public MultiPolygonShape
     {
         multi_polygon_.addABox(Transform(waterblock_translation), waterblock_halfsize, ShapeBooleanOps::add);
         multi_polygon_.addAPolygonFromFile(airfoil, ShapeBooleanOps::sub);
+    }
+};
+
+std::vector<Vecd> createWaterBlockShape()
+{
+    std::vector<Vecd> water_block_shape;
+    water_block_shape.push_back(Vecd(-DL1, -DH));
+    water_block_shape.push_back(Vecd(-DL1, DH));
+    water_block_shape.push_back(Vecd(DL, DH));
+    water_block_shape.push_back(Vecd(DL, -DH));
+    water_block_shape.push_back(Vecd(-DL1, -DH));
+
+    return water_block_shape;
+}
+
+class WaterBlockReload : public ComplexShape
+{
+  public:
+    explicit WaterBlockReload(const std::string &shape_name) : ComplexShape(shape_name)
+    {
+        MultiPolygon outer_boundary(createWaterBlockShape());
+        add<MultiPolygonShape>(outer_boundary, "OuterBoundary");
+        AirfoilModel import_model("InnerBody");
+        subtract<AirfoilModel>(import_model);
     }
 };
 
@@ -159,11 +184,24 @@ int main(int ac, char *av[])
     //water_block.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
     water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
-    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-        ? water_block.generateParticles<ParticleGeneratorReload>(io_environment, water_block.getName())
-        : water_block.generateParticles<ParticleGeneratorLattice>();
+    if (sph_system.RunParticleRelaxation())
+    {
+        water_block.generateParticles<ParticleGeneratorLattice>();
+    }
     water_block.addBodyStateForRecording<Real>("Pressure");
     water_block.addBodyStateForRecording<Real>("Density");
+
+
+    FluidBody water_block_reload(sph_system, makeShared<WaterBlockReload>("WaterBlock"));
+    water_block_reload.defineComponentLevelSetShape("OuterBoundary");
+    water_block_reload.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
+    if (sph_system.ReloadParticles())
+    {
+        water_block_reload.generateParticles<ParticleGeneratorReload>(io_environment, water_block_reload.getName());
+    }
+    water_block_reload.addBodyStateForRecording<Real>("Pressure");
+    water_block_reload.addBodyStateForRecording<Real>("Density");
+
 
     ObserverBody fluid_observer(sph_system, "FluidObserver");
     fluid_observer.generateParticles<ObserverParticleGenerator>(observation_location);
@@ -176,17 +214,13 @@ int main(int ac, char *av[])
     //	Basically the the range of bodies to build neighbor particle lists.
     //	Note that the same relation should be defined only once.
     //----------------------------------------------------------------------
-    InnerRelation water_block_inner(water_block);
-    ComplexRelation water_airfoil_complex(water_block, {&airfoil});
-    ContactRelation airfoil_water_contact(airfoil, {&water_block});
-    ContactRelation fluid_observer_contact(fluid_observer, {&water_block});
-    ContactRelation wing_observer_water_contact(wing_pressure_observer, { &water_block });
+    InnerRelation airfoil_inner(airfoil);
+    InnerRelation water_block_inner_for_relax(water_block);
     //----------------------------------------------------------------------
     //	Run particle relaxation for body-fitted distribution if chosen.
     //----------------------------------------------------------------------
     if (sph_system.RunParticleRelaxation())
     {
-        InnerRelation airfoil_inner(airfoil); // extra body topology only for particle relaxation
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
@@ -194,9 +228,7 @@ int main(int ac, char *av[])
         SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
         
         relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
-        relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_block_inner, true);
-        airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-        water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+        relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_block_inner_for_relax, true);
 
         BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
         ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
@@ -232,10 +264,20 @@ int main(int ac, char *av[])
         return 0;
     }
 
+    InnerRelation water_block_inner_reload(water_block_reload);
+    ComplexRelation water_airfoil_complex(water_block_reload, {&airfoil});
+    ContactRelation airfoil_water_contact(airfoil, {&water_block_reload});
+    ContactRelation fluid_observer_contact(fluid_observer, {&water_block_reload});
+    ContactRelation wing_observer_water_contact(wing_pressure_observer, {&water_block_reload});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
+    InteractionDynamics<ZeroOrderConsistencyInteraction> zero_order_consistency_solid(airfoil_inner);
+    InteractionDynamics<ZeroOrderConsistencyInteractionComplex> zero_order_consistency_fluid(water_airfoil_complex, "OuterBoundary");
+    airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+
     InteractionWithUpdate<fluid_dynamics::EulerianIntegration1stHalfAcousticRiemannWithWall> pressure_relaxation(water_airfoil_complex);
     InteractionWithUpdate<fluid_dynamics::EulerianIntegration2ndHalfAcousticRiemannWithWall> density_relaxation(water_airfoil_complex);
     InteractionWithUpdate<KernelCorrectionMatrixComplex> kernel_correction_matrix(water_airfoil_complex);
@@ -248,7 +290,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<FarFieldBoundary> variable_reset_in_boundary_condition(water_airfoil_complex.getInnerRelation());
     InteractionWithUpdate<fluid_dynamics::FreeSurfaceIndicationComplex> surface_indicator(water_airfoil_complex);
     InteractionDynamics<fluid_dynamics::SmearedSurfaceIndication> smeared_surface(water_airfoil_complex.getInnerRelation());
-    InteractionDynamics<fluid_dynamics::VorticityInner> compute_vorticity(water_block_inner);
+    InteractionDynamics<fluid_dynamics::VorticityInner> compute_vorticity(water_block_inner_reload);
     //----------------------------------------------------------------------
     //	Compute the force exerted on solid body due to fluid pressure and viscosity
     //----------------------------------------------------------------------
@@ -275,6 +317,11 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
+
+    zero_order_consistency_solid.exec();
+    zero_order_consistency_fluid.exec();
+    write_real_body_states.writeToFile(0);
+
     airfoil_normal_direction.exec();
     surface_indicator.exec();
     smeared_surface.exec();
@@ -297,7 +344,6 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
-    write_real_body_states.writeToFile(0);
     write_total_viscous_force_on_inserted_body.writeToFile(number_of_iterations);
     write_total_pressure_force_on_inserted_body.writeToFile(number_of_iterations);
     write_total_force_on_inserted_body.writeToFile(number_of_iterations);
@@ -345,6 +391,10 @@ int main(int ac, char *av[])
     }
 
     write_wing_pressure.writeToFile(number_of_iterations);
+
+    zero_order_consistency_solid.exec();
+    zero_order_consistency_fluid.exec();
+    write_real_body_states.writeToFile(number_of_iterations);
 
     TickCount t4 = TickCount::now();
     TimeInterval tt;

@@ -109,3 +109,93 @@ protected:
 	ComplexRelation sphbody01_complex_;
 	ComplexRelation sphbody02_complex_;
 };
+
+typedef DataDelegateInner<BaseParticles> ConsistencyDataDelegateInner;
+
+class ZeroOrderConsistencyInteraction : public LocalDynamics, public ConsistencyDataDelegateInner
+{
+      public:
+        explicit ZeroOrderConsistencyInteraction(BaseInnerRelation &inner_relation)
+            : LocalDynamics(inner_relation.getSPHBody()), ConsistencyDataDelegateInner(inner_relation),
+              pos_(particles_->pos_), sph_adaptation_(sph_body_.sph_adaptation_)
+        {
+                particles_->registerVariable(zero_order_consistency_value_, "ZeroOrderConsistencyValue");
+                level_set_shape_ = DynamicCast<LevelSetShape>(this, sph_body_.body_shape_);
+        }
+
+        virtual ~ZeroOrderConsistencyInteraction(){};
+
+        inline void interaction(size_t index_i, Real dt = 0.0)
+        {
+                Vecd sum_temp = Vecd::Zero();
+
+                Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+
+                for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+                {
+                        sum_temp += inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
+                }
+
+                zero_order_consistency_value_[index_i] = sum_temp;
+                zero_order_consistency_value_[index_i] += level_set_shape_->computeKernelGradientIntegral(
+                    pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
+        };
+
+      protected:
+        StdLargeVec<Vecd> zero_order_consistency_value_;
+        StdLargeVec<Vecd> &pos_;
+        LevelSetShape *level_set_shape_;
+        SPHAdaptation *sph_adaptation_;
+};
+
+typedef DataDelegateComplex<BaseParticles, BaseParticles> ConsistencyDataDelegateComplex;
+
+class ZeroOrderConsistencyInteractionComplex : public LocalDynamics, public ConsistencyDataDelegateComplex
+{
+      public:
+        explicit ZeroOrderConsistencyInteractionComplex(ComplexRelation &complex_relation, const std::string &shape_name)
+            : LocalDynamics(complex_relation.getSPHBody()), ConsistencyDataDelegateComplex(complex_relation),
+              pos_(particles_->pos_), sph_adaptation_(sph_body_.sph_adaptation_)
+        {
+                particles_->registerVariable(zero_order_consistency_value_, "ZeroOrderConsistencyValue");
+                
+				ComplexShape &complex_shape = DynamicCast<ComplexShape>(this, *sph_body_.body_shape_);
+                level_set_shape_ = DynamicCast<LevelSetShape>(this, complex_shape.getShapeByName(shape_name));
+        }
+
+        virtual ~ZeroOrderConsistencyInteractionComplex(){};
+
+        inline void interaction(size_t index_i, Real dt = 0.0)
+        {
+                Vecd sum_temp = Vecd::Zero();
+
+                Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+                for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+                {
+                        sum_temp += inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.e_ij_[n];
+                }
+
+				/** Contact interaction. */
+                for (size_t k = 0; k < contact_configuration_.size(); ++k)
+                {
+                        Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+                        for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+                        {
+                                sum_temp += contact_neighborhood.dW_ijV_j_[n] * contact_neighborhood.e_ij_[n];
+                        }
+                }
+
+                zero_order_consistency_value_[index_i] = sum_temp;
+                zero_order_consistency_value_[index_i] += level_set_shape_->computeKernelGradientIntegral(
+                    pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
+        };
+
+      protected:
+        StdLargeVec<Vecd> zero_order_consistency_value_;
+        StdLargeVec<Vecd> &pos_;
+        LevelSetShape *level_set_shape_;
+        SPHAdaptation *sph_adaptation_;
+};
+
+
+

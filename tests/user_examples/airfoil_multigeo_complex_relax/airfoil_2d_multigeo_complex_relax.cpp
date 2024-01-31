@@ -111,6 +111,9 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
     relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_airfoil_complex, "OuterBoundary", true);
+
+    InteractionDynamics<ZeroOrderConsistencyInteraction> zero_order_consistency_solid(airfoil_inner);
+    InteractionDynamics<ZeroOrderConsistencyInteractionComplex> zero_order_consistency_fluid(water_airfoil_complex, "OuterBoundary");
     airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     
@@ -119,7 +122,6 @@ int main(int ac, char *av[])
 
     //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
-    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, airfoil, water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -160,7 +162,10 @@ int main(int ac, char *av[])
         water_airfoil_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
-    write_function_relative_error_sum.writeToFile(ite_p);
+
+    zero_order_consistency_solid.exec();
+    zero_order_consistency_fluid.exec();
+    write_real_body_states.writeToFile(ite_p);
 
     return 0;
 }

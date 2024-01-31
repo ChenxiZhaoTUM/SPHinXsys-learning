@@ -5,8 +5,8 @@
  *			Before the particles are generated, we clean the sharp corners and other unresolvable surfaces.
  * @author 	Yongchuan Yu and Xiangyu Hu
  */
-#include "sphinxsys.h"
 #include "relative_error_for_consistency.h"
+#include "sphinxsys.h"
 
 using namespace SPH;
 //----------------------------------------------------------------------
@@ -18,7 +18,7 @@ std::string starfish_geo = "./input/starfish_sorted.dat";
 //----------------------------------------------------------------------
 Real DL = 1.5;
 Real DH = 1.5;
-Real resolution_ref = 0.05; /**< Reference resolution. */
+Real resolution_ref = 0.075; /**< Reference resolution. */
 BoundingBox system_domain_bounds(Vec2d(-DL, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
@@ -62,14 +62,15 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody starfish(sph_system, makeShared<ImportModel>("StarFish"));
-    // starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    starfish.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    // starfish.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     starfish.defineParticlesAndMaterial();
     starfish.generateParticles<ParticleGeneratorLattice>();
     starfish.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    // water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
     water_block.addBodyStateForRecording<Real>("Density");
@@ -92,15 +93,12 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     relax_dynamics::RelaxationStepInner relaxation_step_inner(starfish_inner, true);
     relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_inner, true);
-    starfish.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    
+
     ReducedQuantityRecording<TotalKineticEnergy> write_starfish_kinetic_energy(io_environment, starfish, "Starfish_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
-    //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
     BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
-    WriteFuncRelativeErrorSum write_function_relative_error_sum(io_environment, starfish, water_block);
+    ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -135,12 +133,12 @@ int main(int ac, char *av[])
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
         }
-  
+
         starfish_water_complex.updateConfiguration();
         water_starfish_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
-    write_function_relative_error_sum.writeToFile(ite_p);
 
+    write_real_body_particle_reload_files.writeToFile(0);
     return 0;
 }
