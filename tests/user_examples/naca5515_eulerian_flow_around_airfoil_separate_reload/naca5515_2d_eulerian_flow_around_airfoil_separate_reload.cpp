@@ -42,19 +42,6 @@ class AirfoilModel : public MultiPolygonShape
     }
 };
 
-Vec2d waterblock_halfsize = Vec2d(0.5 * (DL + DL1), DH);
-Vec2d waterblock_translation = Vec2d(0.5, 0.0);
-
-class WaterBlock : public MultiPolygonShape
-{
-  public:
-    explicit WaterBlock(const std::string &import_model_name) : MultiPolygonShape(import_model_name)
-    {
-        multi_polygon_.addABox(Transform(waterblock_translation), waterblock_halfsize, ShapeBooleanOps::add);
-        multi_polygon_.addAPolygonFromFile(airfoil, ShapeBooleanOps::sub);
-    }
-};
-
 std::vector<Vecd> createWaterBlockShape()
 {
     std::vector<Vecd> water_block_shape;
@@ -162,8 +149,6 @@ int main(int ac, char *av[])
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
     sph_system.setRunParticleRelaxation(false);
-    // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(true);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av);
     IOEnvironment io_environment(sph_system);
@@ -180,27 +165,13 @@ int main(int ac, char *av[])
         : airfoil.generateParticles<ParticleGeneratorLattice>();
     airfoil.addBodyStateForRecording<Real>("Density");
 
-    FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    //water_block.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
-    water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
-    if (sph_system.RunParticleRelaxation())
-    {
-        water_block.generateParticles<ParticleGeneratorLattice>();
-        water_block.addBodyStateForRecording<Real>("Pressure");
-        water_block.addBodyStateForRecording<Real>("Density");
-    }
-    
     FluidBody water_block_reload(sph_system, makeShared<WaterBlockReload>("WaterBlock"));
     water_block_reload.defineComponentLevelSetShape("OuterBoundary");
     water_block_reload.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
-    if (sph_system.ReloadParticles())
-    {
-        water_block_reload.generateParticles<ParticleGeneratorReload>(io_environment, water_block_reload.getName());
-        water_block_reload.addBodyStateForRecording<Real>("Pressure");
-        water_block_reload.addBodyStateForRecording<Real>("Density");
-    }
-    
+    water_block_reload.generateParticles<ParticleGeneratorReload>(io_environment, water_block_reload.getName());
+    water_block_reload.addBodyStateForRecording<Real>("Pressure");
+    water_block_reload.addBodyStateForRecording<Real>("Density");
+
     ObserverBody fluid_observer(sph_system, "FluidObserver");
     fluid_observer.generateParticles<ObserverParticleGenerator>(observation_location);
     
@@ -213,55 +184,6 @@ int main(int ac, char *av[])
     //	Note that the same relation should be defined only once.
     //----------------------------------------------------------------------
     InnerRelation airfoil_inner(airfoil);
-    InnerRelation water_block_inner_for_relax(water_block);
-    //----------------------------------------------------------------------
-    //	Run particle relaxation for body-fitted distribution if chosen.
-    //----------------------------------------------------------------------
-    if (sph_system.RunParticleRelaxation())
-    {
-        //----------------------------------------------------------------------
-        //	Methods used for particle relaxation.
-        //----------------------------------------------------------------------
-        SimpleDynamics<RandomizeParticlePosition> random_airfoil_particles(airfoil);
-        SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
-        
-        relax_dynamics::RelaxationStepInner relaxation_step_inner(airfoil_inner, true);
-        relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_block_inner_for_relax, true);
-
-        BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
-        ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
-        //----------------------------------------------------------------------
-        //	Particle relaxation starts here.
-        //----------------------------------------------------------------------
-        random_airfoil_particles.exec(0.25);
-        random_water_particles.exec(0.25);
-        relaxation_step_inner.SurfaceBounding().exec();
-        relaxation_step_inner_water.SurfaceBounding().exec();
-
-        airfoil.updateCellLinkedList();
-        water_block.updateCellLinkedList();
-
-        write_real_body_states.writeToFile(0);
-
-        int ite_p = 0;
-        while (ite_p < 1000)
-        {
-            relaxation_step_inner.exec();
-            relaxation_step_inner_water.exec();
-            ite_p += 1;
-            if (ite_p % 200 == 0)
-            {
-                std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
-                write_real_body_states.writeToFile(ite_p);
-            }
-        }
-        std::cout << "The physics relaxation process finish !" << std::endl;
-
-        write_real_body_particle_reload_files.writeToFile(0);
-
-        return 0;
-    }
-
     InnerRelation water_block_inner_reload(water_block_reload);
     ComplexRelation water_airfoil_complex(water_block_reload, {&airfoil});
     ContactRelation airfoil_water_contact(airfoil, {&water_block_reload});
