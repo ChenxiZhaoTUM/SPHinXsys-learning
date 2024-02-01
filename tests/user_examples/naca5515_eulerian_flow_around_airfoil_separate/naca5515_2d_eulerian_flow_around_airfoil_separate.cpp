@@ -187,22 +187,20 @@ int main(int ac, char *av[])
     if (sph_system.RunParticleRelaxation())
     {
         water_block.generateParticles<ParticleGeneratorLattice>();
+        water_block.addBodyStateForRecording<Real>("Pressure");
+        water_block.addBodyStateForRecording<Real>("Density");
     }
-    water_block.addBodyStateForRecording<Real>("Pressure");
-    water_block.addBodyStateForRecording<Real>("Density");
-
-
+    
     FluidBody water_block_reload(sph_system, makeShared<WaterBlockReload>("WaterBlock"));
     water_block_reload.defineComponentLevelSetShape("OuterBoundary");
     water_block_reload.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     if (sph_system.ReloadParticles())
     {
         water_block_reload.generateParticles<ParticleGeneratorReload>(io_environment, water_block_reload.getName());
+        water_block_reload.addBodyStateForRecording<Real>("Pressure");
+        water_block_reload.addBodyStateForRecording<Real>("Density");
     }
-    water_block_reload.addBodyStateForRecording<Real>("Pressure");
-    water_block_reload.addBodyStateForRecording<Real>("Density");
-
-
+    
     ObserverBody fluid_observer(sph_system, "FluidObserver");
     fluid_observer.generateParticles<ObserverParticleGenerator>(observation_location);
     
@@ -276,20 +274,20 @@ int main(int ac, char *av[])
     InteractionDynamics<ZeroOrderConsistencyInteraction> zero_order_consistency_solid(airfoil_inner);
     InteractionDynamics<ZeroOrderConsistencyInteractionComplex> zero_order_consistency_fluid(water_airfoil_complex, "OuterBoundary");
     airfoil.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    water_block_reload.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
     InteractionWithUpdate<fluid_dynamics::EulerianIntegration1stHalfAcousticRiemannWithWall> pressure_relaxation(water_airfoil_complex);
-    water_block.addBodyStateForRecording<Vecd>("Momentum");
-    water_block.addBodyStateForRecording<Vecd>("MomentumChangeRate");
+    water_block_reload.addBodyStateForRecording<Vecd>("Momentum");
+    water_block_reload.addBodyStateForRecording<Vecd>("MomentumChangeRate");
     
     InteractionWithUpdate<fluid_dynamics::EulerianIntegration2ndHalfAcousticRiemannWithWall> density_relaxation(water_airfoil_complex);
     InteractionWithUpdate<KernelCorrectionMatrixComplex> kernel_correction_matrix(water_airfoil_complex);
     InteractionDynamics<KernelGradientCorrectionComplex> kernel_gradient_update(kernel_correction_matrix);
-    SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block);
+    SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block_reload);
     SimpleDynamics<NormalDirectionFromBodyShape> airfoil_normal_direction(airfoil);
     InteractionDynamics<fluid_dynamics::ViscousAccelerationWithWall> viscous_acceleration(water_airfoil_complex);
-    SimpleDynamics<NormalDirectionFromBodyShape> water_block_normal_direction(water_block);
-    ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block, 0.5 / Dimensions);
+    SimpleDynamics<NormalDirectionFromBodyShape> water_block_normal_direction(water_block_reload);
+    ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block_reload, 0.5 / Dimensions);
     InteractionWithUpdate<FarFieldBoundary> variable_reset_in_boundary_condition(water_airfoil_complex.getInnerRelation());
     InteractionWithUpdate<fluid_dynamics::FreeSurfaceIndicationComplex> surface_indicator(water_airfoil_complex);
     InteractionDynamics<fluid_dynamics::SmearedSurfaceIndication> smeared_surface(water_airfoil_complex.getInnerRelation());
@@ -310,7 +308,7 @@ int main(int ac, char *av[])
         write_total_pressure_force_on_inserted_body(io_environment, pressure_force_on_solid, "TotalPressureForceOnSolid");
     ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>
         write_total_force_on_inserted_body(io_environment, fluid_force_on_solid_update, "TotalForceOnSolid");
-    ReducedQuantityRecording<MaximumSpeed> write_maximum_speed(io_environment, water_block);
+    ReducedQuantityRecording<MaximumSpeed> write_maximum_speed(io_environment, water_block_reload);
     ObservedQuantityRecording<Real>
         write_recorded_water_pressure("Pressure", io_environment, fluid_observer_contact);
     OutputObserverPositionAndPressure write_wing_pressure(io_environment, wing_observer_water_contact, "Wing");*/
