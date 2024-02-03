@@ -160,9 +160,7 @@ int main(int ac, char *av[])
     //airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial<SolidParticles, Solid>();
-    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-        ? airfoil.generateParticles<ParticleGeneratorReload>(io_environment, airfoil.getName())
-        : airfoil.generateParticles<ParticleGeneratorLattice>();
+    airfoil.generateParticles<ParticleGeneratorReload>(io_environment, airfoil.getName());
     airfoil.addBodyStateForRecording<Real>("Density");
 
     FluidBody water_block_reload(sph_system, makeShared<WaterBlockReload>("WaterBlock"));

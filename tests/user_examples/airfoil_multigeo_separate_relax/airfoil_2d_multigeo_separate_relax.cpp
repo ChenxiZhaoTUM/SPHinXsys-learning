@@ -68,7 +68,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    RealBody airfoil(sph_system, makeShared<ImportModel>("AirFoil"));
+    RealBody airfoil(sph_system, makeShared<ImportModel>("Airfoil"));
     // airfoil.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     airfoil.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(io_environment);
     airfoil.defineParticlesAndMaterial();
