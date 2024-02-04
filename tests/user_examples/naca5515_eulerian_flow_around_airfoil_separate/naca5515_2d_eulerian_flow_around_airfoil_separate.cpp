@@ -71,7 +71,8 @@ int main(int ac, char *av[])
     airfoil.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
+    //water_block.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(io_environment);
+    water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
     water_block.addBodyStateForRecording<Real>("Density");
@@ -121,7 +122,7 @@ int main(int ac, char *av[])
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
-    while (ite_p < 2000)
+    while (ite_p < 1000)
     {
         relaxation_step_inner.exec();
         relaxation_step_inner_water.exec();
@@ -130,7 +131,7 @@ int main(int ac, char *av[])
         write_water_kinetic_energy.writeToFile(ite_p);
 
         ite_p += 1;
-        if (ite_p % 100 == 0)
+        if (ite_p % 200 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
