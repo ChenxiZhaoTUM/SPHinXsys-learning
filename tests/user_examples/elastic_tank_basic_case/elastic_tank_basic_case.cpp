@@ -32,7 +32,7 @@ int main(int ac, char* av[])
 	//	Creating body, materials and particles.
 	//--------------------------------------------------------------------------------
 	SolidBody tank(sph_system, makeShared<Tank>("Tank"));
-	//tank.defineAdaptation<SPHAdaptation>(1.3, 2.0);
+	//tank.defineAdaptation<SPHAdaptation>(1.15, 2.0);  // can not use damping
 	tank.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
 	if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
 	{
@@ -74,7 +74,7 @@ int main(int ac, char* av[])
 	ComplexRelation air_water_complex(air_block, { &water_block });
 	ComplexRelation water_air_tank_complex(water_block, RealBodyVector{ &air_block, &tank });
 	ComplexRelation water_tank_complex_for_damping(water_block, { &tank });
-
+	 
 	//--------------------------------------------------------------------------------
 	//	Run particle relaxation for body-fitted distribution if chosen.
 	//--------------------------------------------------------------------------------

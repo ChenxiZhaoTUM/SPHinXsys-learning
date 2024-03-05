@@ -4,7 +4,7 @@
 * @details
 * @author
 */
-#include "elastic_tank_basic_case.h"
+#include "elastic_tank_ringBaffles.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------

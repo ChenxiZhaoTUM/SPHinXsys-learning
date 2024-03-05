@@ -15,9 +15,8 @@ using namespace SPH;
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
 std::string fuel_tank_outer = "./input/tank_outer_0.018.STL";
-std::string fuel_tank_inner = "./input/3D_grotle_tank_inner.STL";
-std::string water_05 = "./input/3D_grotle_water_0255.STL";
-std::string air_05 = "./input/3D_grotle_air_0255.STL";
+std::string fuel_tank_inner = "./input/2ring_baffles_inner.STL";
+std::string air_05 = "./input/2ring_baffles_air.STL";
 std::string probe_shape = "./input/base_case_probe_0.106.STL";
 
 //----------------------------------------------------------------------
@@ -68,7 +67,8 @@ class WaterBlock : public ComplexShape
 public:
 	explicit WaterBlock(const std::string& shape_name) : ComplexShape(shape_name)
 	{
-		add<TriangleMeshShapeSTL>(water_05, translation, length_scale);
+		add<TriangleMeshShapeSTL>(fuel_tank_inner, translation, length_scale);
+		subtract<TriangleMeshShapeSTL>(air_05, translation, length_scale);
 	}
 };
 
