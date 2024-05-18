@@ -53,6 +53,26 @@ SigmaXX::SigmaXX(SPHBody &sph_body)
     : BaseDerivedVariable<Real>(sph_body, "SigmaXX"), ElasticSolidDataSimple(sph_body),
       LocalDynamics(sph_body), rho0_(sph_body_.base_material_->ReferenceDensity()),
       rho_(particles_->rho_), F_(particles_->F_), elastic_solid_(particles_->elastic_solid_) {}
+SigmaYY::SigmaYY(SPHBody &sph_body)
+    : BaseDerivedVariable<Real>(sph_body, "SigmaYY"), ElasticSolidDataSimple(sph_body),
+      LocalDynamics(sph_body), rho0_(sph_body_.base_material_->ReferenceDensity()),
+      rho_(particles_->rho_), F_(particles_->F_), elastic_solid_(particles_->elastic_solid_) {}
+SigmaZZ::SigmaZZ(SPHBody &sph_body)
+    : BaseDerivedVariable<Real>(sph_body, "SigmaZZ"), ElasticSolidDataSimple(sph_body),
+      LocalDynamics(sph_body), rho0_(sph_body_.base_material_->ReferenceDensity()),
+      rho_(particles_->rho_), F_(particles_->F_), elastic_solid_(particles_->elastic_solid_) {}
+SigmaXY::SigmaXY(SPHBody &sph_body)
+    : BaseDerivedVariable<Real>(sph_body, "SigmaXY"), ElasticSolidDataSimple(sph_body),
+      LocalDynamics(sph_body), rho0_(sph_body_.base_material_->ReferenceDensity()),
+      rho_(particles_->rho_), F_(particles_->F_), elastic_solid_(particles_->elastic_solid_) {}
+SigmaXZ::SigmaXZ(SPHBody &sph_body)
+    : BaseDerivedVariable<Real>(sph_body, "SigmaXZ"), ElasticSolidDataSimple(sph_body),
+      LocalDynamics(sph_body), rho0_(sph_body_.base_material_->ReferenceDensity()),
+      rho_(particles_->rho_), F_(particles_->F_), elastic_solid_(particles_->elastic_solid_) {}
+SigmaYZ::SigmaYZ(SPHBody &sph_body)
+    : BaseDerivedVariable<Real>(sph_body, "SigmaYZ"), ElasticSolidDataSimple(sph_body),
+      LocalDynamics(sph_body), rho0_(sph_body_.base_material_->ReferenceDensity()),
+      rho_(particles_->rho_), F_(particles_->F_), elastic_solid_(particles_->elastic_solid_) {}
 //=============================================================================================//
 VonMisesStrain::VonMisesStrain(SPHBody &sph_body)
     : BaseDerivedVariable<Real>(sph_body, "VonMisesStrain"),

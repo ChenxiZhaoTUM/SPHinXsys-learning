@@ -68,6 +68,61 @@ void SigmaXX::update(size_t index_i, Real dt)
     
     derived_variable_[index_i] = sigmaxx;
 }
+void SigmaYY::update(size_t index_i, Real dt)
+{
+    Real J = rho0_ / rho_[index_i];
+    Matd F = F_[index_i];
+    Matd stress_PK1 = F * elastic_solid_.StressPK2(F, index_i);
+    Matd sigma = (stress_PK1 * F.transpose()) / J;
+
+    Real sigmayy = sigma(1, 1);
+    
+    derived_variable_[index_i] = sigmayy;
+}
+void SigmaZZ::update(size_t index_i, Real dt)
+{
+    Real J = rho0_ / rho_[index_i];
+    Matd F = F_[index_i];
+    Matd stress_PK1 = F * elastic_solid_.StressPK2(F, index_i);
+    Matd sigma = (stress_PK1 * F.transpose()) / J;
+
+    Real sigmazz = sigma(2, 2);
+    
+    derived_variable_[index_i] = sigmazz;
+}
+void SigmaXY::update(size_t index_i, Real dt)
+{
+    Real J = rho0_ / rho_[index_i];
+    Matd F = F_[index_i];
+    Matd stress_PK1 = F * elastic_solid_.StressPK2(F, index_i);
+    Matd sigma = (stress_PK1 * F.transpose()) / J;
+
+    Real sigmaxy = sigma(0, 1);
+    
+    derived_variable_[index_i] = sigmaxy;
+}
+void SigmaXZ::update(size_t index_i, Real dt)
+{
+    Real J = rho0_ / rho_[index_i];
+    Matd F = F_[index_i];
+    Matd stress_PK1 = F * elastic_solid_.StressPK2(F, index_i);
+    Matd sigma = (stress_PK1 * F.transpose()) / J;
+
+    Real sigmaxz = sigma(0, 2);
+    
+    derived_variable_[index_i] = sigmaxz;
+}
+void SigmaYZ::update(size_t index_i, Real dt)
+{
+    Real J = rho0_ / rho_[index_i];
+    Matd F = F_[index_i];
+    Matd stress_PK1 = F * elastic_solid_.StressPK2(F, index_i);
+    Matd sigma = (stress_PK1 * F.transpose()) / J;
+
+    Real sigmayz = sigma(1, 2);
+    
+    derived_variable_[index_i] = sigmayz;
+}
 //=============================================================================================//
 void MidSurfaceVonMisesStress::update(size_t index_i, Real dt)
 {

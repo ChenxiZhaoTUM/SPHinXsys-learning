@@ -17,9 +17,9 @@ int main(int ac, char *av[])
     //--------------------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     /** Tag for run particle relaxation for the initial body fitted distribution.   */
-    sph_system.setRunParticleRelaxation(true);
+    sph_system.setRunParticleRelaxation(false);
     /** Tag for computation start with relaxed body fitted particles distribution.  */
-    sph_system.setReloadParticles(false);
+    sph_system.setReloadParticles(true);
     /** Tag for computation from restart files. 0: start with initial condition.    */
     sph_system.setRestartStep(0);
     /** Handle command line arguments. */
@@ -145,7 +145,7 @@ int main(int ac, char *av[])
         water_density_by_summation(water_block_contact, water_air_complex.getInnerRelation());
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplex>
         air_density_by_summation(air_block_contact, air_water_complex);
-    InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex<AllParticles>>
+    InteractionDynamics<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>>
         air_transport_correction(air_block_contact, air_water_complex);
     InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
         water_viscous_acceleration(water_block_contact, water_air_complex);
@@ -238,8 +238,8 @@ int main(int ac, char *av[])
         probe_1(io_environment, probe_s1);
 
     BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    /*ObservedQuantityRecording<Vecd> write_tank_move("Position", io_environment, tank_observer_contact);
-    ObservedQuantityRecording<Vecd> write_tank_nom("NormalDirection", io_environment, tank_observer_contact);*/
+    ObservedQuantityRecording<Vecd> write_baffle_move("Position", io_environment, baffle_observer_contact);
+    ObservedQuantityRecording<Vecd> write_baffle_nom("NormalDirection", io_environment, baffle_observer_contact);
     ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
         write_viscous_force_on_tank(io_environment, viscous_force_on_tack, "TotalViscousForceOnTank");
     ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
@@ -268,7 +268,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 10;
     int restart_output_interval = screen_output_interval * 10;
-    Real End_Time = 13; /** End time. */
+    Real End_Time = 8.3; /** End time. */
     Real D_Time = 0.05; /** time stamps for output. */
     Real Dt = 0.0;      /** Default advection time step sizes for fluid. */
     Real dt = 0.0;      /** Default acoustic time step sizes for fluid. */
@@ -288,7 +288,6 @@ int main(int ac, char *av[])
     probe_1.writeToFile(0);
     // write_tank_move.writeToFile(0);
     // write_tank_nom.writeToFile(0);
-
     //--------------------------------------------------------------------------------
     //	Main loop starts here.
     //--------------------------------------------------------------------------------
@@ -419,8 +418,8 @@ int main(int ac, char *av[])
         /** Write run-time observation into file. */
         write_real_body_states.writeToFile();
         probe_1.writeToFile();
-        /*write_tank_move.writeToFile();
-        write_tank_nom.writeToFile();*/
+        write_baffle_move.writeToFile();
+        write_baffle_nom.writeToFile();
         write_viscous_force_on_tank.writeToFile(number_of_iterations);
         write_total_force_on_tank.writeToFile(number_of_iterations);
         write_viscous_force_on_baffle.writeToFile(number_of_iterations);

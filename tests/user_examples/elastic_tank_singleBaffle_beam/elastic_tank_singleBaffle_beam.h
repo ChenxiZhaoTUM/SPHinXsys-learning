@@ -14,7 +14,7 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
-std::string fuel_tank_outer = "./input/tank_outer_0.018.STL";
+std::string fuel_tank_outer = "./input/3D_grotle_tank_outer_03.STL";
 std::string fuel_tank_inner = "./input/inner_05.STL";
 std::string air_05 = "./input/air_05.STL";
 std::string probe_shape = "./input/probe_0.18.STL";
@@ -54,7 +54,7 @@ Real physical_viscosity = 1.3e4;
 
 Real rho0_s2 = 2500.0;								 /** Solid density*/
 Real poisson2 = 0.47; /** Poisson ratio*/
-Real Youngs_modulus2 = 5e3;
+Real Youngs_modulus2 = 5e4;
 
 //----------------------------------------------------------------------
 //	Define SPH bodies.

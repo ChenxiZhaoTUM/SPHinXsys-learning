@@ -147,6 +147,86 @@ class SigmaXX : public BaseDerivedVariable<Real>,
     ElasticSolid &elastic_solid_;
 };
 
+class SigmaYY : public BaseDerivedVariable<Real>,
+                       public ElasticSolidDataSimple,
+                       public LocalDynamics
+{
+  public:
+    explicit SigmaYY(SPHBody &sph_body);
+    virtual ~SigmaYY(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real rho0_;
+    StdLargeVec<Real> &rho_;
+    StdLargeVec<Matd> &F_;
+    ElasticSolid &elastic_solid_;
+};
+
+class SigmaZZ : public BaseDerivedVariable<Real>,
+                       public ElasticSolidDataSimple,
+                       public LocalDynamics
+{
+  public:
+    explicit SigmaZZ(SPHBody &sph_body);
+    virtual ~SigmaZZ(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real rho0_;
+    StdLargeVec<Real> &rho_;
+    StdLargeVec<Matd> &F_;
+    ElasticSolid &elastic_solid_;
+};
+
+class SigmaXY : public BaseDerivedVariable<Real>,
+                       public ElasticSolidDataSimple,
+                       public LocalDynamics
+{
+  public:
+    explicit SigmaXY(SPHBody &sph_body);
+    virtual ~SigmaXY(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real rho0_;
+    StdLargeVec<Real> &rho_;
+    StdLargeVec<Matd> &F_;
+    ElasticSolid &elastic_solid_;
+};
+
+class SigmaXZ : public BaseDerivedVariable<Real>,
+                       public ElasticSolidDataSimple,
+                       public LocalDynamics
+{
+  public:
+    explicit SigmaXZ(SPHBody &sph_body);
+    virtual ~SigmaXZ(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real rho0_;
+    StdLargeVec<Real> &rho_;
+    StdLargeVec<Matd> &F_;
+    ElasticSolid &elastic_solid_;
+};
+
+class SigmaYZ : public BaseDerivedVariable<Real>,
+                       public ElasticSolidDataSimple,
+                       public LocalDynamics
+{
+  public:
+    explicit SigmaYZ(SPHBody &sph_body);
+    virtual ~SigmaYZ(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real rho0_;
+    StdLargeVec<Real> &rho_;
+    StdLargeVec<Matd> &F_;
+    ElasticSolid &elastic_solid_;
+};
+
 /**
  * @class VonMisesStrain
  * @brief computing von Mises strain

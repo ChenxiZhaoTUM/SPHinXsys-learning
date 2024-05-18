@@ -62,6 +62,28 @@ void SigmaXX::update(size_t index_i, Real dt)
     
     derived_variable_[index_i] = sigmaxx;
 }
+void SigmaYY::update(size_t index_i, Real dt)
+{
+    Real J = rho0_ / rho_[index_i];
+    Matd F = F_[index_i];
+    Matd stress_PK1 = F * elastic_solid_.StressPK2(F, index_i);
+    Matd sigma = (stress_PK1 * F.transpose()) / J;
+
+    Real sigmayy = sigma(1, 1);
+    
+    derived_variable_[index_i] = sigmayy;
+}
+void SigmaXY::update(size_t index_i, Real dt)
+{
+    Real J = rho0_ / rho_[index_i];
+    Matd F = F_[index_i];
+    Matd stress_PK1 = F * elastic_solid_.StressPK2(F, index_i);
+    Matd sigma = (stress_PK1 * F.transpose()) / J;
+
+    Real sigmaxy = sigma(0, 1);
+    
+    derived_variable_[index_i] = sigmaxy;
+}
 //=============================================================================================//
 void MidSurfaceVonMisesStress::update(size_t index_i, Real dt)
 {

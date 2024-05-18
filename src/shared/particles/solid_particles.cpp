@@ -54,6 +54,11 @@ void ElasticSolidParticles::initializeOtherVariables()
     addDerivedVariableToWrite<Displacement>();
     addDerivedVariableToWrite<VonMisesStress>();
     addDerivedVariableToWrite<SigmaXX>();
+    addDerivedVariableToWrite<SigmaYY>();
+    addDerivedVariableToWrite<SigmaZZ>();
+    addDerivedVariableToWrite<SigmaXY>();
+    addDerivedVariableToWrite<SigmaXZ>();
+    addDerivedVariableToWrite<SigmaYZ>();
     addDerivedVariableToWrite<VonMisesStrain>();
     addVariableToRestart<Matd>("DeformationGradient");
     // get which stress measure is relevant for the material
@@ -139,6 +144,101 @@ Real ElasticSolidParticles::getSigmaXX(size_t particle_i)
     }
 
     return sigma(0, 0);
+}
+
+Real ElasticSolidParticles::getSigmaYY(size_t particle_i)
+{
+    Matd sigma;
+    if (stress_measure_ == "Cauchy")
+    {
+        sigma = getStressCauchy(particle_i); // Cauchy stress
+    }
+    else if (stress_measure_ == "PK2")
+    {
+        sigma = getStressPK2(particle_i); // Second Piola-Kirchhoff stress
+    }
+    else
+    {
+        throw std::runtime_error("get_von_Mises_stress: wrong input");
+    }
+
+    return sigma(1, 1);
+}
+
+Real ElasticSolidParticles::getSigmaZZ(size_t particle_i)
+{
+    Matd sigma;
+    if (stress_measure_ == "Cauchy")
+    {
+        sigma = getStressCauchy(particle_i); // Cauchy stress
+    }
+    else if (stress_measure_ == "PK2")
+    {
+        sigma = getStressPK2(particle_i); // Second Piola-Kirchhoff stress
+    }
+    else
+    {
+        throw std::runtime_error("get_von_Mises_stress: wrong input");
+    }
+
+    return sigma(2, 2);
+}
+
+Real ElasticSolidParticles::getSigmaXY(size_t particle_i)
+{
+    Matd sigma;
+    if (stress_measure_ == "Cauchy")
+    {
+        sigma = getStressCauchy(particle_i); // Cauchy stress
+    }
+    else if (stress_measure_ == "PK2")
+    {
+        sigma = getStressPK2(particle_i); // Second Piola-Kirchhoff stress
+    }
+    else
+    {
+        throw std::runtime_error("get_von_Mises_stress: wrong input");
+    }
+
+    return sigma(0, 1);
+}
+
+Real ElasticSolidParticles::getSigmaXZ(size_t particle_i)
+{
+    Matd sigma;
+    if (stress_measure_ == "Cauchy")
+    {
+        sigma = getStressCauchy(particle_i); // Cauchy stress
+    }
+    else if (stress_measure_ == "PK2")
+    {
+        sigma = getStressPK2(particle_i); // Second Piola-Kirchhoff stress
+    }
+    else
+    {
+        throw std::runtime_error("get_von_Mises_stress: wrong input");
+    }
+
+    return sigma(0, 2);
+}
+
+Real ElasticSolidParticles::getSigmaYZ(size_t particle_i)
+{
+    Matd sigma;
+    if (stress_measure_ == "Cauchy")
+    {
+        sigma = getStressCauchy(particle_i); // Cauchy stress
+    }
+    else if (stress_measure_ == "PK2")
+    {
+        sigma = getStressPK2(particle_i); // Second Piola-Kirchhoff stress
+    }
+    else
+    {
+        throw std::runtime_error("get_von_Mises_stress: wrong input");
+    }
+
+    return sigma(1, 2);
 }
 //=================================================================================================//
 StdLargeVec<Real> ElasticSolidParticles::getVonMisesStrainVector(std::string strain_measure)

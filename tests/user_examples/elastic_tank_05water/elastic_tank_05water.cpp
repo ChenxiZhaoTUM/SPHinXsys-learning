@@ -4,7 +4,7 @@
 * @details
 * @author
 */
-#include "elastic_tank_singleBaffle_rigid.h"
+#include "elastic_tank_05water.h"
 
 using namespace SPH;  /** Namespace cite here. */
 //------------------------------------------------------------------------------------
@@ -32,6 +32,7 @@ int main(int ac, char* av[])
 	//	Creating body, materials and particles.
 	//--------------------------------------------------------------------------------
 	SolidBody tank(sph_system, makeShared<Tank>("Tank"));
+	//tank.defineAdaptation<SPHAdaptation>(1.15, 2.0);  // can not use damping
 	tank.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
 	if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
 	{
@@ -54,12 +55,8 @@ int main(int ac, char* av[])
 	air_block.generateParticles<ParticleGeneratorLattice>();
 	air_block.addBodyStateForRecording<Real>("Pressure");
 
-	SolidBody baffle(sph_system, makeShared<BaffleBlock>("Baffle"));
-    baffle.defineParticlesAndMaterial<SolidParticles, Solid>();
-    baffle.generateParticles<ParticleGeneratorLattice>();
-
-    ObserverBody baffle_observer(sph_system, "BaffleObserver");
-    baffle_observer.generateParticles<ObserverParticleGenerator>(observation_location);
+	/*ObserverBody tank_observer(sph_system, "TankObserver");
+	tank_observer.generateParticles<TankObserverParticleGenerator>();*/
 
 	//--------------------------------------------------------------------------------
 	//	Define body relation map.
@@ -67,18 +64,17 @@ int main(int ac, char* av[])
 	//	Basically the the range of bodies to build neighbor particle lists.
 	//--------------------------------------------------------------------------------
 	InnerRelation tank_inner(tank);
-    InnerRelation baffle_inner(baffle);
 
-    ContactRelation water_block_contact(water_block, RealBodyVector{&tank, &baffle});
-    ContactRelation air_block_contact(air_block, RealBodyVector{&tank, &baffle});
-    ContactRelation tank_contacts(tank, RealBodyVector{&water_block, &air_block});
-    ContactRelation baffle_contacts(baffle, RealBodyVector{&water_block, &air_block});
-    ContactRelation baffle_observer_contact(baffle_observer, {&tank});
+	ContactRelation water_block_contact(water_block, { &tank });
+	ContactRelation air_block_contact(air_block, { &tank });
+	ContactRelation tank_contacts(tank, RealBodyVector{ &water_block, &air_block });
+	//ContactRelation tank_observer_contact(tank_observer, { &tank });
 
-    ComplexRelation water_air_complex(water_block, {&air_block});
-    ComplexRelation air_water_complex(air_block, {&water_block});
-    ComplexRelation water_air_tank_baffle_complex(water_block, RealBodyVector{&air_block, &tank, &baffle});
-    ComplexRelation water_tank_baffle_complex_for_damping(water_block, RealBodyVector{&tank, &baffle});
+	ComplexRelation water_air_complex(water_block, { &air_block });
+	ComplexRelation air_water_complex(air_block, { &water_block });
+	ComplexRelation water_air_tank_complex(water_block, RealBodyVector{ &air_block, &tank });
+	ComplexRelation water_tank_complex_for_damping(water_block, { &tank });
+	 
 	//--------------------------------------------------------------------------------
 	//	Run particle relaxation for body-fitted distribution if chosen.
 	//--------------------------------------------------------------------------------
@@ -126,8 +122,8 @@ int main(int ac, char* av[])
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
 	//--------------------------------------------------------------------------------
-	InteractionDynamics<InterpolatingAQuantity<Vecd>>
-		interpolation_observer_position(baffle_observer_contact, "Position", "Position");
+	/*InteractionDynamics<InterpolatingAQuantity<Vecd>>
+		interpolation_observer_position(tank_observer_contact, "Position", "Position");*/
 
 	//--------------------------------------------------------------------------------
 	//	Algorithms of fluid dynamics.
@@ -152,7 +148,7 @@ int main(int ac, char* av[])
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationMultiPhaseWithWall>
 		air_viscous_acceleration(air_block_contact, air_water_complex);
 	/** Computing vorticity in the flow. */
-    InteractionDynamics<fluid_dynamics::VorticityInner> compute_vorticity(water_air_tank_baffle_complex.getInnerRelation());
+	InteractionDynamics<fluid_dynamics::VorticityInner> compute_vorticity(water_air_tank_complex.getInnerRelation());
 
 	/** Time step size of fluid body. */
 	ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> water_advection_time_step(water_block, U_max);
@@ -171,7 +167,7 @@ int main(int ac, char* av[])
 		air_density_relaxation(air_block_contact, air_water_complex);
 
 	DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vecd, DampingPairwiseInner>>>
-        fluid_damping(0.2, water_tank_baffle_complex_for_damping, "Velocity", viscous_dynamics);
+        fluid_damping(0.2, water_tank_complex_for_damping, "Velocity", viscous_dynamics);
 
 	//--------------------------------------------------------------------------------
 	//	Algorithms of FSI.
@@ -180,9 +176,6 @@ int main(int ac, char* av[])
 	InteractionDynamics<solid_dynamics::ViscousForceFromFluid> viscous_force_on_tack(tank_contacts);
 	InteractionDynamics<solid_dynamics::AllForceAccelerationFromFluid>
 		fluid_force_on_tank_update(tank_contacts, viscous_force_on_tack);
-    InteractionDynamics<solid_dynamics::ViscousForceFromFluid> viscous_force_on_baffle(baffle_contacts);
-    InteractionDynamics<solid_dynamics::AllForceAccelerationFromFluid>
-        fluid_force_on_baffle_update(baffle_contacts, viscous_force_on_baffle);
 	/** Average velocity of the elastic body. */
 	solid_dynamics::AverageVelocityAndAcceleration tank_average_velocity_and_acceleration(tank);
 
@@ -190,9 +183,7 @@ int main(int ac, char* av[])
 	//	Algorithms of solid dynamics.
 	//----------------------------------------------------------------------
 	SimpleDynamics<NormalDirectionFromShapeAndOp> tank_normal_direction(tank, "InnerWall");
-    SimpleDynamics<NormalDirectionFromBodyShape> baffle_normal_direction(baffle);
 	InteractionWithUpdate<KernelCorrectionMatrixInner> tank_corrected_configuration(tank_inner);
-	InteractionWithUpdate<KernelCorrectionMatrixInner> baffle_corrected_configuration(baffle_inner);
 	/** Time step size of elastic body. */
 	ReduceDynamics<solid_dynamics::AcousticTimeStepSize> tank_acoustic_time_step(tank);
 	/** Stress relaxation for the elastic body. */
@@ -217,10 +208,6 @@ int main(int ac, char* av[])
 	}
 	SimpleDynamics<Constrain3DSolidBodyRotation> constrain_rotation(tank, mass_center, moment_of_inertia);
 
-	/** Constrain region of the inserted body. */
-    BodyRegionByParticle baffle_fix_geo(baffle, makeShared<BaffleFix>("BaffleFix"));
-    SimpleDynamics<solid_dynamics::FixBodyPartConstraint> constraint_baffle(baffle_fix_geo);
-
 	/** Update normal direction. */
 	SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> tank_update_normal_direction(tank);
 
@@ -238,10 +225,7 @@ int main(int ac, char* av[])
 		write_viscous_force_on_tank(io_environment, viscous_force_on_tack, "TotalViscousForceOnTank");
 	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
 		write_total_force_on_tank(io_environment, fluid_force_on_tank_update, "TotalForceOnTank");
-    ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
-        write_viscous_force_on_baffle(io_environment, viscous_force_on_baffle, "TotalViscousForceOnBaffle");
-    ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
-        write_total_force_on_baffle(io_environment, fluid_force_on_baffle_update, "TotalForceOnBaffle");
+
 	//--------------------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -254,8 +238,6 @@ int main(int ac, char* av[])
 	/** Computing surface normal direction for the tank. */
 	tank_corrected_configuration.exec();
 	tank_normal_direction.exec();
-    baffle_corrected_configuration.exec();
-    baffle_normal_direction.exec();
 	//--------------------------------------------------------------------------------
 	//	Setup computing and initial conditions.
 	//--------------------------------------------------------------------------------
@@ -309,7 +291,6 @@ int main(int ac, char* av[])
 
 			/** FSI for viscous force. */
 			viscous_force_on_tack.exec();
-            viscous_force_on_baffle.exec();
 
 			/** Update normal direction on elastic body. */
 			tank_update_normal_direction.exec();
@@ -334,12 +315,11 @@ int main(int ac, char* av[])
 				air_pressure_relaxation.exec(dt);
 				/** FSI for pressure force. */
 				fluid_force_on_tank_update.exec();
-                fluid_force_on_baffle_update.exec();
 				/** Fluid density relaxation. */
 				water_density_relaxation.exec(dt);
 				air_density_relaxation.exec(dt);
 
-				interpolation_observer_position.exec();
+				/*interpolation_observer_position.exec();*/
 
 				/** Solid dynamics. */
 				inner_ite_dt_s = 0;
@@ -352,7 +332,6 @@ int main(int ac, char* av[])
 
 					constrain_rotation.exec(dt_s);
 					constrain_mass_center_1.exec(dt_s);
-                    constraint_baffle.exec();
 
 					if (GlobalStaticVariables::physical_time_ < 1.0)
 					{
@@ -391,7 +370,7 @@ int main(int ac, char* av[])
 			water_block.updateCellLinkedListWithParticleSort(100);
 			water_block_contact.updateConfiguration();
 			water_air_complex.updateConfiguration();
-			water_tank_baffle_complex_for_damping.updateConfiguration();
+			water_tank_complex_for_damping.updateConfiguration();
 
 			air_block.updateCellLinkedListWithParticleSort(100);
 			air_block_contact.updateConfiguration();
@@ -400,10 +379,6 @@ int main(int ac, char* av[])
 			tank.updateCellLinkedList();
 			tank_contacts.updateConfiguration();
 			/*tank_observer_contact.updateConfiguration();*/
-            
-			baffle.updateCellLinkedList();
-            baffle_contacts.updateConfiguration();
-            baffle_observer_contact.updateConfiguration();
 		}
 
 		TickCount t2 = TickCount::now();
@@ -416,8 +391,6 @@ int main(int ac, char* av[])
 		write_tank_nom.writeToFile();*/
 		write_viscous_force_on_tank.writeToFile(number_of_iterations);
 		write_total_force_on_tank.writeToFile(number_of_iterations);
-        write_viscous_force_on_baffle.writeToFile(number_of_iterations);
-        write_total_force_on_baffle.writeToFile(number_of_iterations);
 
 		TickCount t3 = TickCount::now();
 		interval += t3 - t2;

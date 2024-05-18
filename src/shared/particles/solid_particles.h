@@ -110,6 +110,11 @@ class ElasticSolidParticles : public SolidParticles
     /** Computing von_Mises_stress - "Cauchy" or "PK2" decided based on the stress_measure_ */
     Real getVonMisesStress(size_t particle_i);
     Real getSigmaXX(size_t particle_i);
+    Real getSigmaYY(size_t particle_i);
+    Real getSigmaZZ(size_t particle_i);
+    Real getSigmaXY(size_t particle_i);
+    Real getSigmaXZ(size_t particle_i);
+    Real getSigmaYZ(size_t particle_i);
     /** Computing von Mises stress for all particles. - "Cauchy" or "PK2" decided based on the stress_measure_ */
     StdLargeVec<Real> getVonMisesStressVector();
     /** Computing maximum von Mises stress from all particles. - "Cauchy" or "PK2" decided based on the stress_measure_ */
