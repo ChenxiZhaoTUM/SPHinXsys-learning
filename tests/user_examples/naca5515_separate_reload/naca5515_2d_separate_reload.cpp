@@ -228,10 +228,10 @@ int main(int ac, char *av[])
         write_total_pressure_force_on_inserted_body(io_environment, pressure_force_on_solid, "TotalPressureForceOnSolid");
     ReducedQuantityRecording<solid_dynamics::TotalForceFromFluid>
         write_total_force_on_inserted_body(io_environment, fluid_force_on_solid_update, "TotalForceOnSolid");
-    ReducedQuantityRecording<MaximumSpeed> write_maximum_speed(io_environment, water_block_reload);
+    ReducedQuantityRecording<MaximumSpeed> write_maximum_speed(io_environment, water_block_reload);*/
     ObservedQuantityRecording<Real>
         write_recorded_water_pressure("Pressure", io_environment, fluid_observer_contact);
-    OutputObserverPositionAndPressure write_wing_pressure(io_environment, wing_observer_water_contact, "Wing");*/
+    OutputObserverPositionAndPressure write_wing_pressure(io_environment, wing_observer_water_contact, "Wing");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -267,8 +267,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     /*write_total_viscous_force_on_inserted_body.writeToFile(number_of_iterations);
     write_total_pressure_force_on_inserted_body.writeToFile(number_of_iterations);
-    write_total_force_on_inserted_body.writeToFile(number_of_iterations);
-    write_recorded_water_pressure.writeToFile(number_of_iterations);*/
+    write_total_force_on_inserted_body.writeToFile(number_of_iterations);*/
+    write_recorded_water_pressure.writeToFile(number_of_iterations);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -295,12 +295,13 @@ int main(int ac, char *av[])
             }
             number_of_iterations++;
 
-            if (GlobalStaticVariables::physical_time_ > 3.800)
+            /*if (GlobalStaticVariables::physical_time_ > 3.800)
             {
                 zero_order_consistency_solid.exec();
                 zero_order_consistency_fluid.exec();
                 write_real_body_states.writeToFile();
-            }
+                write_wing_pressure.writeToFile(number_of_iterations);
+            }*/
         }
 
         TickCount t2 = TickCount::now();
@@ -310,18 +311,21 @@ int main(int ac, char *av[])
         /*write_total_viscous_force_on_inserted_body.writeToFile(number_of_iterations);
         write_total_pressure_force_on_inserted_body.writeToFile(number_of_iterations);
         write_total_force_on_inserted_body.writeToFile(number_of_iterations);
-        write_maximum_speed.writeToFile(number_of_iterations);
-        write_recorded_water_pressure.writeToFile(number_of_iterations);*/
+        write_maximum_speed.writeToFile(number_of_iterations);*/
+        write_recorded_water_pressure.writeToFile(number_of_iterations);
 
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
 
-    // write_wing_pressure.writeToFile(number_of_iterations);
+    write_wing_pressure.writeToFile(number_of_iterations);
 
-    /*zero_order_consistency_solid.exec();
-    zero_order_consistency_fluid.exec();
-    write_real_body_states.writeToFile(number_of_iterations);*/
+    if (GlobalStaticVariables::physical_time_ > 14.00)
+    {
+        zero_order_consistency_solid.exec();
+        zero_order_consistency_fluid.exec();
+        write_real_body_states.writeToFile(number_of_iterations);
+    }
 
     TickCount t4 = TickCount::now();
     TimeInterval tt;
