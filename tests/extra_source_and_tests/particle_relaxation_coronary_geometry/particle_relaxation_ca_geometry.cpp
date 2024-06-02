@@ -45,9 +45,10 @@ class SolidBodyFromMesh : public ComplexShape
   public:
     explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        //add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * dp_0, full_path_to_file, translation, scaling);
-        //subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * dp_0, full_path_to_file, translation, scaling);
+        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+
+        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 };
 //-----------------------------------------------------------------------------------------------------------
@@ -65,8 +66,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("SolidBodyFromMesh"));
     // level set shape is used for particle relaxation
-    //imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
-    imported_model.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(sph_system);
+    imported_model.defineBodyLevelSetShape()->correctLevelSetSign()
+        ->cleanLevelSet()->writeLevelSet(sph_system);
+    //imported_model.defineBodyLevelSetShape()->writeLevelSet(sph_system);
     imported_model.defineParticlesAndMaterial();
     imported_model.generateParticles<Lattice>();
     //----------------------------------------------------------------------

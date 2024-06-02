@@ -114,7 +114,7 @@ int main(int ac, char *av[])
     blood_block.generateParticlesWithReserve<Lattice>(inlet_particle_buffer);
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
-    wall_boundary.defineBodyLevelSetShape()->cleanLevelSet(1.2)->writeLevelSet(sph_system);
+    wall_boundary.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     wall_boundary.defineParticlesAndMaterial<SolidParticles, Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? wall_boundary.generateParticles<Reload>(wall_boundary.getName())

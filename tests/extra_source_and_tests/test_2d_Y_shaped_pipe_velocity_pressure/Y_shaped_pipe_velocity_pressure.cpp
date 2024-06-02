@@ -6,10 +6,18 @@
  */
 
 #include "sphinxsys.h"
+#include "bidirectional_buffer.h"
+#include "density_correciton.h"
+#include "density_correciton.hpp"
+#include "kernel_summation.h"
+#include "kernel_summation.hpp"
+#include "pressure_boundary.h"
+
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
+//std::string water_path = "./input/Yshape_water_for_code.dat";
 std::string wall_inner_path = "./input/Yshape_inner_boundary_for_code.dat";
 std::string wall_outer_path = "./input/Yshape_outer_boundary_for_code.dat";
 //----------------------------------------------------------------------
@@ -18,17 +26,20 @@ std::string wall_outer_path = "./input/Yshape_outer_boundary_for_code.dat";
 BoundingBox system_domain_bounds(Vec2d(-3.0, -12.0), Vecd(44.0, 16.0));
 Real resolution_ref = 0.125;           /**< Initial reference particle spacing. */
 Real BW = resolution_ref * 4;         /**< Reference size of the emitter. */
+Real DH = 7.0;
+Real DL = 25.0;
 //Real DL_sponge = resolution_ref * 20; /**< Reference size of the emitter buffer to impose inflow condition. */
 //-------------------------------------------------------
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
-Real rho0_f = 1.0; /**< Reference density of fluid. */
-Real U_f = 1.0;    /**< Characteristic velocity. */
-/** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), Real(7.0) / (Real(1.6) + Real(2.55)));
-Real Re = 100.0;                    /**< Reynolds number. */
-Real mu_f = rho0_f * U_f * Real(7.0) / Re; /**< Dynamics viscosity. */
+Real Inlet_pressure = 0.2;
+Real Outlet_pressure = 0.1;
+Real rho0_f = 1000.0; /**< Reference density of fluid. */
+Real Re = 50.0;
+Real mu_f = sqrt(rho0_f * pow(0.5 * DH, 3.0) * fabs(Inlet_pressure - Outlet_pressure) / (Re * DL));
+Real U_f = pow(0.5 * DH, 2.0) * fabs(Inlet_pressure - Outlet_pressure) / (2.0 * mu_f * DL);
+Real c_f = 10.0 * U_f;
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -55,28 +66,55 @@ class WallBoundary : public MultiPolygonShape
 //----------------------------------------------------------------------
 struct InflowVelocity
 {
-    Real u_ref_, t_ref_;
-    AlignedBoxShape &aligned_box_;
-    Vecd halfsize_;
+    Real u_ave;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(U_f), t_ref_(2.0),
-          aligned_box_(boundary_condition.getAlignedBox()),
-          halfsize_(aligned_box_.HalfSize()) {}
+        : u_ave(0.0) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
-        Vecd target_velocity = velocity;
-        //Real run_time = GlobalStaticVariables::physical_time_;
-        //Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
-        //target_velocity[0] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
-        target_velocity[0] = 1;
-        target_velocity[1] = 0;
+        Vecd target_velocity = Vecd::Zero();
+        /*Real run_time = GlobalStaticVariables::physical_time_;
+
+        u_ave = fabs(Inlet_pressure - Outlet_pressure) * (position[1] + 0.5 * DH) * (position[1] + 0.5 * DH - DH) / (2.0 * mu_f * DL) +
+                (4.0 * fabs(Inlet_pressure - Outlet_pressure) * DH * DH) /
+                    (mu_f * DL * Pi * Pi * Pi) * sin(Pi * (position[1] + 0.5 * DH) / DH) * exp(-(Pi * Pi * mu_f * run_time) / (DH * DH));*/
+
+        target_velocity[0] = 1.0;
+        target_velocity[1] = 0.0;
 
         return target_velocity;
     }
 };
+
+/**
+ * @brief 	Pressure boundary definition.
+ */
+struct LeftInflowPressure
+{
+    template <class BoundaryConditionType>
+    LeftInflowPressure(BoundaryConditionType &boundary_condition) {}
+
+    Real operator()(Real &p_)
+    {
+        return p_;
+    }
+};
+
+struct RightInflowPressure
+{
+    template <class BoundaryConditionType>
+    RightInflowPressure(BoundaryConditionType &boundary_condition) {}
+
+    Real operator()(Real &p_)
+    {
+        /*constant pressure*/
+        Real pressure = Outlet_pressure;
+        return pressure;
+    }
+};
+
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -96,8 +134,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
-    ParticleBuffer<ReserveSizeFactor> inlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<Lattice>(inlet_particle_buffer);
+    ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
+    water_block.generateParticlesWithReserve<Lattice>(in_outlet_particle_buffer);
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineBodyLevelSetShape()->writeLevelSet(sph_system);
     wall_boundary.defineParticlesAndMaterial<SolidParticles, Solid>();
@@ -180,35 +218,49 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_wall_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(water_block_inner, water_wall_contact);
     InteractionWithUpdate<fluid_dynamics::DensitySummationFreeStreamComplex> update_density_by_summation(water_block_inner, water_wall_contact);
-    water_block.addBodyStateForRecording<Real>("Pressure"); // output for debug
-    water_block.addBodyStateForRecording<int>("Indicator"); // output for debug
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
+    InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_wall_contact);
 
-    Vec2d emitter_halfsize = Vec2d(0.5 * BW, 0.5 * 7.0);
-    Vec2d emitter_translation = Vec2d(-0.5 * BW, 0.0);
-    BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(Transform(Vec2d(emitter_translation)), emitter_halfsize));
-    SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, inlet_particle_buffer, xAxis);
+    Vec2d left_bidirectional_halfsize = Vec2d(0.5 * BW, 0.5 * 7.0);
+    Vec2d left_bidirectional_translation = Vec2d(-0.5 * BW, 0.0);
+    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(Transform(Vec2d(left_bidirectional_translation)), left_bidirectional_halfsize));
+    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer, xAxis);
+    BodyAlignedBoxByCell left_disposer(
+        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(Pi), Vec2d(left_bidirectional_translation)), left_bidirectional_halfsize));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer, xAxis);
+    SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_disposer);
+    SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
 
-    Vec2d inlet_flow_buffer_halfsize = emitter_halfsize;
-    Vec2d inlet_flow_buffer_translation = emitter_translation;
-    BodyAlignedBoxByCell inlet_flow_buffer(water_block, makeShared<AlignedBoxShape>(Transform(Vec2d(inlet_flow_buffer_translation)), inlet_flow_buffer_halfsize));
-    SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_condition(inlet_flow_buffer);
-   
-    Vec2d disposer_up_halfsize = Vec2d(0.5 * 3.0, 0.5 * BW);
-    Vec2d disposer_up_translation = Vec2d(33.0, 14.2);
-    Real disposer_up_rotation = -0.8506;
-    BodyAlignedBoxByCell disposer_up(
-        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_up_outflow_deletion(disposer_up, yAxis);
+    Vec2d right_up_bidirectional_halfsize = Vec2d(0.5 * 3.0, 0.6 * BW);
+    Vec2d right_up_bidirectional_translation = Vec2d(33.0, 14.2);
+    Real right_up_disposer_rotation = -0.8506;
+    Real right_up_emitter_rotation = right_up_disposer_rotation + Pi;
+    BodyAlignedBoxByCell right_up_emitter(
+        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(right_up_emitter_rotation), Vec2d(right_up_bidirectional_translation)), right_up_bidirectional_halfsize));
+    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_up_emitter_inflow_injection(right_up_emitter, in_outlet_particle_buffer, yAxis);
+    BodyAlignedBoxByCell right_up_disposer(
+        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(right_up_disposer_rotation), Vec2d(right_up_bidirectional_translation)), right_up_bidirectional_halfsize));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_up_disposer_outflow_deletion(right_up_disposer, yAxis);
+    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_up_inflow_pressure_condition(right_up_emitter);
 
-    Vec2d disposer_down_halfsize = Vec2d( 0.5 * 4.0, 0.5 * BW);
-    Vec2d disposer_down_translation = Vec2d(42.0, -9.7);
-    Real disposer_down_rotation = 4.3807;
-    BodyAlignedBoxByCell disposer_down(
-        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(disposer_down_rotation), Vec2d(disposer_down_translation)), disposer_down_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_down_outflow_deletion(disposer_down, yAxis);
+    Vec2d right_down_bidirectional_halfsize = Vec2d(0.5 * 4.0, 0.6 * BW);
+    Vec2d right_down_bidirectional_translation = Vec2d(42.0, -9.7);
+    Real right_down_disposer_rotation = 4.3807;
+    Real right_down_emitter_rotation = right_down_disposer_rotation + Pi;
+    BodyAlignedBoxByCell right_down_emitter(
+        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(right_down_emitter_rotation), Vec2d(right_down_bidirectional_translation)), right_down_bidirectional_halfsize));
+    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_down_emitter_inflow_injection(right_down_emitter, in_outlet_particle_buffer, yAxis);
+    BodyAlignedBoxByCell right_down_disposer(
+        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(right_down_disposer_rotation), Vec2d(right_down_bidirectional_translation)), right_down_bidirectional_halfsize));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_down_disposer_outflow_deletion(right_down_disposer, yAxis);
+    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_down_inflow_pressure_condition(right_down_emitter);
+    
+    water_block.addBodyStateForRecording<Real>("Pressure"); // output for debug
+    water_block.addBodyStateForRecording<int>("Indicator"); // output for debug
+    water_block.addBodyStateForRecording<Real>("Density");
+    water_block.addBodyStateForRecording<int>("BufferParticleIndicator");
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -222,12 +274,16 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
+    inlet_outlet_surface_particle_indicator.exec();
+    left_emitter_inflow_injection.tag_buffer_particles.exec();
+    right_up_emitter_inflow_injection.tag_buffer_particles.exec();
+    right_down_emitter_inflow_injection.tag_buffer_particles.exec();
     wall_boundary_normal_direction.exec();
     //----------------------------------------------------------------------
     //	Setup computing and initial conditions.
     //----------------------------------------------------------------------
     size_t number_of_iterations = sph_system.RestartStep();
-    int screen_output_interval = 100;
+    int screen_output_interval = 10;
     Real end_time = 100.0;
     Real output_interval = end_time / 200.0; /**< Time stamps for output of body states. */
     Real dt = 0.0;                           /**< Default acoustic time step sizes. */
@@ -236,6 +292,10 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     TickCount t1 = TickCount::now();
     TimeInterval interval;
+    TimeInterval interval_computing_time_step;
+    TimeInterval interval_computing_pressure_relaxation;
+    TimeInterval interval_updating_configuration;
+    TickCount time_instance;
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
@@ -249,26 +309,33 @@ int main(int ac, char *av[])
         /** Integrate time (loop) until the next output time. */
         while (integration_time < output_interval)
         {
+            time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
-            inlet_outlet_surface_particle_indicator.exec();
+            
             update_density_by_summation.exec();
             viscous_force.exec();
             transport_velocity_correction.exec();
+            interval_computing_time_step += TickCount::now() - time_instance;
 
+            time_instance = TickCount::now();
             /** Dynamics including pressure relaxation. */
             Real relaxation_time = 0.0;
             while (relaxation_time < Dt)
             {
-                dt = SMIN(get_fluid_time_step_size.exec(), Dt - relaxation_time);
+                dt = SMIN(get_fluid_time_step_size.exec(), Dt);
                 pressure_relaxation.exec(dt);
-                inflow_condition.exec();
+                kernel_summation.exec();
+                left_inflow_pressure_condition.exec(dt);
+                right_up_inflow_pressure_condition.exec(dt);
+                right_down_inflow_pressure_condition.exec(dt);
+                inflow_velocity_condition.exec();
                 density_relaxation.exec(dt);
 
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
             }
-
+            interval_computing_pressure_relaxation += TickCount::now() - time_instance;
             if (number_of_iterations % screen_output_interval == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
@@ -278,14 +345,24 @@ int main(int ac, char *av[])
             }
             number_of_iterations++;
 
-            /** inflow injection*/
-            emitter_inflow_injection.exec();
-            disposer_up_outflow_deletion.exec();
-            disposer_down_outflow_deletion.exec();
+            time_instance = TickCount::now();
+
+            left_emitter_inflow_injection.injection.exec();
+            right_up_emitter_inflow_injection.injection.exec();
+            right_down_emitter_inflow_injection.injection.exec();
+
+            left_disposer_outflow_deletion.exec();
+            right_up_disposer_outflow_deletion.exec();
+            right_down_disposer_outflow_deletion.exec();
 
             /** Update cell linked list and configuration. */
             water_block.updateCellLinkedListWithParticleSort(100);
             water_block_complex.updateConfiguration();
+            interval_updating_configuration += TickCount::now() - time_instance;
+            inlet_outlet_surface_particle_indicator.exec();
+            left_emitter_inflow_injection.tag_buffer_particles.exec();
+            right_up_emitter_inflow_injection.tag_buffer_particles.exec();
+            right_down_emitter_inflow_injection.tag_buffer_particles.exec();
         }
 
         TickCount t2 = TickCount::now();
@@ -299,15 +376,21 @@ int main(int ac, char *av[])
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds()
               << " seconds." << std::endl;
+    std::cout << std::fixed << std::setprecision(9) << "interval_computing_time_step ="
+              << interval_computing_time_step.seconds() << "\n";
+    std::cout << std::fixed << std::setprecision(9) << "interval_computing_pressure_relaxation = "
+              << interval_computing_pressure_relaxation.seconds() << "\n";
+    std::cout << std::fixed << std::setprecision(9) << "interval_updating_configuration = "
+              << interval_updating_configuration.seconds() << "\n";
 
-    if (sph_system.GenerateRegressionData())
-    {
-        write_water_kinetic_energy.generateDataBase(1.0e-3);
-    }
-    else
-    {
-        write_water_kinetic_energy.testResult();
-    }
+    //if (sph_system.GenerateRegressionData())
+    //{
+    //    write_water_kinetic_energy.generateDataBase(1.0e-3);
+    //}
+    //else
+    //{
+    //    write_water_kinetic_energy.testResult();
+    //}
 
     return 0;
 }
