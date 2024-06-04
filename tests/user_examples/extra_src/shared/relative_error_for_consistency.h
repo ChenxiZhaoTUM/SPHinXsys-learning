@@ -197,5 +197,57 @@ class ZeroOrderConsistencyInteractionComplex : public LocalDynamics, public Cons
         SPHAdaptation *sph_adaptation_;
 };
 
+typedef DataDelegateComplex<BaseParticles, BaseParticles> FSIComplexData;
 
+class FluidSurfaceIndication : public LocalDynamics, public FSIComplexData
+{
+  public:
+	  explicit FluidSurfaceIndication(ComplexRelation &complex_relation, Real threshold = 0.75)
+		  : LocalDynamics(complex_relation.getSPHBody()), FSIComplexData(complex_relation),
+		  threshold_by_dimensions_(threshold* (Real)Dimensions),
+		  indicator_(*particles_->getVariableByName<int>("Indicator")),
+		  smoothing_length_(complex_relation.getSPHBody().sph_adaptation_->ReferenceSmoothingLength())
+	  {
+		  particles_->registerVariable(pos_div_, "PositionDivergence");
+	  }
+
+    virtual ~FluidSurfaceIndication(){};
+
+	inline void interaction(size_t index_i, Real dt = 0.0)
+	{
+		Real pos_div = 0.0;
+		const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+		{
+			pos_div -= inner_neighborhood.dW_ijV_j_[n] * inner_neighborhood.r_ij_[n];
+		}
+		
+
+		for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+			if (contact_neighborhood.current_size_ == 0)
+			{
+				pos_div = 2 * threshold_by_dimensions_;
+			}
+        }
+
+		pos_div_[index_i] = pos_div;
+	}
+
+	void update(size_t index_i, Real dt = 0.0)
+	{
+		indicator_[index_i] = 1;
+		if (pos_div_[index_i] > threshold_by_dimensions_)
+			indicator_[index_i] = 0;
+	
+	}
+
+  protected:
+    Real threshold_by_dimensions_;
+    StdLargeVec<int> &indicator_;
+    StdLargeVec<Real> pos_div_;
+    Real smoothing_length_;
+    bool isVeryNearFreeSurface(size_t index_i);
+};
 
