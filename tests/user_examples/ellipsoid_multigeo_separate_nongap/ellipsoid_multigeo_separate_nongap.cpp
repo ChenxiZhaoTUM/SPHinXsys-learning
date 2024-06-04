@@ -6,8 +6,6 @@
  * @author 	Yongchuan Yu and Xiangyu Hu
  */
 #include "sphinxsys.h"
-#include "relative_error_for_consistency.h"
-
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
@@ -16,11 +14,11 @@ std::string full_path_to_stl_file = "./input/bun_zipper_res2.stl";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DX = 0.05;
-Real DY = 0.04;
-Real DZ = 0.11;
-Real resolution_ref = 0.0015; /**< Reference resolution. */
-BoundingBox system_domain_bounds(Vecd(-DX, -DY, -0.01), Vecd(DX, DY, DZ));
+Real DX = 0.06;
+Real DY = 0.05;
+Real DZ = 0.1;
+Real resolution_ref = 0.002; /**< Reference resolution. */
+BoundingBox system_domain_bounds(Vecd(-DX, -DY, 0), Vecd(DX, DY, DZ));
 //----------------------------------------------------------------------
 //	import model as a complex shape
 //----------------------------------------------------------------------
@@ -34,7 +32,7 @@ class Bunny : public ComplexShape
 };
 
 Vecd water_half_size(DX, DY, DZ / 2);
-Vecd water_transition(0.0, 0.0, DZ / 2 - 0.004);
+Vecd water_transition(0.0, 0.0, DZ / 2);
 class WaterBlock : public ComplexShape
 {
   public:
@@ -62,15 +60,16 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    RealBody bunny(sph_system, makeShared<Bunny>("Bunny"));
-    // bunny.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    bunny.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(io_environment);
-    bunny.defineParticlesAndMaterial();
-    bunny.generateParticles<ParticleGeneratorLattice>();
-    bunny.addBodyStateForRecording<Real>("Density");
+    RealBody starfish(sph_system, makeShared<Bunny>("Bunny"));
+    starfish.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //starfish.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
+    starfish.defineParticlesAndMaterial();
+    starfish.generateParticles<ParticleGeneratorLattice>();
+    starfish.addBodyStateForRecording<Real>("Density");
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.defineComponentLevelSetShape("OuterBoundary");
+    water_block.defineBodyLevelSetShape()->writeLevelSet(io_environment);
+    //water_block.defineBodyLevelSetShape()->cleanLevelSet()->writeLevelSet(io_environment);
     water_block.defineParticlesAndMaterial();
     water_block.generateParticles<ParticleGeneratorLattice>();
     water_block.addBodyStateForRecording<Real>("Density");
@@ -82,84 +81,64 @@ int main(int ac, char *av[])
     //  At last, we define the complex relaxations by combining previous defined
     //  inner and contact relations.
     //----------------------------------------------------------------------
-    InnerRelation bunny_inner(bunny);
-    ComplexRelation water_bunny_complex(water_block, {&bunny});
-    ComplexRelation bunny_water_complex(bunny, {&water_block});
+    InnerRelation starfish_inner(starfish);
+    InnerRelation water_inner(water_block);
+    ComplexRelation water_starfish_complex(water_block, {&starfish});
+    ComplexRelation starfish_water_complex(starfish, {&water_block});
     //----------------------------------------------------------------------
     //	Methods used for particle relaxation.
     //----------------------------------------------------------------------
-    SimpleDynamics<RandomizeParticlePosition> random_bunny_particles(bunny);
+    SimpleDynamics<RandomizeParticlePosition> random_starfish_particles(starfish);
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
-    relax_dynamics::RelaxationStepInner relaxation_step_inner(bunny_inner, true);
-    relax_dynamics::RelaxationStepComplex relaxation_step_complex(water_bunny_complex, "OuterBoundary", true);
-    //----------------------------------------------------------------------
-    //	Define simple file input and outputs functions.
-    //----------------------------------------------------------------------
-    InteractionDynamics<ZeroOrderConsistencyInteraction> zero_order_consistency_solid(bunny_inner);
-    InteractionDynamics<ZeroOrderConsistencyInteractionComplex> zero_order_consistency_fluid(water_bunny_complex, "OuterBoundary");
-    bunny.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-    water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
-
-    ReducedQuantityRecording<TotalKineticEnergy> write_bunny_kinetic_energy(io_environment, bunny, "Bunny_Kinetic_Energy");
+    relax_dynamics::RelaxationStepInner relaxation_step_inner(starfish_inner, true);
+    relax_dynamics::RelaxationStepInner relaxation_step_inner_water(water_inner, true);
+    
+    ReducedQuantityRecording<TotalKineticEnergy> write_starfish_kinetic_energy(io_environment, starfish, "Bunny_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
-    InteractionWithUpdate<FluidSurfaceIndication> fluid_surface_indicator(water_bunny_complex);
-    water_block.addBodyStateForRecording<int>("Indicator");
-
-    //BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-
-    //MeshRecordingToPlt cell_linked_list_recording(io_environment, bunny.getCellLinkedList());
+    //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
+    ReloadParticleIO write_real_body_particle_reload_files(io_environment, sph_system.real_bodies_);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
     //----------------------------------------------------------------------
-    random_bunny_particles.exec(0.25);
+    random_starfish_particles.exec(0.25);
     random_water_particles.exec(0.25);
     relaxation_step_inner.SurfaceBounding().exec();
-    relaxation_step_complex.SurfaceBounding().exec();
-    bunny.updateCellLinkedList();
+    relaxation_step_inner_water.SurfaceBounding().exec();
+    starfish.updateCellLinkedList();
     water_block.updateCellLinkedList();
-    bunny_water_complex.updateConfiguration();
-    water_bunny_complex.updateConfiguration();
+    starfish_water_complex.updateConfiguration();
+    water_starfish_complex.updateConfiguration();
     //----------------------------------------------------------------------
     //	First output before the simulation.
     //----------------------------------------------------------------------
-    int ite_p = 0;
     write_real_body_states.writeToFile();
-    write_bunny_kinetic_energy.writeToFile(ite_p);
-    write_water_kinetic_energy.writeToFile(ite_p);
-    //cell_linked_list_recording.writeToFile();
     //----------------------------------------------------------------------
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
-    while (ite_p < 2000)
+    int ite_p = 0;
+    while (ite_p < 1000)
     {
         relaxation_step_inner.exec();
-        relaxation_step_complex.exec();
+        relaxation_step_inner_water.exec();
 
-        ite_p += 1;
-
-        write_bunny_kinetic_energy.writeToFile(ite_p);
+        write_starfish_kinetic_energy.writeToFile(ite_p);
         write_water_kinetic_energy.writeToFile(ite_p);
 
+        ite_p += 1;
         if (ite_p % 500 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
-            fluid_surface_indicator.exec();
             write_real_body_states.writeToFile(ite_p);
         }
-
-        bunny_water_complex.updateConfiguration();
-        water_bunny_complex.updateConfiguration();
-        
+  
+        starfish_water_complex.updateConfiguration();
+        water_starfish_complex.updateConfiguration();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
 
-    zero_order_consistency_solid.exec();
-    zero_order_consistency_fluid.exec();
-    fluid_surface_indicator.exec();
-    write_real_body_states.writeToFile(ite_p);
-
+    write_real_body_particle_reload_files.writeToFile(0);
     return 0;
 }

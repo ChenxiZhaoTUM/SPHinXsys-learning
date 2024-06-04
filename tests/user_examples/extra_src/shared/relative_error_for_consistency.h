@@ -248,6 +248,5 @@ class FluidSurfaceIndication : public LocalDynamics, public FSIComplexData
     StdLargeVec<int> &indicator_;
     StdLargeVec<Real> pos_div_;
     Real smoothing_length_;
-    bool isVeryNearFreeSurface(size_t index_i);
 };
 

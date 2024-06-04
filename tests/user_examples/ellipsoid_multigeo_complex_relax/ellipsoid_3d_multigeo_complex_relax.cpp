@@ -12,15 +12,15 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
-std::string full_path_to_stl_file = "./input/bun_zipper_res2.stl";
+std::string full_path_to_stl_file = "./input/ellipsoid.stl";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DX = 0.05;
-Real DY = 0.04;
-Real DZ = 0.11;
-Real resolution_ref = 0.0015; /**< Reference resolution. */
-BoundingBox system_domain_bounds(Vecd(-DX, -DY, -0.01), Vecd(DX, DY, DZ));
+Real DX = 1.5;
+Real DY = 1.0;
+Real DZ = 1.2;
+Real resolution_ref = 0.1; /**< Reference resolution. */
+BoundingBox system_domain_bounds(Vecd(-DX, -DY, -DZ), Vecd(DX, DY, DZ));
 //----------------------------------------------------------------------
 //	import model as a complex shape
 //----------------------------------------------------------------------
@@ -33,8 +33,8 @@ class Bunny : public ComplexShape
     }
 };
 
-Vecd water_half_size(DX, DY, DZ / 2);
-Vecd water_transition(0.0, 0.0, DZ / 2 - 0.004);
+Vecd water_half_size(DX, DY, DZ);
+Vecd water_transition(0.0, 0.0, 0.0);
 class WaterBlock : public ComplexShape
 {
   public:
@@ -62,9 +62,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    RealBody bunny(sph_system, makeShared<Bunny>("Bunny"));
+    RealBody bunny(sph_system, makeShared<Bunny>("Ellipsoid"));
     // bunny.defineBodyLevelSetShape()->writeLevelSet(io_environment);
-    bunny.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(io_environment);
+    bunny.defineBodyLevelSetShape()->writeLevelSet(io_environment);
     bunny.defineParticlesAndMaterial();
     bunny.generateParticles<ParticleGeneratorLattice>();
     bunny.addBodyStateForRecording<Real>("Density");
@@ -100,7 +100,7 @@ int main(int ac, char *av[])
     bunny.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
 
-    ReducedQuantityRecording<TotalKineticEnergy> write_bunny_kinetic_energy(io_environment, bunny, "Bunny_Kinetic_Energy");
+    ReducedQuantityRecording<TotalKineticEnergy> write_bunny_kinetic_energy(io_environment, bunny, "Ellipsoid_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
     InteractionWithUpdate<FluidSurfaceIndication> fluid_surface_indicator(water_bunny_complex);
@@ -133,7 +133,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
-    while (ite_p < 2000)
+    while (ite_p < 1000)
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
@@ -143,22 +143,20 @@ int main(int ac, char *av[])
         write_bunny_kinetic_energy.writeToFile(ite_p);
         write_water_kinetic_energy.writeToFile(ite_p);
 
-        if (ite_p % 500 == 0)
+        if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
-            fluid_surface_indicator.exec();
             write_real_body_states.writeToFile(ite_p);
         }
 
         bunny_water_complex.updateConfiguration();
         water_bunny_complex.updateConfiguration();
-        
+        fluid_surface_indicator.exec();
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
 
     zero_order_consistency_solid.exec();
     zero_order_consistency_fluid.exec();
-    fluid_surface_indicator.exec();
     write_real_body_states.writeToFile(ite_p);
 
     return 0;
