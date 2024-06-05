@@ -11,7 +11,7 @@ using namespace SPH;
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 std::string full_path_to_blood_file = "./input/blood4-repaired.stl";
-std::string full_path_to_wall_file = "./input/bb11.stl";
+//std::string full_path_to_wall_file = "./input/bb11.stl";
 Real length_scale = 1.0;
 Vec3d translation(0.0, 0.0, 0.0);
 Vec3d domain_lower_bound(-6.0 * length_scale, -4.0 * length_scale, -32.5 * length_scale);
@@ -58,10 +58,10 @@ class WallBoundary : public ComplexShape
   public:
     explicit WallBoundary(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeSTL>(full_path_to_wall_file, translation, length_scale);
+        /*add<TriangleMeshShapeSTL>(full_path_to_wall_file, translation, length_scale);*/
 
-        /*add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * resolution_ref, full_path_to_blood_file, translation, length_scale);
-        subtract<TriangleMeshShapeSTL>(full_path_to_blood_file, translation, length_scale);*/
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * resolution_ref, full_path_to_blood_file, translation, length_scale);
+        subtract<TriangleMeshShapeSTL>(full_path_to_blood_file, translation, length_scale);
     }
 };
 //----------------------------------------------------------------------
