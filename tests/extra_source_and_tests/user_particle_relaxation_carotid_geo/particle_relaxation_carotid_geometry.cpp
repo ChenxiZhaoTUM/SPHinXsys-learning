@@ -30,8 +30,8 @@ std::string full_path_to_file = "./input/blood4-repaired.stl";
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
 Real scaling = 1.0;
-Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -35.0 * scaling);
-Vec3d domain_upper_bound(12.0 * scaling, 12.0 * scaling, 23.5 * scaling);
+Vec3d domain_lower_bound(-7.0 * scaling, -4.0 * scaling, -35.0 * scaling);
+Vec3d domain_upper_bound(20.0 * scaling, 12.0 * scaling, 30.0 * scaling);
 //----------------------------------------------------------------------
 //	Below are common parts for the two test geometries.
 //----------------------------------------------------------------------
@@ -48,74 +48,50 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 {
     target_normal.normalize();
 
-    //// 定义目标方向 (0, 0, 1)
-    //Vec3d target_direction(0, 0, 1);
-
-    //// 计算旋转轴和旋转角
-    //Vec3d axis = normal_inlet.cross(target_direction);
-    //Real angle = std::acos(normal_inlet.dot(target_direction));
-
-    //// 如果轴的模长接近零，说明两个向量是平行或反平行的
-    //if (axis.norm() < 1e-6)
-    //{
-    //    // 如果法向量与标准方向是反向的，旋转180度
-    //    if (normal_inlet.dot(target_direction) < 0)
-    //    {
-    //        axis = Vec3d(1, 0, 0);  // 选择任意一个垂直轴
-    //        angle = M_PI;
-    //    }
-    //    else
-    //    {
-    //        // 两个向量平行且方向相同，无需旋转
-    //        axis = Vec3d(0, 0, 1);
-    //        angle = 0;
-    //    }
-    //}
-    //else
-    //{
-    //    axis.normalize(); // 标准化轴向量
-    //}
-
-
-    // 计算旋转轴和旋转角
     Vec3d axis = standard_direction.cross(target_normal);
     Real angle = std::acos(standard_direction.dot(target_normal));
 
-    // 如果轴的模长接近零，说明两个向量是平行或反平行的
     if (axis.norm() < 1e-6)
     {
-        // 如果法向量与标准方向是反向的，旋转180度
         if (standard_direction.dot(target_normal) < 0)
         {
-            axis = Vec3d(1, 0, 0);  // 选择任意一个垂直轴
+            axis = Vec3d(1, 0, 0);
             angle = M_PI;
         }
         else
         {
-            // 两个向量平行且方向相同，无需旋转
             axis = Vec3d(0, 0, 1);
             angle = 0;
         }
     }
     else
     {
-        axis.normalize(); // 标准化轴向量
+        axis.normalize();
     }
-    RotationResult result = {axis, angle};
-    return result;
+
+    return {axis, angle};
 }
 
 // test buffer location
-Vec3d test_half = Vec3d(4.0, 4.0, 4.0);
-Vec3d test_translation = Vec3d(2.26, 5.30, -30.97 - 4.0);
-
-// 定义法向量
-//Vec3d normal_inlet(-0.18, 0.58, 0.80);
-Vec3d normal_inlet(-0.1072, 0.0459, -0.9936);
+Real length = 8.0;
+Real height = 4.0;
+Vec3d test_half = Vec3d(length / 2, length / 2, height / 2);
+Vec3d normal_test(-0.3134, 0.0009, 0.9496);
+Vec3d center_location = Vec3d(-2.6733,-0.09, 21.7933);
+Vec3d move_vector =  height / 2 * normal_test;
+Vec3d test_translation = center_location + move_vector;
 Vec3d standard_direction(0, 0, 1);
-RotationResult inlet_rotation_result = RotationCalculator(normal_inlet, standard_direction);
+RotationResult test_rotation_result = RotationCalculator(normal_test, standard_direction);
+Rotation3d test_rotation(test_rotation_result.angle, test_rotation_result.axis);
 
-Rotation3d test_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
+
+// inlet
+Vec3d inlet_half = Vec3d(4.0, 4.0, 4.0);
+Vec3d inlet_translation = Vec3d(2.26, 5.30, -30.97 - 4.0);
+Vec3d normal_inlet(-0.1072, 0.0459, -0.9936);
+Vec3d inlet_standard_direction(0, 0, 1);
+RotationResult inlet_rotation_result = RotationCalculator(normal_inlet, inlet_standard_direction);
+Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 //class InletBodyForSub : public ComplexShape
 //{
@@ -141,7 +117,12 @@ class SolidBodyFromMesh : public ComplexShape
         /*InletBodyForSub inlet_for_sub("InletForSub");
         subtract<InletBodyForSub>(inlet_for_sub);*/
 
-        subtract<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half);
+        //add<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half);
+        //cout << "angle = " << inlet_rotation_result.angle << endl;
+        //cout << "axis = " << inlet_rotation_result.axis << endl;
+
+        add<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(Real(1.0), inlet_rotation_result.axis), Vec3d(test_translation)), test_half);
+        //add<AlignedBoxShape>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half);
     }
 };
 //-----------------------------------------------------------------------------------------------------------
@@ -160,17 +141,17 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("SolidBodyFromMesh"));
     // level set shape is used for particle relaxation
-    //imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
-    imported_model.defineBodyLevelSetShape()->writeLevelSet(sph_system);
+    imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
+    //imported_model.defineBodyLevelSetShape()->writeLevelSet(sph_system);
     imported_model.defineParticlesAndMaterial();
     imported_model.generateParticles<Lattice>();
 
 
     // geo test
-    //SolidBody test_up(
-    //    sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half, "TestBody"));
-    //test_up.defineParticlesAndMaterial<SolidParticles, Solid>();
-    //test_up.generateParticles<Lattice>();
+    SolidBody test_body(
+        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half, "TestBody"));
+    test_body.defineParticlesAndMaterial<SolidParticles, Solid>();
+    test_body.generateParticles<Lattice>();
 
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
