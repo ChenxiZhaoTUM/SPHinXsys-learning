@@ -103,11 +103,12 @@ int main(int ac, char *av[])
     ReducedQuantityRecording<TotalKineticEnergy> write_bunny_kinetic_energy(io_environment, bunny, "Bunny_Kinetic_Energy");
     ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
 
-    InteractionWithUpdate<FluidSurfaceIndication> fluid_surface_indicator(water_bunny_complex);
+    //InteractionWithUpdate<FluidSurfaceIndication> fluid_surface_indicator(water_bunny_complex);
+    SimpleDynamics<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_block, bunny);
     water_block.addBodyStateForRecording<int>("Indicator");
 
-    //BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
+    //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
 
     //MeshRecordingToPlt cell_linked_list_recording(io_environment, bunny.getCellLinkedList());
     //----------------------------------------------------------------------

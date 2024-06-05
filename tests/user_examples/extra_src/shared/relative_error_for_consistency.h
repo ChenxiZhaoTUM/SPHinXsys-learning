@@ -240,7 +240,6 @@ class FluidSurfaceIndication : public LocalDynamics, public FSIComplexData
 		indicator_[index_i] = 1;
 		if (pos_div_[index_i] > threshold_by_dimensions_)
 			indicator_[index_i] = 0;
-	
 	}
 
   protected:
@@ -250,3 +249,29 @@ class FluidSurfaceIndication : public LocalDynamics, public FSIComplexData
     Real smoothing_length_;
 };
 
+
+typedef DataDelegateSimple<BaseParticles> SimpleData;
+
+class FluidSurfaceIndicationByDistance : public LocalDynamics, public SimpleData
+{
+	public:
+		FluidSurfaceIndicationByDistance(SPHBody& fluid_body, SPHBody& solid_body) :
+			LocalDynamics(fluid_body), SimpleData(fluid_body),
+			pos_(particles_->pos_), indicator_(*particles_->getVariableByName<int>("Indicator")), solid_body_(solid_body),
+			particle_spacing_min_(sph_body_.sph_adaptation_->MinimumSpacing()){};
+		virtual ~FluidSurfaceIndicationByDistance() {};
+
+		void update(size_t index_i, Real dt = 0.0)
+		{
+			Real phi = solid_body_.body_shape_->findSignedDistance(pos_[index_i]);
+			indicator_[index_i] = 1;
+			if (phi > particle_spacing_min_)
+				indicator_[index_i] = 0;
+		}
+
+	protected:
+		StdLargeVec<Vecd> &pos_;
+		StdLargeVec<int> &indicator_;
+		SPHBody& solid_body_;
+		Real particle_spacing_min_;
+};
