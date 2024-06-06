@@ -128,7 +128,7 @@ class UpdateParticlePosition : public LocalDynamics,
 {
   protected:
     SPHAdaptation *sph_adaptation_;
-    StdLargeVec<Vecd> &pos_, &acc_;
+    StdLargeVec<Vecd> &pos_, &acc_, &vel_;
 
   public:
     explicit UpdateParticlePosition(SPHBody &sph_body);

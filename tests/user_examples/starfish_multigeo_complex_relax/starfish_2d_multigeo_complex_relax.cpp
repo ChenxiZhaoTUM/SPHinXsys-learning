@@ -107,12 +107,15 @@ int main(int ac, char *av[])
     InteractionDynamics<ZeroOrderConsistencyInteractionComplex> zero_order_consistency_fluid(water_starfish_complex, "OuterBoundary");
     starfish.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
     water_block.addBodyStateForRecording<Vecd>("ZeroOrderConsistencyValue");
+    
+    SimpleDynamics<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_block, starfish);
+    water_block.addBodyStateForRecording<int>("Indicator");
+    //ReducedQuantityRecording<TotalMechanicalEnergy> write_starfish_kinetic_energy(io_environment, starfish);
+    ReducedQuantityRecording<SurfaceKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
+    water_block.addBodyStateForRecording<Real>("ParticleEnergy");
 
-    ReducedQuantityRecording<TotalKineticEnergy> write_starfish_kinetic_energy(io_environment, starfish, "Starfish_Kinetic_Energy");
-    ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
-
-    //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    //BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -138,7 +141,7 @@ int main(int ac, char *av[])
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
 
-        write_starfish_kinetic_energy.writeToFile(ite_p);
+        fluid_surface_indicator.exec();
         write_water_kinetic_energy.writeToFile(ite_p);
 
         ite_p += 1;

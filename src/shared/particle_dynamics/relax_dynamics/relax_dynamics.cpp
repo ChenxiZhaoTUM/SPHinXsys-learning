@@ -39,11 +39,14 @@ RelaxationAccelerationInnerWithLevelSetCorrection::
 UpdateParticlePosition::UpdateParticlePosition(SPHBody &sph_body)
     : LocalDynamics(sph_body), RelaxDataDelegateSimple(sph_body),
       sph_adaptation_(sph_body.sph_adaptation_),
-      pos_(particles_->pos_), acc_(particles_->acc_) {}
+      pos_(particles_->pos_), acc_(particles_->acc_), vel_(particles_->vel_) {}
 //=================================================================================================//
 void UpdateParticlePosition::update(size_t index_i, Real dt_square)
 {
     pos_[index_i] += acc_[index_i] * dt_square * 0.5 / sph_adaptation_->SmoothingLengthRatio(index_i);
+    Vecd velocity = Vecd::Zero();
+    velocity = acc_[index_i] * sqrt(dt_square);
+    vel_[index_i] = velocity;
 }
 //=================================================================================================//
 UpdateSmoothingLengthRatioByShape::

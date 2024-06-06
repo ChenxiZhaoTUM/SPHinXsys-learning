@@ -250,13 +250,11 @@ class FluidSurfaceIndication : public LocalDynamics, public FSIComplexData
 };
 
 
-typedef DataDelegateSimple<BaseParticles> SimpleData;
-
-class FluidSurfaceIndicationByDistance : public LocalDynamics, public SimpleData
+class FluidSurfaceIndicationByDistance : public LocalDynamics, public GeneralDataDelegateSimple
 {
 	public:
 		FluidSurfaceIndicationByDistance(SPHBody& fluid_body, SPHBody& solid_body) :
-			LocalDynamics(fluid_body), SimpleData(fluid_body),
+			LocalDynamics(fluid_body), GeneralDataDelegateSimple(fluid_body),
 			pos_(particles_->pos_), indicator_(*particles_->getVariableByName<int>("Indicator")), solid_body_(solid_body),
 			particle_spacing_min_(sph_body_.sph_adaptation_->MinimumSpacing()){};
 		virtual ~FluidSurfaceIndicationByDistance() {};
@@ -274,4 +272,42 @@ class FluidSurfaceIndicationByDistance : public LocalDynamics, public SimpleData
 		StdLargeVec<int> &indicator_;
 		SPHBody& solid_body_;
 		Real particle_spacing_min_;
+};
+
+class SurfaceKineticEnergy
+    : public LocalDynamicsReduce<Real, ReduceSum<Real>>,
+      public GeneralDataDelegateSimple
+{
+
+  protected:
+    StdLargeVec<Real> &mass_;
+    StdLargeVec<Vecd> &vel_, &pos_;
+	StdLargeVec<int> &indicator_;
+	StdLargeVec<Real> particle_energy_;
+
+  public:
+    SurfaceKineticEnergy(SPHBody &sph_body, const std::string &surface_energy_name)
+		: LocalDynamicsReduce<Real, ReduceSum<Real>>(sph_body, Real(0)),
+		  GeneralDataDelegateSimple(sph_body), mass_(particles_->mass_),
+		  vel_(particles_->vel_), pos_(particles_->pos_),
+		indicator_(*particles_->getVariableByName<int>("Indicator"))
+	{
+		quantity_name_ = surface_energy_name;
+		particles_->registerVariable(particle_energy_, "ParticleEnergy");
+	}
+    virtual ~SurfaceKineticEnergy(){};
+
+	Real reduce(size_t index_i, Real dt = 0.0)
+	{
+		Real particle_energy(0.0);
+
+		if (indicator_[index_i] == 1)
+			particle_energy = 0.5 * mass_[index_i] * vel_[index_i].squaredNorm();
+		else
+			particle_energy = 0.0;
+
+		particle_energy_[index_i] = particle_energy;
+
+		return particle_energy;
+	}
 };
