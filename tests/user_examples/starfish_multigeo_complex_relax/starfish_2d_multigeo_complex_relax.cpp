@@ -114,8 +114,8 @@ int main(int ac, char *av[])
     ReducedQuantityRecording<SurfaceKineticEnergy> write_water_kinetic_energy(io_environment, water_block, "Water_Kinetic_Energy");
     water_block.addBodyStateForRecording<Real>("ParticleEnergy");
 
-    BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
-    //BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
+    //BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states(io_environment, sph_system.real_bodies_);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
