@@ -89,13 +89,13 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     
     RealBody import_body(sph_system, makeShared<ImportModel>("Airfoil"));
-    import_body.defineBodyLevelSetShape()->writeLevelSet(sph_system);
+    import_body.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(sph_system);
     import_body.generateParticles<BaseParticles, Lattice>();
     import_body.addBodyStateForRecording<Real>("Density");
 
     InverseShape<ImportModel> inversed_import("InversedAirfoil");
     LevelSetShape inversed_import_level_set(inversed_import, makeShared<SPHAdaptation>(resolution_ref));
-    inversed_import_level_set.cleanLevelSet();
+    inversed_import_level_set.cleanLevelSet(0.9);
     WaterOuter water_shape("WaterShape");
     water_shape.initializeComponentLevelSetShapesByAdaptation(makeShared<SPHAdaptation>(resolution_ref), sph_system);
     water_shape.addAnLevelSetShape(&inversed_import_level_set);

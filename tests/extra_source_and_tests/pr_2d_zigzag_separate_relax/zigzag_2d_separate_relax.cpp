@@ -90,7 +90,6 @@ int main(int ac, char *av[])
 
     InverseShape<ImportModel> inversed_import("InversedZigzag");
     LevelSetShape inversed_import_level_set(inversed_import, makeShared<SPHAdaptation>(resolution_ref));
-    inversed_import_level_set.cleanLevelSet();
     WaterOuter water_shape("WaterShape");
     water_shape.initializeComponentLevelSetShapesByAdaptation(makeShared<SPHAdaptation>(resolution_ref), sph_system);
     water_shape.addAnLevelSetShape(&inversed_import_level_set);

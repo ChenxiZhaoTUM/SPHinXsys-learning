@@ -61,7 +61,7 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     RealBody import_body(sph_system, makeShared<ImportModel>("Bunny"));
-    import_body.defineBodyLevelSetShape()->writeLevelSet(sph_system);
+    import_body.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     import_body.generateParticles<BaseParticles, Lattice>();
     import_body.addBodyStateForRecording<Real>("Density");
 
