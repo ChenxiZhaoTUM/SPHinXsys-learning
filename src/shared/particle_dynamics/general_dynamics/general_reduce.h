@@ -30,6 +30,7 @@
 #define GENERAL_REDUCE_H
 
 #include "base_general_dynamics.h"
+#include "near_wall_boundary.h"
 #include <limits>
 
 namespace SPH
@@ -232,6 +233,68 @@ class TotalMechanicalEnergy : public TotalKineticEnergy
     explicit TotalMechanicalEnergy(SPHBody &sph_body, Gravity &gravity);
     virtual ~TotalMechanicalEnergy(){};
     Real reduce(size_t index_i, Real dt = 0.0);
+};
+
+class FluidSurfaceIndicationByDistance : public fluid_dynamics::DistanceFromWall
+{
+public: 
+    explicit FluidSurfaceIndicationByDistance(BaseContactRelation& wall_contact_relation)
+        : DistanceFromWall(wall_contact_relation),
+        distance_from_wall_(*particles_->getVariableByName<Vecd>("DistanceFromWall")),
+        indicator_(*this->particles_->template registerSharedVariable<int>("Indicator")),
+        spacing_ref_(sph_body_.sph_adaptation_->ReferenceSpacing()) {};
+
+    virtual ~FluidSurfaceIndicationByDistance() {};
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        indicator_[index_i] = 1;
+        if (distance_from_wall_[index_i].squaredNorm() > pow(1.05 * spacing_ref_, 2))
+            indicator_[index_i] = 0;
+    }
+
+protected:
+    StdLargeVec<Vecd> &distance_from_wall_;
+    StdLargeVec<int> &indicator_;
+    Real spacing_ref_;
+};
+
+class SurfaceKineticEnergy
+    : public LocalDynamicsReduce<ReduceSum<Real>>,
+      public DataDelegateSimple
+{
+  protected:
+    StdLargeVec<Real> &mass_;
+    StdLargeVec<Vecd> &vel_;
+	StdLargeVec<int> &indicator_;
+	StdLargeVec<Real> particle_energy_;
+
+  public:
+    explicit SurfaceKineticEnergy(SPHBody &sph_body)
+          : LocalDynamicsReduce<ReduceSum<Real>>(sph_body),
+      DataDelegateSimple(sph_body),
+      mass_(*particles_->getVariableByName<Real>("Mass")),
+      vel_(*particles_->getVariableByName<Vecd>("Velocity")),
+      indicator_(*particles_->getVariableByName<int>("Indicator"))
+    {
+        quantity_name_ = "SurfaceKineticEnergy";
+        particles_->registerVariable(particle_energy_, "ParticleEnergy");
+    }
+      virtual ~SurfaceKineticEnergy(){};
+
+    Real reduce(size_t index_i, Real dt = 0.0)
+    {
+        Real particle_energy(0.0);
+
+        if (indicator_[index_i] == 1)
+            particle_energy = 0.5 * mass_[index_i] * vel_[index_i].squaredNorm();
+        else
+            particle_energy = 0.0;
+
+        particle_energy_[index_i] = particle_energy;
+
+        return particle_energy;
+    }
 };
 
 } // namespace SPH

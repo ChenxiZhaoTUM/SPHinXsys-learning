@@ -40,8 +40,11 @@ namespace SPH
 {
 class LevelSetCorrection;
 
+class ComplexShapeBounding;
+
 namespace relax_dynamics
 {
+
 /**
  * @class RandomizeParticlePosition
  * @brief Randomize the initial particle position

@@ -59,7 +59,7 @@ class ConstantConstraint : public BaseLocalDynamics<DynamicsIdentifier>,
 };
 
 class LevelSetShape;
-
+class ComplexLevelSetShape;
 /**
  * @class ShapeSurfaceBounding
  * @brief constrain surface particles by
@@ -80,6 +80,19 @@ class ShapeSurfaceBounding : public BaseLocalDynamics<BodyPartByCell>,
     Real constrained_distance_;
 };
 
+class ComplexShapeBounding : public BaseLocalDynamics<SPHBody>,
+                             public DataDelegateSimple
+{
+public:
+    ComplexShapeBounding(SPHBody& sph_body ,ComplexShape& complex_shape);
+    virtual ~ComplexShapeBounding() {};
+    void update(size_t index_i, Real dt = 0.0);
+
+protected:
+    StdLargeVec<Vecd> &pos_;
+    StdVec<LevelSetShape *> level_set_shapes_;
+    Real constrained_distance_;
+};
 /**
  * @class	MotionConstraint
  * @brief	Base class for constraining with prescribed motion.
@@ -97,7 +110,7 @@ class MotionConstraint : public BaseLocalDynamics<DynamicsIdentifier>, public Da
           DataDelegateSimple(identifier.getSPHBody()),
           pos_(*this->particles_->template getVariableByName<Vecd>("Position")),
           pos0_(*this->particles_->template registerSharedVariableFrom<Vecd>("InitialPosition", "Position")),
-          vel_(*this->particles_->template registerSharedVariable<Vecd>("Velocity")){};
+          vel_(*this->particles_->template registerSharedVariable<Vecd>("Velocity")) {};
 
     virtual ~MotionConstraint(){};
 

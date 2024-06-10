@@ -34,6 +34,10 @@
 
 namespace SPH
 {
+
+class LevelSetShape;
+class LevelSetCorrection;
+
 template <typename... InteractionTypes>
 class NablaWV;
 
@@ -64,6 +68,43 @@ class NablaWV<Inner<>>
 };
 
 template <>
+class NablaWV<Inner<LevelSetCorrection>> : public NablaWV<Inner<>>
+{
+  public:
+    template <typename... Args>
+    NablaWV(Args &&...args)
+        : NablaWV<Inner<>>(std::forward<Args>(args)...),
+        inner_shape_(sph_body_.getInitialShape()),
+      pos_(*particles_->getVariableByName<Vecd>("Position")),
+        sph_adaptation_(this->sph_body_.sph_adaptation_),
+      level_set_shape_(DynamicCast<LevelSetShape>(this, inner_shape_)) {};
+
+    template <typename BodyRelationType, typename FirstArg>
+    explicit NablaWV(ConstructorArgs<BodyRelationType, FirstArg> parameters)
+        : NablaWV<Inner<>>(parameters.body_relation_),
+          inner_shape_(*DynamicCast<ComplexShape>(this, sph_body_.getInitialShape())
+                        .getSubShapeByName(std::get<0>(parameters.others_))),
+          pos_(*particles_->getVariableByName<Vecd>("Position")),
+          sph_adaptation_(this->sph_body_.sph_adaptation_),
+          level_set_shape_(DynamicCast<LevelSetShape>(this, inner_shape_)) {};
+
+    virtual ~NablaWV(){};
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        NablaWV<Inner<>>::interaction(index_i, dt);
+        kernel_sum_[index_i] += level_set_shape_.computeKernelGradientIntegral(
+                                       pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
+    }
+
+  protected:
+    Shape &inner_shape_;
+    StdLargeVec<Vecd> &pos_;
+    LevelSetShape &level_set_shape_;
+    SPHAdaptation *sph_adaptation_;
+};
+
+template <>
 class NablaWV<Contact<>>
     : public NablaWV<DataDelegateContact>
 {
@@ -83,6 +124,9 @@ class NablaWV<Contact<>>
 };
 
 using NablaWVComplex = ComplexInteraction<NablaWV<Inner<>, Contact<>>>;
+
+using NablaWVLevelSetCorrectionInner = NablaWV<Inner<LevelSetCorrection>>;
+using NablaWVLevelSetCorrectionComplex = ComplexInteraction<NablaWV<Inner<LevelSetCorrection>, Contact<>>>;
 
 } // namespace SPH
 #endif // KERNEL_SUMMATION_H
