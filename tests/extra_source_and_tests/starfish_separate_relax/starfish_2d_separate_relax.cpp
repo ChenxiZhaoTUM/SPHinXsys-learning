@@ -64,7 +64,7 @@ class WaterOuter : public ComplexShape
     explicit WaterOuter(const std::string &shape_name) : ComplexShape(shape_name)
     {
         MultiPolygon outer_boundary(createWaterBlockShape());
-        add<MultiPolygonShape>(outer_boundary, "OuterBoundary");
+        add<MultiPolygonShape>(outer_boundary, "OuterBoundaryShape");
     }
 };
 
@@ -95,10 +95,10 @@ int main(int ac, char *av[])
     WaterOuter water_shape("WaterShape");
     water_shape.initializeComponentLevelSetShapesByAdaptation(makeShared<SPHAdaptation>(resolution_ref), sph_system);
     water_shape.addAnLevelSetShape(&inversed_import_level_set);
-    for (size_t i = 0; i != water_shape.getLevelSetShapes().size(); i++)
+   /* for (size_t i = 0; i != water_shape.getLevelSetShapes().size(); i++)
     {
         water_shape.getLevelSetShapes()[i]->writeLevelSet(sph_system);
-    };
+    };*/
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
     water_block.defineComponentLevelSetShape("OuterBoundary");

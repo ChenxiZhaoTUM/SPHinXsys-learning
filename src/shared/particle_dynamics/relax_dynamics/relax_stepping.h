@@ -204,6 +204,7 @@ public:
     virtual~RelaxationStepWithComplexBounding() {};
     SimpleDynamics<ComplexShapeBounding> &SurfaceBounding() { return complex_surface_bounding_; };
     virtual void exec(Real dt = 0.0) override;
+
 protected:
     RealBody &real_body_;
     StdVec<SPHRelation *> &body_relations_;

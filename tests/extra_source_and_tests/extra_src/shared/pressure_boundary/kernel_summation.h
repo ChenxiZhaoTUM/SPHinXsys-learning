@@ -72,30 +72,14 @@ class NablaWV<Inner<LevelSetCorrection>> : public NablaWV<Inner<>>
 {
   public:
     template <typename... Args>
-    NablaWV(Args &&...args)
-        : NablaWV<Inner<>>(std::forward<Args>(args)...),
-        inner_shape_(sph_body_.getInitialShape()),
-      pos_(*particles_->getVariableByName<Vecd>("Position")),
-        sph_adaptation_(this->sph_body_.sph_adaptation_),
-      level_set_shape_(DynamicCast<LevelSetShape>(this, inner_shape_)) {};
+    NablaWV(Args &&...args);
 
     template <typename BodyRelationType, typename FirstArg>
-    explicit NablaWV(ConstructorArgs<BodyRelationType, FirstArg> parameters)
-        : NablaWV<Inner<>>(parameters.body_relation_),
-          inner_shape_(*DynamicCast<ComplexShape>(this, sph_body_.getInitialShape())
-                        .getSubShapeByName(std::get<0>(parameters.others_))),
-          pos_(*particles_->getVariableByName<Vecd>("Position")),
-          sph_adaptation_(this->sph_body_.sph_adaptation_),
-          level_set_shape_(DynamicCast<LevelSetShape>(this, inner_shape_)) {};
+    explicit NablaWV(ConstructorArgs<BodyRelationType, FirstArg> parameters);
 
     virtual ~NablaWV(){};
 
-    void interaction(size_t index_i, Real dt = 0.0)
-    {
-        NablaWV<Inner<>>::interaction(index_i, dt);
-        kernel_sum_[index_i] += level_set_shape_.computeKernelGradientIntegral(
-                                       pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
-    }
+    void interaction(size_t index_i, Real dt = 0.0);
 
   protected:
     Shape &inner_shape_;

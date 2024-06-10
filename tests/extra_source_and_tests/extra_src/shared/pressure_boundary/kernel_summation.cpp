@@ -32,4 +32,11 @@ void NablaWV<Contact<>>::interaction(size_t index_i, Real dt)
     }
 }
 //=================================================================================================//
+void NablaWV<Inner<LevelSetCorrection>>::interaction(size_t index_i, Real dt)
+{
+    NablaWV<Inner<>>::interaction(index_i, dt);
+        kernel_sum_[index_i] += level_set_shape_.computeKernelGradientIntegral(
+                                       pos_[index_i], sph_adaptation_->SmoothingLengthRatio(index_i));
+}
+//=================================================================================================//
 } // namespace SPH

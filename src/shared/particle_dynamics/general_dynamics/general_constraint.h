@@ -84,7 +84,7 @@ class ComplexShapeBounding : public BaseLocalDynamics<SPHBody>,
                              public DataDelegateSimple
 {
 public:
-    ComplexShapeBounding(SPHBody& sph_body ,ComplexShape& complex_shape);
+    ComplexShapeBounding(SPHBody& sph_body, ComplexShape& complex_shape);
     virtual ~ComplexShapeBounding() {};
     void update(size_t index_i, Real dt = 0.0);
 

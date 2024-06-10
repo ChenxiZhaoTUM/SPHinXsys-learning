@@ -25,7 +25,7 @@ void ShapeSurfaceBounding::update(size_t index_i, Real dt)
 //=================================================================================================//
 ComplexShapeBounding::ComplexShapeBounding(SPHBody& sph_body, ComplexShape& complex_shape)
     : BaseLocalDynamics<SPHBody>(sph_body),
-    DataDelegateSimple(sph_body_),
+    DataDelegateSimple(sph_body),
     pos_(*particles_->getVariableByName<Vecd>("Position")),
     constrained_distance_(0.5 * sph_body_.sph_adaptation_->MinimumSpacing())
 {
