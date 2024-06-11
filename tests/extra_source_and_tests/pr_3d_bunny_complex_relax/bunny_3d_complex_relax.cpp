@@ -101,7 +101,7 @@ int main(int ac, char *av[])
 
     SimpleDynamics<NormalDirectionFromBodyShape> solid_normal_direction(import_body);
     InteractionWithUpdate<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_import_contact);
-    water_block.addBodyStateForRecording<int>("Indicator");
+    water_block.addBodyStateForRecording<int>("FluidContactIndicator");
     ReducedQuantityRecording<SurfaceKineticEnergy> write_water_kinetic_energy(water_block);
     water_block.addBodyStateForRecording<Real>("ParticleEnergy");
 
@@ -121,6 +121,11 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	First output before the simulation.
     //----------------------------------------------------------------------
+    solid_zero_order_consistency.exec();
+    fluid_zero_order_consistency.exec();
+    solid_normal_direction.exec();
+    fluid_surface_indicator.exec();
+    write_water_kinetic_energy.writeToFile();
     write_real_body_states.writeToFile();
     //----------------------------------------------------------------------
     //	Particle relaxation time stepping start here.
@@ -130,20 +135,19 @@ int main(int ac, char *av[])
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
-
+        
         solid_normal_direction.exec();
         fluid_surface_indicator.exec();
-        write_water_kinetic_energy.writeToFile(ite_p);
 
         ite_p += 1;
-        if (ite_p % 500 == 0)
+        if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
         }
-
         import_water_complex.updateConfiguration();
         water_import_complex.updateConfiguration();
+        write_water_kinetic_energy.writeToFile(ite_p);
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
 

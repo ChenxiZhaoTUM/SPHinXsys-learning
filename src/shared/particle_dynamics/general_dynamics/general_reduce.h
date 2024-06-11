@@ -241,21 +241,21 @@ public:
     explicit FluidSurfaceIndicationByDistance(BaseContactRelation& wall_contact_relation)
         : DistanceFromWall(wall_contact_relation),
         distance_from_wall_(*particles_->getVariableByName<Vecd>("DistanceFromWall")),
-        indicator_(*this->particles_->template registerSharedVariable<int>("Indicator")),
+        fluid_contact_indicator_(*this->particles_->template registerSharedVariable<int>("FluidContactIndicator")),
         spacing_ref_(sph_body_.sph_adaptation_->ReferenceSpacing()) {};
 
     virtual ~FluidSurfaceIndicationByDistance() {};
 
     void update(size_t index_i, Real dt = 0.0)
     {
-        indicator_[index_i] = 1;
+        fluid_contact_indicator_[index_i] = 1;
         if (distance_from_wall_[index_i].squaredNorm() > pow(1.05 * spacing_ref_, 2))
-            indicator_[index_i] = 0;
+            fluid_contact_indicator_[index_i] = 0;
     }
 
 protected:
     StdLargeVec<Vecd> &distance_from_wall_;
-    StdLargeVec<int> &indicator_;
+    StdLargeVec<int> &fluid_contact_indicator_;
     Real spacing_ref_;
 };
 
@@ -266,7 +266,7 @@ class SurfaceKineticEnergy
   protected:
     StdLargeVec<Real> &mass_;
     StdLargeVec<Vecd> &vel_;
-	StdLargeVec<int> &indicator_;
+	StdLargeVec<int> &fluid_contact_indicator_;
 	StdLargeVec<Real> particle_energy_;
 
   public:
@@ -275,7 +275,7 @@ class SurfaceKineticEnergy
       DataDelegateSimple(sph_body),
       mass_(*particles_->getVariableByName<Real>("Mass")),
       vel_(*particles_->getVariableByName<Vecd>("Velocity")),
-      indicator_(*particles_->getVariableByName<int>("Indicator"))
+      fluid_contact_indicator_(*particles_->getVariableByName<int>("FluidContactIndicator"))
     {
         quantity_name_ = "SurfaceKineticEnergy";
         particles_->registerVariable(particle_energy_, "ParticleEnergy");
@@ -286,7 +286,7 @@ class SurfaceKineticEnergy
     {
         Real particle_energy(0.0);
 
-        if (indicator_[index_i] == 1)
+        if (fluid_contact_indicator_[index_i] == 1)
             particle_energy = 0.5 * mass_[index_i] * vel_[index_i].squaredNorm();
         else
             particle_energy = 0.0;
