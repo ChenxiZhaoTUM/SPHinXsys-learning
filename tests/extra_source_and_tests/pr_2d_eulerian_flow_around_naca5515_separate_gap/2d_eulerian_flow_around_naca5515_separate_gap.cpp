@@ -67,6 +67,16 @@ public:
     }
 };
 
+class WaterOuter : public ComplexShape
+{
+  public:
+    explicit WaterOuter(const std::string &shape_name) : ComplexShape(shape_name)
+    {
+        MultiPolygon outer_boundary(createWaterBlockShape());
+        add<MultiPolygonShape>(outer_boundary, "OuterBoundaryShape");
+    }
+};
+
 class FarFieldBoundary : public fluid_dynamics::NonReflectiveBoundaryCorrection
 {
   public:
@@ -151,9 +161,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
-    sph_system.setRunParticleRelaxation(false);
+    sph_system.setRunParticleRelaxation(true);
     // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(true);
+    sph_system.setReloadParticles(false);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
@@ -166,6 +176,13 @@ int main(int ac, char *av[])
         ? airfoil.generateParticles<BaseParticles, Reload>(airfoil.getName())
         : airfoil.generateParticles<BaseParticles, Lattice>();
     airfoil.addBodyStateForRecording<Real>("Density");
+
+    InverseShape<AirfoilModel> inversed_import("InversedAirfoil");
+    LevelSetShape inversed_import_level_set(inversed_import, makeShared<SPHAdaptation>(resolution_ref));
+    inversed_import_level_set.cleanLevelSet(0.9);
+    WaterOuter water_shape("WaterShape");
+    water_shape.initializeComponentLevelSetShapesByAdaptation(makeShared<SPHAdaptation>(resolution_ref), sph_system);
+    water_shape.addAnLevelSetShape(&inversed_import_level_set);
        
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
     water_block.defineComponentLevelSetShape("OuterBoundary");
@@ -206,12 +223,11 @@ int main(int ac, char *av[])
         using namespace relax_dynamics;
         SimpleDynamics<RandomizeParticlePosition> random_inserted_body_particles(airfoil);
         SimpleDynamics<RandomizeParticlePosition> random_water_body_particles(water_block);
-        BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
-        //BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
+        //BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
+        BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
         ReloadParticleIO write_real_body_particle_reload_files(sph_system.real_bodies_);
         RelaxationStepLevelSetCorrectionInner relaxation_step_inner(airfoil_inner);
-        RelaxationStepLevelSetCorrectionComplex relaxation_step_complex(
-            ConstructorArgs(water_block_inner, std::string("OuterBoundary")), water_block_contact);
+        RelaxationStepWithComplexBounding relaxation_step_inner_water(water_block_inner, water_shape);
 
         InteractionDynamics<NablaWVLevelSetCorrectionInner> solid_zero_order_consistency(airfoil_inner);
         InteractionDynamics<NablaWVLevelSetCorrectionComplex> fluid_zero_order_consistency(ConstructorArgs(water_block_inner, std::string("OuterBoundary")), water_block_contact);
@@ -229,7 +245,7 @@ int main(int ac, char *av[])
         random_inserted_body_particles.exec(0.25);
         random_water_body_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
-        relaxation_step_complex.SurfaceBounding().exec();
+        relaxation_step_inner_water.SurfaceBounding().exec();
         airfoil.updateCellLinkedList();
         water_block.updateCellLinkedList();
         airfoil_water_complex.updateConfiguration();
@@ -248,7 +264,7 @@ int main(int ac, char *av[])
         while (ite_p < 2000)
         {
             relaxation_step_inner.exec();
-            relaxation_step_complex.exec();
+            relaxation_step_inner_water.exec();
 
             solid_normal_direction.exec();
             fluid_contact_indicator.exec();
@@ -309,7 +325,6 @@ int main(int ac, char *av[])
     water_block.addBodyStateForRecording<Vecd>("Momentum");
     water_block.addBodyStateForRecording<Vecd>("MomentumChangeRate");
     water_block.addBodyStateForRecording<int>("Indicator");
-    water_block.addBodyStateForRecording<Real>("Pressure");
     //BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
     BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
 
@@ -345,8 +360,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     size_t number_of_iterations = 0;
     int screen_output_interval = 1000;
-    Real end_time = 15.0;
-    Real output_interval = 0.5; /**< time stamps for output. */
+    Real end_time = 80.0;
+    Real output_interval = 5.0; /**< time stamps for output. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -379,10 +394,6 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	dt = " << dt << "\n";
-                //for test
-                //write_recorded_water_pressure.writeToFile(number_of_iterations);
-                //write_wing_pressure.writeToFile(number_of_iterations);
-                //write_real_body_states.writeToFile(number_of_iterations);
             }
             number_of_iterations++;
         }

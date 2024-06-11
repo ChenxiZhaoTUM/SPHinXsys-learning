@@ -13,37 +13,62 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
-std::string full_path_to_stl_file = "./input/bun_zipper_res2.stl";
+std::string airfoil_flap_front = "./input/airfoil_flap_front.dat";
+std::string airfoil_wing = "./input/airfoil_wing.dat";
+std::string airfoil_flap_rear = "./input/airfoil_flap_rear.dat";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DX = 0.5;
-Real DY = 0.4;
-Real DZ = 1.1;
-Real resolution_ref = 0.015; /**< Reference resolution. */
-BoundingBox system_domain_bounds(Vecd(-DX, -DY, -0.1), Vecd(DX, DY, DZ));
+Real DL = 1.5;
+Real DL1 = 0.5;
+Real DH = 0.5;
+Real resolution_ref = 0.001; /**< Reference resolution. */
+BoundingBox system_domain_bounds(Vec2d(-DL1, -DH), Vec2d(DL, DH));
 //----------------------------------------------------------------------
 //	import model as a complex shape
 //----------------------------------------------------------------------
-class ImportModel : public ComplexShape
+class ImportModel : public MultiPolygonShape
 {
   public:
-    explicit ImportModel(const std::string &shape_name) : ComplexShape(shape_name)
+    explicit ImportModel(const std::string &import_model_name) : MultiPolygonShape(import_model_name)
     {
-        add<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd::Zero(), 10.0);
+        multi_polygon_.addAPolygonFromFile(airfoil_flap_front, ShapeBooleanOps::add);
+        multi_polygon_.addAPolygonFromFile(airfoil_wing, ShapeBooleanOps::add);
+        multi_polygon_.addAPolygonFromFile(airfoil_flap_rear, ShapeBooleanOps::add);
     }
 };
 
-Vecd water_half_size(DX, DY, DZ / 2);
-Vecd water_transition(0.0, 0.0, DZ / 2 - 0.04);
+std::vector<Vecd> createWaterBlockShape()
+{
+    std::vector<Vecd> water_block_shape;
+    water_block_shape.push_back(Vecd(-DL1, -DH));
+    water_block_shape.push_back(Vecd(-DL1, DH));
+    water_block_shape.push_back(Vecd(DL, DH));
+    water_block_shape.push_back(Vecd(DL, -DH));
+    water_block_shape.push_back(Vecd(-DL1, -DH));
+
+    return water_block_shape;
+}
 
 class WaterBlock : public ComplexShape
 {
   public:
     explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TransformShape<GeometricShapeBox>>(Transform(water_transition), water_half_size, "OuterBoundary");
-        subtract<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd::Zero(), 10.0);
+        MultiPolygon outer_boundary(createWaterBlockShape());
+        add<MultiPolygonShape>(outer_boundary, "OuterBoundary");
+        ImportModel import_model("InnerBody");
+        subtract<ImportModel>(import_model);
+    }
+};
+
+class WaterOuter : public ComplexShape
+{
+  public:
+    explicit WaterOuter(const std::string &shape_name) : ComplexShape(shape_name)
+    {
+        MultiPolygon outer_boundary(createWaterBlockShape());
+        add<MultiPolygonShape>(outer_boundary, "OuterBoundaryShape");
     }
 };
 
@@ -57,13 +82,22 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
+    BOOLEAN complex_relaxation(false);
+    BOOLEAN geometry_boolean_operation(false);
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    RealBody import_body(sph_system, makeShared<ImportModel>("Bunny"));
-    import_body.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
+    RealBody import_body(sph_system, makeShared<ImportModel>("Airfoil"));
+    import_body.defineBodyLevelSetShape()->cleanLevelSet(0.9)->writeLevelSet(sph_system);
     import_body.generateParticles<BaseParticles, Lattice>();
     import_body.addBodyStateForRecording<Real>("Density");
+
+    WaterBlock water_block_ls("WaterBlockLS");
+    LevelSetShape water_block_level_set(water_block_ls, makeShared<SPHAdaptation>(resolution_ref));
+    water_block_level_set.cleanLevelSet(0.9);
+    WaterOuter water_shape("WaterShape");
+    water_shape.initializeComponentLevelSetShapesByAdaptation(makeShared<SPHAdaptation>(resolution_ref), sph_system);
+    water_shape.addAnLevelSetShape(&water_block_level_set);
 
     RealBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
     water_block.defineComponentLevelSetShape("OuterBoundary");
@@ -90,8 +124,7 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_import_particles(import_body);
     SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
     RelaxationStepLevelSetCorrectionInner relaxation_step_inner(import_inner);
-    RelaxationStepLevelSetCorrectionComplex relaxation_step_complex(
-        ConstructorArgs(water_inner, std::string("OuterBoundary")), water_import_contact);
+    RelaxationStepWithComplexBounding relaxation_step_inner_water(water_inner, water_shape);
 
     InteractionDynamics<NablaWVLevelSetCorrectionInner> solid_zero_order_consistency(import_inner);
     InteractionDynamics<NablaWVLevelSetCorrectionComplex> fluid_zero_order_consistency(ConstructorArgs(water_inner, std::string("OuterBoundary")), water_import_contact);
@@ -114,7 +147,7 @@ int main(int ac, char *av[])
     random_import_particles.exec(0.25);
     random_water_particles.exec(0.25);
     relaxation_step_inner.SurfaceBounding().exec();
-    relaxation_step_complex.SurfaceBounding().exec();
+    relaxation_step_inner_water.SurfaceBounding().exec();
     import_body.updateCellLinkedList();
     water_block.updateCellLinkedList();
     import_water_complex.updateConfiguration();
@@ -135,11 +168,11 @@ int main(int ac, char *av[])
     while (ite_p < 2000)
     {
         relaxation_step_inner.exec();
-        relaxation_step_complex.exec();
-        
+        relaxation_step_inner_water.exec();
+
         solid_normal_direction.exec();
         fluid_surface_indicator.exec();
-
+        
         ite_p += 1;
         if (ite_p % 500 == 0)
         {

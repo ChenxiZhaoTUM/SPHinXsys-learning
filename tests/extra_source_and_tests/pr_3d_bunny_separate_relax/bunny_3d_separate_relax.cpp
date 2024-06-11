@@ -127,7 +127,8 @@ int main(int ac, char *av[])
     ReducedQuantityRecording<SurfaceKineticEnergy> write_water_kinetic_energy(water_block);
     water_block.addBodyStateForRecording<Real>("ParticleEnergy");
 
-    BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
+    //BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -162,7 +163,7 @@ int main(int ac, char *av[])
         fluid_surface_indicator.exec();
         
         ite_p += 1;
-        if (ite_p % 100 == 0)
+        if (ite_p % 500 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
