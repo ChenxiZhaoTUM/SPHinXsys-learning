@@ -17,11 +17,11 @@ std::string full_path_to_stl_file = "./input/bun_zipper_res2.stl";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DX = 0.5;
-Real DY = 0.4;
-Real DZ = 1.1;
-Real resolution_ref = 0.015; /**< Reference resolution. */
-BoundingBox system_domain_bounds(Vecd(-DX, -DY, -0.1), Vecd(DX, DY, DZ));
+Real DX = 0.05;
+Real DY = 0.04;
+Real DZ = 0.11;
+Real resolution_ref = 0.002; /**< Reference resolution. */
+BoundingBox system_domain_bounds(Vecd(-DX, -DY, -0.01), Vecd(DX, DY, DZ));
 //----------------------------------------------------------------------
 //	import model as a complex shape
 //----------------------------------------------------------------------
@@ -30,12 +30,12 @@ class ImportModel : public ComplexShape
   public:
     explicit ImportModel(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd::Zero(), 10.0);
+        add<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd::Zero(), 1.0);
     }
 };
 
 Vecd water_half_size(DX, DY, DZ / 2);
-Vecd water_transition(0.0, 0.0, DZ / 2 - 0.04);
+Vecd water_transition(0.0, 0.0, DZ / 2 - 0.004);
 
 class WaterBlock : public ComplexShape
 {
@@ -43,7 +43,7 @@ class WaterBlock : public ComplexShape
     explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
         add<TransformShape<GeometricShapeBox>>(Transform(water_transition), water_half_size, "OuterBoundary");
-        subtract<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd::Zero(), 10.0);
+        subtract<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd::Zero(), 1.0);
     }
 };
 
@@ -100,13 +100,14 @@ int main(int ac, char *av[])
     water_block.addBodyStateForRecording<Vecd>("KernelSummation");
 
     SimpleDynamics<NormalDirectionFromBodyShape> solid_normal_direction(import_body);
-    InteractionWithUpdate<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_import_contact);
+    //InteractionWithUpdate<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_import_contact);
+    SimpleDynamics<FluidContactIndication> fluid_surface_indicator(water_block, import_body);
     water_block.addBodyStateForRecording<int>("FluidContactIndicator");
     ReducedQuantityRecording<SurfaceKineticEnergy> write_water_kinetic_energy(water_block);
     water_block.addBodyStateForRecording<Real>("ParticleEnergy");
 
-    //BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
-    BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
+    BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
+    //BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -136,18 +137,17 @@ int main(int ac, char *av[])
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
-        
-        solid_normal_direction.exec();
-        fluid_surface_indicator.exec();
 
         ite_p += 1;
-        if (ite_p % 500 == 0)
+        if (ite_p % 2000 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
         }
         import_water_complex.updateConfiguration();
         water_import_complex.updateConfiguration();
+        solid_normal_direction.exec();
+        fluid_surface_indicator.exec();
         write_water_kinetic_energy.writeToFile(ite_p);
     }
     std::cout << "The physics relaxation process finish !" << std::endl;

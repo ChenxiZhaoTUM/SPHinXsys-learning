@@ -235,6 +235,32 @@ class TotalMechanicalEnergy : public TotalKineticEnergy
     Real reduce(size_t index_i, Real dt = 0.0);
 };
 
+class FluidContactIndication : public LocalDynamics, public DataDelegateSimple
+{
+	public:
+		FluidContactIndication(SPHBody& fluid_body, SPHBody& solid_body)
+            : LocalDynamics(fluid_body), DataDelegateSimple(fluid_body),
+			pos_(*particles_->getVariableByName<Vecd>("Position")), 
+            fluid_contact_indicator_(*this->particles_->template registerSharedVariable<int>("FluidContactIndicator")), 
+            solid_body_(solid_body),
+			spacing_ref_(sph_body_.sph_adaptation_->ReferenceSpacing()){};
+		virtual ~FluidContactIndication() {};
+
+		void update(size_t index_i, Real dt = 0.0)
+		{
+			Real phi = solid_body_.getInitialShape().findSignedDistance(pos_[index_i]);
+			fluid_contact_indicator_[index_i] = 1;
+			if (phi > spacing_ref_)
+				fluid_contact_indicator_[index_i] = 0;
+		}
+
+	protected:
+		StdLargeVec<Vecd> &pos_;
+		StdLargeVec<int> &fluid_contact_indicator_;
+		SPHBody& solid_body_;
+		Real spacing_ref_;
+};
+
 class FluidSurfaceIndicationByDistance : public fluid_dynamics::DistanceFromWall
 {
 public: 

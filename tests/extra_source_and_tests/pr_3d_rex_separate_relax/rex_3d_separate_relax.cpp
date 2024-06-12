@@ -122,7 +122,8 @@ int main(int ac, char *av[])
     water_block.addBodyStateForRecording<Vecd>("KernelSummation");
 
     SimpleDynamics<NormalDirectionFromBodyShape> solid_normal_direction(import_body);
-    InteractionWithUpdate<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_import_contact);
+    //InteractionWithUpdate<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_import_contact);
+    SimpleDynamics<FluidContactIndication> fluid_surface_indicator(water_block, import_body);
     water_block.addBodyStateForRecording<int>("FluidContactIndicator");
     ReducedQuantityRecording<SurfaceKineticEnergy> write_water_kinetic_energy(water_block);
     water_block.addBodyStateForRecording<Real>("ParticleEnergy");
@@ -158,17 +159,16 @@ int main(int ac, char *av[])
         relaxation_step_inner.exec();
         relaxation_step_inner_water.exec();
 
-        solid_normal_direction.exec();
-        fluid_surface_indicator.exec();
-        
         ite_p += 1;
-        if (ite_p % 100 == 0)
+        if (ite_p % 2000 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
             write_real_body_states.writeToFile(ite_p);
         }
         import_water_complex.updateConfiguration();
         water_import_complex.updateConfiguration();
+        solid_normal_direction.exec();
+        fluid_surface_indicator.exec();
         write_water_kinetic_energy.writeToFile(ite_p);
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
