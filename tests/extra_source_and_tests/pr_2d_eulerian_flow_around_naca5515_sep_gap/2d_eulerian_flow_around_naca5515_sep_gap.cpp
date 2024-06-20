@@ -161,9 +161,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
-    sph_system.setRunParticleRelaxation(true);
+    sph_system.setRunParticleRelaxation(false);
     // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(false);
+    sph_system.setReloadParticles(true);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
@@ -179,7 +179,7 @@ int main(int ac, char *av[])
 
     InverseShape<AirfoilModel> inversed_import("InversedAirfoil");
     LevelSetShape inversed_import_level_set(inversed_import, makeShared<SPHAdaptation>(resolution_ref));
-    inversed_import_level_set.cleanLevelSet(0.9);
+    //inversed_import_level_set.cleanLevelSet(1.0);
     WaterOuter water_shape("WaterShape");
     water_shape.initializeComponentLevelSetShapesByAdaptation(makeShared<SPHAdaptation>(resolution_ref), sph_system);
     water_shape.addAnLevelSetShape(&inversed_import_level_set);

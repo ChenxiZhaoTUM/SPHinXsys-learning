@@ -179,7 +179,7 @@ int main(int ac, char *av[])
 
     InverseShape<AirfoilModel> inversed_import("InversedAirfoil");
     LevelSetShape inversed_import_level_set(inversed_import, makeShared<SPHAdaptation>(resolution_ref));
-    inversed_import_level_set.cleanLevelSet(0.9);
+    inversed_import_level_set.cleanLevelSet(1.0);
     WaterOuter water_shape("WaterShape");
     water_shape.initializeComponentLevelSetShapesByAdaptation(makeShared<SPHAdaptation>(resolution_ref), sph_system);
     water_shape.addAnLevelSetShape(&inversed_import_level_set);
@@ -414,10 +414,14 @@ int main(int ac, char *av[])
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
-    write_wing_pressure.writeToFile(number_of_iterations);
-    solid_zero_order_consistency.exec();
-    fluid_zero_order_consistency.exec();
-    write_real_body_states.writeToFile(number_of_iterations);
+
+    if (GlobalStaticVariables::physical_time_ > 14.0)
+    {
+        write_wing_pressure.writeToFile(number_of_iterations);
+        solid_zero_order_consistency.exec();
+        fluid_zero_order_consistency.exec();
+        write_real_body_states.writeToFile(number_of_iterations);
+    }
 
     TickCount t4 = TickCount::now();
 

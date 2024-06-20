@@ -17,11 +17,11 @@ std::string full_path_to_stl_file = "./input/Tyrannosaurus Rex.stl";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.=
 //----------------------------------------------------------------------
-Real DX = 10;
+Real DX = 8.6;
 Real DY = 15;
-Real DZ = 27;
-Real resolution_ref = 0.1; /**< Reference resolution. */
-BoundingBox system_domain_bounds(Vecd(-DX, -DY, -DZ), Vecd(DX, DY, DZ));
+Real DZ = 26;
+Real resolution_ref = 0.2; /**< Reference resolution. */
+BoundingBox system_domain_bounds(Vecd(-resolution_ref, -resolution_ref, -resolution_ref), Vecd(2*DX, 2*DY, 2*DZ));
 //----------------------------------------------------------------------
 //	import model as a complex shape
 //----------------------------------------------------------------------
@@ -30,12 +30,12 @@ class ImportModel : public ComplexShape
   public:
     explicit ImportModel(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd(-8.0, -12.0, -25.0), 1.0);
+        add<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd(0.0, 0.0, 0.0), 1.0);
     }
 };
 
 Vecd water_half_size(DX, DY, DZ);
-Vecd water_transition(0.0, 0.0, 0.0);
+Vecd water_transition(8.0, 12.0, 25.0);
 
 class WaterBlock : public ComplexShape
 {
@@ -43,7 +43,7 @@ class WaterBlock : public ComplexShape
     explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
         add<TransformShape<GeometricShapeBox>>(Transform(water_transition), water_half_size, "OuterBoundary");
-        subtract<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd(-8.0, -12.0, -25.0), 1.0);
+        subtract<TriangleMeshShapeSTL>(full_path_to_stl_file, Vecd(0.0, 0.0, 0.0), 1.0);
     }
 };
 
@@ -132,16 +132,16 @@ int main(int ac, char *av[])
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
-    while (ite_p < 2000)
+    while (ite_p < 1000)
     {
         relaxation_step_inner.exec();
         relaxation_step_complex.exec();
         
         ite_p += 1;
-        if (ite_p % 2000 == 0)
+        if (ite_p % 100 == 0)
         {
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
-            write_real_body_states.writeToFile(ite_p);
+            //write_real_body_states.writeToFile(ite_p);
         }
         import_water_complex.updateConfiguration();
         water_import_complex.updateConfiguration();
