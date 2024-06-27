@@ -36,7 +36,7 @@ Vec3d domain_upper_bound(20.0 * scaling, 12.0 * scaling, 30.0 * scaling);
 //	Below are common parts for the two test geometries.
 //----------------------------------------------------------------------
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.2;
+Real dp_0 = 0.1;
 
 struct RotationResult
 {
@@ -73,35 +73,41 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 
 // test buffer location
-Real length = 8.0;
-Real height = 4.0;
-Vec3d test_half = Vec3d(length / 2, length / 2, height / 2);
-Vec3d normal_test(-0.3134, 0.0009, 0.9496);
-Vec3d center_location = Vec3d(-2.6733,-0.09, 21.7933);
-Vec3d move_vector =  height / 2 * normal_test;
-Vec3d test_translation = center_location + move_vector;
-Vec3d standard_direction(0, 0, 1);
-RotationResult test_rotation_result = RotationCalculator(normal_test, standard_direction);
-Rotation3d test_rotation(test_rotation_result.angle, test_rotation_result.axis);
+//Real length = 8.0;
+//Real height = 4.0;
+//Vec3d test_half = Vec3d(length / 2, length / 2, height / 2);
+//Vec3d normal_test(-0.3134, 0.0009, 0.9496);
+//Vec3d center_location = Vec3d(-2.6733,-0.09, 21.7933);
+//Vec3d move_vector =  height / 2 * normal_test;
+//Vec3d test_translation = center_location + move_vector;
+//Vec3d standard_direction(0, 0, 1);
+//RotationResult test_rotation_result = RotationCalculator(normal_test, standard_direction);
+//Rotation3d test_rotation(test_rotation_result.angle, test_rotation_result.axis);
 
 
-// inlet
-Vec3d inlet_half = Vec3d(4.0, 4.0, 4.0);
-Vec3d inlet_translation = Vec3d(2.26, 5.30, -30.97 - 4.0);
-Vec3d normal_inlet(-0.1072, 0.0459, -0.9936);
+// inlet R=2.9293, (1.5611, 5.8559, -30.8885), (-0.1034, 0.0458, -0.9935) 
+Vec3d inlet_half = Vec3d(3.0, 3.0, 0.3);
+Vec3d inlet_translation = Vec3d(1.5301, 5.8696, -31.1866);
+Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
 Vec3d inlet_standard_direction(0, 0, 1);
-RotationResult inlet_rotation_result = RotationCalculator(normal_inlet, inlet_standard_direction);
+RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
-//class InletBodyForSub : public ComplexShape
-//{
-//  public:
-//    explicit InletBodyForSub(const std::string& shape_name) : ComplexShape(shape_name)
-//    {
-//        add<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half);
-//    }
-//};
+//outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
+Vec3d outlet_01_half = Vec3d(2.0, 2.0, 0.3);
+Vec3d outlet_01_translation = Vec3d(-2.7923, -0.4333, 22.0701);
+Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
+Vec3d outlet_01_standard_direction(0, 0, 1);
+RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
+Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
 
+//outlet2 R=1.2760, (9.0465, 1.02552, 18.6363), (-0.0417, 0.0701, 0.9967)
+Vec3d outlet_02_half = Vec3d(1.5, 1.5, 0.3);
+Vec3d outlet_02_translation = Vec3d(9.0340, 1.0466, 18.9353);
+Vec3d outlet_02_normal(-0.0417, 0.0701, 0.9967);
+Vec3d outlet_02_standard_direction(0, 0, 1);
+RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
+Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
 
 //----------------------------------------------------------------------
 //	define the imported model.
@@ -111,18 +117,7 @@ class SolidBodyFromMesh : public ComplexShape
   public:
     explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * dp_0, full_path_to_file, translation, scaling);
-        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-
-        /*InletBodyForSub inlet_for_sub("InletForSub");
-        subtract<InletBodyForSub>(inlet_for_sub);*/
-
-        //add<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half);
-        //cout << "angle = " << inlet_rotation_result.angle << endl;
-        //cout << "axis = " << inlet_rotation_result.axis << endl;
-
-        add<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(Real(1.0), inlet_rotation_result.axis), Vec3d(test_translation)), test_half);
-        //add<AlignedBoxShape>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half);
+        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 };
 //-----------------------------------------------------------------------------------------------------------
@@ -149,7 +144,7 @@ int main(int ac, char *av[])
 
     // geo test
     SolidBody test_body(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(test_rotation), Vec3d(test_translation)), test_half, "TestBody"));
+        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBody"));
     test_body.defineParticlesAndMaterial<SolidParticles, Solid>();
     test_body.generateParticles<Lattice>();
 
