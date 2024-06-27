@@ -9,20 +9,7 @@
 #include "sphinxsys.h"
 using namespace SPH;
 //----------------------------------------------------------------------
-//	Setting for the first geometry.
-//	To use this, please commenting the setting for the second geometry.
-//----------------------------------------------------------------------
-// std::string full_path_to_file = "./input/SPHinXsys.stl";
-//----------------------------------------------------------------------
-//	Basic geometry parameters and numerical setup.
-//----------------------------------------------------------------------
-/*Vec3d domain_lower_bound(-2.3, -0.1, -0.3);
-Vec3d domain_upper_bound(2.3, 4.5, 0.3);
-Vecd translation(0.0, 0.0, 0.0);
-Real scaling = 1.0; */
-//----------------------------------------------------------------------
-//	Setting for the second geometry.
-//	To use this, please commenting the setting for the first geometry.
+//	Setting for the geometry.
 //----------------------------------------------------------------------
 std::string full_path_to_file = "./input/carotid_fluid_geo.stl";
 //----------------------------------------------------------------------
@@ -71,19 +58,6 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 
     return {axis, angle};
 }
-
-// test buffer location
-//Real length = 8.0;
-//Real height = 4.0;
-//Vec3d test_half = Vec3d(length / 2, length / 2, height / 2);
-//Vec3d normal_test(-0.3134, 0.0009, 0.9496);
-//Vec3d center_location = Vec3d(-2.6733,-0.09, 21.7933);
-//Vec3d move_vector =  height / 2 * normal_test;
-//Vec3d test_translation = center_location + move_vector;
-//Vec3d standard_direction(0, 0, 1);
-//RotationResult test_rotation_result = RotationCalculator(normal_test, standard_direction);
-//Rotation3d test_rotation(test_rotation_result.angle, test_rotation_result.axis);
-
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (-0.1034, 0.0458, -0.9935) 
 Vec3d inlet_half = Vec3d(3.0, 3.0, 0.3);

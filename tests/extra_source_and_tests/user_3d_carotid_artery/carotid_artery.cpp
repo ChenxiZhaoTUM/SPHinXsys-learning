@@ -10,26 +10,82 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-std::string full_path_to_blood_file = "./input/blood4-repaired.stl";
-//std::string full_path_to_wall_file = "./input/bb11.stl";
-Real length_scale = 1.0;
+std::string full_path_to_blood_file = "./input/carotid_fluid_geo.stl";
+std::string full_path_to_wall_file = "./input/carotid_wall_geo.stl";
+//----------------------------------------------------------------------
+//	Basic geometry parameters and numerical setup.
+//----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
-Vec3d domain_lower_bound(-6.0 * length_scale, -4.0 * length_scale, -32.5 * length_scale);
-Vec3d domain_upper_bound(12.0 * length_scale, 10.0 * length_scale, 23.5 * length_scale);
+Real length_scale = 1.0;
+Vec3d domain_lower_bound(-7.0 * length_scale, -4.0 * length_scale, -35.0 * length_scale);
+Vec3d domain_upper_bound(20.0 * length_scale, 12.0 * length_scale, 30.0 * length_scale);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real resolution_ref = 0.3 / 3;
+Real resolution_ref = 0.1;
+//----------------------------------------------------------------------
+//	Buffer location.
+//----------------------------------------------------------------------
+struct RotationResult
+{
+    Vec3d axis;
+    Real angle;
+};
 
-Vecd C_inlet(2.26, 5.30, -30.97);  /**< The center location of inlet. */
-Real DW = 5.81;  /**< The diameter of main blood vessel. */
-Vecd normal_inlet(-0.18, 0.58, 0.80);
-Vecd C_outlet1(-2.29, -0.27, 21.82);
-Real DW1 = 3.2;  /**< The diameter of first branch. */
-Vecd normal_outlet1(0.53, -0.81, 0.26);
-Vecd C_outlet2(8.47, 1.51, 18.62);
-Real DW2 = 2.0;  /**< The diameter of second branch. */
-Vecd normal_outlet2(0.0, 0.0, 1.0);
+RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
+{
+    target_normal.normalize();
 
-Real BW = resolution_ref * 4;         /**< Reference size of the emitter. */
+    Vec3d axis = standard_direction.cross(target_normal);
+    Real angle = std::acos(standard_direction.dot(target_normal));
+
+    if (axis.norm() < 1e-6)
+    {
+        if (standard_direction.dot(target_normal) < 0)
+        {
+            axis = Vec3d(1, 0, 0);
+            angle = M_PI;
+        }
+        else
+        {
+            axis = Vec3d(0, 0, 1);
+            angle = 0;
+        }
+    }
+    else
+    {
+        axis.normalize();
+    }
+
+    return {axis, angle};
+}
+
+// inlet R=2.9293, (1.5611, 5.8559, -30.8885), (-0.1034, 0.0458, -0.9935)
+Real DW_in = 2.9293 * 2;
+Vec3d inlet_half = Vec3d(3.0, 3.0, 0.3);
+Vec3d inlet_translation = Vec3d(1.5301, 5.8696, -31.1866);
+Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
+Vec3d inlet_standard_direction(0, 0, 1);
+RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
+Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
+
+//outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
+Real DW_01 = 1.9416 * 2;
+Vec3d outlet_01_half = Vec3d(2.0, 2.0, 0.3);
+Vec3d outlet_01_translation = Vec3d(-2.7923, -0.4333, 22.0701);
+Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
+Vec3d outlet_01_standard_direction(0, 0, 1);
+RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
+Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
+
+//outlet2 R=1.2760, (9.0465, 1.02552, 18.6363), (-0.0417, 0.0701, 0.9967)
+Real DW_02 = 1.2760 * 2;
+Vec3d outlet_02_half = Vec3d(1.5, 1.5, 0.3);
+Vec3d outlet_02_translation = Vec3d(9.0340, 1.0466, 18.9353);
+Vec3d outlet_02_normal(-0.0417, 0.0701, 0.9967);
+Vec3d outlet_02_standard_direction(0, 0, 1);
+RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
+Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
+
+Real BW = resolution_ref * 6;         /**< Reference size of the emitter. */
 Real DL_sponge = resolution_ref * 20; /**< Reference size of the emitter buffer to impose inflow condition. */
 //-------------------------------------------------------
 //----------------------------------------------------------------------
@@ -38,9 +94,9 @@ Real DL_sponge = resolution_ref * 20; /**< Reference size of the emitter buffer 
 Real rho0_f = 1.0; /**< Reference density of fluid. */
 Real U_f = 1.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DW / (DW1 + DW2));
+Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_01 + DW_02));
 Real Re = 100.0;                    /**< Reynolds number. */
-Real mu_f = rho0_f * U_f * DW / Re; /**< Dynamics viscosity. */
+Real mu_f = rho0_f * U_f * DW_in / Re; /**< Dynamics viscosity. */
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -58,10 +114,7 @@ class WallBoundary : public ComplexShape
   public:
     explicit WallBoundary(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        /*add<TriangleMeshShapeSTL>(full_path_to_wall_file, translation, length_scale);*/
-
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * resolution_ref, full_path_to_blood_file, translation, length_scale);
-        subtract<TriangleMeshShapeSTL>(full_path_to_blood_file, translation, length_scale);
+        add<TriangleMeshShapeSTL>(full_path_to_wall_file, translation, length_scale);
     }
 };
 //----------------------------------------------------------------------
@@ -85,8 +138,10 @@ struct InflowVelocity
         Real run_time = GlobalStaticVariables::physical_time_;
         Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
         //target_velocity[0] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
-        
-        target_velocity[2] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
+        if (aligned_box_.checkInBounds(0, position))
+        {
+            target_velocity[2] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
+        }
         return target_velocity;
     }
 };
@@ -193,34 +248,24 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(blood_block);
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
 
-    Vecd emitter_halfsize = Vecd(0.5 * DW, 0.5 * DW, 0.5 * BW);
-    Vecd emitter_translation = C_inlet - DL_sponge * normal_inlet + emitter_halfsize;
-    BodyAlignedBoxByParticle emitter(blood_block, makeShared<AlignedBoxShape>(Transform(Vecd(emitter_translation)), emitter_halfsize));
+    BodyAlignedBoxByParticle emitter(blood_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
     SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, inlet_particle_buffer, zAxis);
 
-    Vecd inlet_flow_buffer_halfsize = Vecd(0.5 * DW, 0.5 * DW, 0.5 * DL_sponge);
-    Vecd inlet_flow_buffer_translation = C_inlet - DL_sponge * normal_inlet + inlet_flow_buffer_halfsize;;
-    BodyAlignedBoxByCell inlet_flow_buffer(blood_block, makeShared<AlignedBoxShape>(Transform(Vecd(inlet_flow_buffer_translation)), inlet_flow_buffer_halfsize));
+    BodyAlignedBoxByCell inlet_flow_buffer(blood_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_condition(inlet_flow_buffer);
    
-    Vecd disposer_left_halfsize = Vecd(0.5 * DW1 * 1.1, 0.5 * DW1 * 1.1, 0.5 * BW);
-    Vecd disposer_left_translation = C_outlet1 + disposer_left_halfsize;
     BodyAlignedBoxByCell disposer_left(
-        blood_block, makeShared<AlignedBoxShape>(Transform(Vecd(disposer_left_translation)), disposer_left_halfsize));
+        blood_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_left_outflow_deletion(disposer_left, zAxis);
 
-    Vecd disposer_right_halfsize = Vecd(0.5 * DW2 * 1.1, 0.5 * DW2 * 1.1, 0.5 * BW);
-    Vecd disposer_right_translation = C_outlet2 + disposer_right_halfsize;
     BodyAlignedBoxByCell disposer_right(
-        blood_block, makeShared<AlignedBoxShape>(Transform(Vecd(disposer_right_translation)), disposer_right_halfsize));
+        blood_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_right_outflow_deletion(disposer_right, zAxis);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp write_body_states(sph_system.real_bodies_);
-    RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalKineticEnergy>>
-        write_blood_kinetic_energy(blood_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -279,7 +324,6 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "\n";
-                write_blood_kinetic_energy.writeToFile(number_of_iterations);
             }
             number_of_iterations++;
 
@@ -304,15 +348,6 @@ int main(int ac, char *av[])
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds()
               << " seconds." << std::endl;
-
-    /*if (sph_system.GenerateRegressionData())
-    {
-        write_blood_kinetic_energy.generateDataBase(1.0e-3);
-    }
-    else
-    {
-        write_blood_kinetic_energy.testResult();
-    }*/
 
     return 0;
 }
