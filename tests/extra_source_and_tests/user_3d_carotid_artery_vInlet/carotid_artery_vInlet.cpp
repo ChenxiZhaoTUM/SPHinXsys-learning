@@ -20,7 +20,7 @@ Real length_scale = 1.0;
 Vec3d domain_lower_bound(-7.0 * length_scale, -4.0 * length_scale, -35.0 * length_scale);
 Vec3d domain_upper_bound(20.0 * length_scale, 12.0 * length_scale, 30.0 * length_scale);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real resolution_ref = 0.1;
+Real resolution_ref = 0.15;
 //----------------------------------------------------------------------
 //	Buffer location.
 //----------------------------------------------------------------------
@@ -60,17 +60,17 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (-0.1034, 0.0458, -0.9935)
 Real DW_in = 2.9293 * 2;
-Vec3d inlet_half = Vec3d(3.0, 3.0, 0.3);
-Vec3d inlet_translation = Vec3d(1.5301, 5.8696, -31.1866);
-Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
+Vec3d inlet_half = Vec3d(3.2, 3.2, 0.3);
+Vec3d inlet_translation = Vec3d(1.5921, 5.8422, -30.5904);
+Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
 Vec3d inlet_standard_direction(0, 0, 1);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 //outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
 Real DW_01 = 1.9416 * 2;
-Vec3d outlet_01_half = Vec3d(2.0, 2.0, 0.3);
-Vec3d outlet_01_translation = Vec3d(-2.7923, -0.4333, 22.0701);
+Vec3d outlet_01_half = Vec3d(2.2, 2.2, 0.3);
+Vec3d outlet_01_translation = Vec3d(-2.6027, -0.4327, 21.5009);
 Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
 Vec3d outlet_01_standard_direction(0, 0, 1);
 RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
@@ -79,14 +79,14 @@ Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotatio
 //outlet2 R=1.2760, (9.0465, 1.02552, 18.6363), (-0.0417, 0.0701, 0.9967)
 Real DW_02 = 1.2760 * 2;
 Vec3d outlet_02_half = Vec3d(1.5, 1.5, 0.3);
-Vec3d outlet_02_translation = Vec3d(9.0340, 1.0466, 18.9353);
+Vec3d outlet_02_translation = Vec3d(9.0590, 1.0045, 18.3373);
 Vec3d outlet_02_normal(-0.0417, 0.0701, 0.9967);
 Vec3d outlet_02_standard_direction(0, 0, 1);
 RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
 Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
 
-Real BW = resolution_ref * 6;         /**< Reference size of the emitter. */
-Real DL_sponge = resolution_ref * 20; /**< Reference size of the emitter buffer to impose inflow condition. */
+//Real BW = resolution_ref * 6;         /**< Reference size of the emitter. */
+//Real DL_sponge = resolution_ref * 20; /**< Reference size of the emitter buffer to impose inflow condition. */
 //-------------------------------------------------------
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
@@ -137,11 +137,7 @@ struct InflowVelocity
         Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
         Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
-        //target_velocity[0] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
-        if (aligned_box_.checkInBounds(0, position))
-        {
-            target_velocity[2] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
-        }
+        target_velocity[2] = 1.5 * u_ave;
         return target_velocity;
     }
 };
@@ -154,27 +150,31 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment(); // handle command line arguments
 #endif
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
     //----------------------------------------------------------------------
-    FluidBody blood_block(sph_system, makeShared<Blood>("Blood"));
-    blood_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
-    
-    ParticleBuffer<ReserveSizeFactor> inlet_particle_buffer(0.5);
-    blood_block.generateParticlesWithReserve<Lattice>(inlet_particle_buffer);
-
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
+    wall_boundary.defineAdaptationRatios(1.15, 2.0);
     wall_boundary.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     wall_boundary.defineParticlesAndMaterial<SolidParticles, Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? wall_boundary.generateParticles<Reload>(wall_boundary.getName())
         : wall_boundary.generateParticles<Lattice>();
-
+    
+    FluidBody blood_block(sph_system, makeShared<Blood>("Blood"));
+    blood_block.defineBodyLevelSetShape()->cleanLevelSet();
+    blood_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
+    
+    ParticleBuffer<ReserveSizeFactor> inlet_particle_buffer(0.5);
+     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+        ? blood_block.generateParticlesWithReserve<Reload>(inlet_particle_buffer, blood_block.getName())
+        : blood_block.generateParticles<Lattice>();
+    //blood_block.generateParticlesWithReserve<Lattice>(inlet_particle_buffer);
     //----------------------------------------------------------------------
     //	SPH Particle relaxation section
     //----------------------------------------------------------------------
@@ -182,19 +182,27 @@ int main(int ac, char *av[])
     if (sph_system.RunParticleRelaxation())
     {
         InnerRelation wall_inner(wall_boundary);
+        InnerRelation blood_inner(blood_block);
         using namespace relax_dynamics;
         SimpleDynamics<RandomizeParticlePosition> random_particles(wall_boundary);
+        SimpleDynamics<RandomizeParticlePosition> random_blood_particles(blood_block);
         RelaxationStepInner relaxation_step_inner(wall_inner);
+        RelaxationStepInner relaxation_step_inner_blood(blood_inner);
         /** Write the body state to Vtp file. */
-        BodyStatesRecordingToVtp write_wall_state_to_vtp({wall_boundary});
+        BodyStatesRecordingToVtp write_wall_state_to_vtp(wall_boundary);
+        BodyStatesRecordingToVtp write_blood_state_to_vtp(blood_block);
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files(wall_boundary);
+        ReloadParticleIO write_blood_particle_reload_files(blood_block);
         //----------------------------------------------------------------------
         //	Physics relaxation starts here.
         //----------------------------------------------------------------------
         random_particles.exec(0.25);
+        random_blood_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
+        relaxation_step_inner_blood.SurfaceBounding().exec();
         write_wall_state_to_vtp.writeToFile(0.0);
+        write_blood_state_to_vtp.writeToFile(0.0);
         //----------------------------------------------------------------------
         // From here the time stepping begins.
         //----------------------------------------------------------------------
@@ -207,15 +215,22 @@ int main(int ac, char *av[])
             if (ite % 100 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite << "\n";
-                write_wall_state_to_vtp.writeToFile(ite);
+                //write_wall_state_to_vtp.writeToFile(ite);
+                //write_blood_state_to_vtp.writeToFile(ite);
             }
         }
 
         std::cout << "The physics relaxation process of wall particles finish !" << std::endl;
+        write_wall_state_to_vtp.writeToFile(ite);
+        write_blood_state_to_vtp.writeToFile(ite);
         write_particle_reload_files.writeToFile(0);
+        write_blood_particle_reload_files.writeToFile(0);
 
         return 0;
     }
+    //----------------------------------------------------------------------
+    //	Creating body, materials and particles.cd
+    //----------------------------------------------------------------------
 
     //----------------------------------------------------------------------
     //	Define body relation map.
@@ -236,17 +251,19 @@ int main(int ac, char *av[])
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
+    SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
+    InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(blood_block_inner, blood_wall_contact);
+
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(blood_block_inner, blood_wall_contact);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallNoRiemann> density_relaxation(blood_block_inner, blood_wall_contact);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_force(blood_block_inner, blood_wall_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(blood_block_inner, blood_wall_contact);
-    InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(blood_block_inner, blood_wall_contact);
     InteractionWithUpdate<fluid_dynamics::DensitySummationFreeStreamComplex> update_density_by_summation(blood_block_inner, blood_wall_contact);
     blood_block.addBodyStateForRecording<Real>("Pressure"); // output for debug
     blood_block.addBodyStateForRecording<int>("Indicator"); // output for debug
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(blood_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(blood_block);
-    SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
+    
 
     BodyAlignedBoxByParticle emitter(blood_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
     SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, inlet_particle_buffer, zAxis);
