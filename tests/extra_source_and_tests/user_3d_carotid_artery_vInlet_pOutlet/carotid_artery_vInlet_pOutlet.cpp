@@ -101,12 +101,12 @@ Rotation3d outlet_emitter_02_rotation(outlet_02_rotation_result.angle + Pi, outl
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
-Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 0.1;    /**< Characteristic velocity. */
+Real rho0_f = 1.060 * pow(10, -6); /**< Reference density of fluid. */
+Real U_f = 0.5 * pow(10, 3);    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_01 + DW_02));
-Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real Outlet_pressure = 1.33 * pow(10, 4);
+Real mu_f = 0.00355 * pow(10, -3); /**< Dynamics viscosity. */
+Real Outlet_pressure = 1.33 * pow(10, 4) * pow(10, -3);
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -136,7 +136,7 @@ struct InflowVelocity
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(U_f), t_ref_(0.218), interval_(0.5) {}
+        : u_ref_(0.1 * pow(10, 3)), t_ref_(0.218), interval_(0.5) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
@@ -145,7 +145,7 @@ struct InflowVelocity
         int n = static_cast<int>(run_time / interval_);
         Real t_in_cycle = run_time - n * interval_;
 
-        target_velocity[2]= t_in_cycle < t_ref_ ? 0.5 * sin(4 * Pi * (run_time + 0.0160236)) : u_ref_;
+        target_velocity[2] = t_in_cycle < t_ref_ ? 0.5 * pow(10, 3) * sin(4 * Pi * (run_time + 0.0160236)) : u_ref_;
         return target_velocity;
     }
 };
@@ -305,7 +305,6 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell right_disposer_02(water_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion_02(right_disposer_02, zAxis);
 
-
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_wall_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_01(right_emitter_01);
@@ -387,6 +386,8 @@ int main(int ac, char *av[])
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
+
+                body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
             if (number_of_iterations % screen_output_interval == 0)
