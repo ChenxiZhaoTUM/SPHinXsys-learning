@@ -69,7 +69,6 @@ int main(int ac, char *av[])
     imported_model.defineBodyLevelSetShape()->correctLevelSetSign()
         ->cleanLevelSet()->writeLevelSet(sph_system);
     //imported_model.defineBodyLevelSetShape()->writeLevelSet(sph_system);
-    imported_model.defineParticlesAndMaterial();
     imported_model.generateParticles<Lattice>();
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.

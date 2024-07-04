@@ -60,7 +60,7 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935) 
-Vec3d inlet_half = Vec3d(3.0, 3.0, 0.3);
+Vec3d inlet_half = Vec3d(3.0, 3.0, 0.35);
 Vec3d inlet_translation = Vec3d(1.5921, 5.8422, -30.5904);
 Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
 Vec3d inlet_standard_direction(0, 0, 1);
@@ -68,7 +68,7 @@ RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_st
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 //outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Vec3d outlet_01_half = Vec3d(2.0, 2.0, 0.3);
+Vec3d outlet_01_half = Vec3d(2.0, 2.0, 0.35);
 Vec3d outlet_01_translation = Vec3d(-2.6027, -0.4327, 21.5009);
 Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
 Vec3d outlet_01_standard_direction(0, 0, 1);
@@ -76,13 +76,12 @@ RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, 
 Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
 
 //outlet2 R=1.2760, (9.0465, 1.02552, 18.6363), (-0.0417, 0.0701, 0.9967)
-Vec3d outlet_02_half = Vec3d(1.5, 1.5, 0.3);
+Vec3d outlet_02_half = Vec3d(1.5, 1.5, 0.35);
 Vec3d outlet_02_translation = Vec3d(9.0590, 1.0045, 18.3373);
 Vec3d outlet_02_normal(-0.0417, 0.0701, 0.9967);
 Vec3d outlet_02_standard_direction(0, 0, 1);
 RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
 Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
-
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -112,30 +111,25 @@ int main(int ac, char *av[])
     // level set shape is used for particle relaxation
     imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     //imported_model.defineBodyLevelSetShape()->writeLevelSet(sph_system);
-    imported_model.defineParticlesAndMaterial();
-    imported_model.generateParticles<Lattice>();
-
+    imported_model.generateParticles<BaseParticles, Lattice>();
 
     // geo test
     SolidBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
-    test_body_in.defineParticlesAndMaterial<SolidParticles, Solid>();
-    test_body_in.generateParticles<Lattice>();
+    test_body_in.generateParticles<BaseParticles, Lattice>();
 
     SolidBody test_body_out01(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
-    test_body_out01.defineParticlesAndMaterial<SolidParticles, Solid>();
-    test_body_out01.generateParticles<Lattice>();
+    test_body_out01.generateParticles<BaseParticles, Lattice>();
 
     SolidBody test_body_out02(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
-    test_body_out02.defineParticlesAndMaterial<SolidParticles, Solid>();
-    test_body_out02.generateParticles<Lattice>();
+    test_body_out02.generateParticles<BaseParticles, Lattice>();
 
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_body_states(sph_system.real_bodies_);
+    BodyStatesRecordingToVtp write_body_states(sph_system);
 
     write_body_states.writeToFile();
 
