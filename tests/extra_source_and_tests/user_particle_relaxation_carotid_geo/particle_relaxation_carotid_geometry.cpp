@@ -60,26 +60,26 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935) 
-Vec3d inlet_half = Vec3d(3.0, 3.0, 0.35);
+Vec3d inlet_half = Vec3d(0.35, 3.0, 3.0);
 Vec3d inlet_translation = Vec3d(1.5921, 5.8422, -30.5904);
 Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
-Vec3d inlet_standard_direction(0, 0, 1);
+Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 //outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Vec3d outlet_01_half = Vec3d(2.0, 2.0, 0.35);
+Vec3d outlet_01_half = Vec3d(0.35, 2.0, 2.0);
 Vec3d outlet_01_translation = Vec3d(-2.6027, -0.4327, 21.5009);
 Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_01_standard_direction(0, 0, 1);
+Vec3d outlet_01_standard_direction(1, 0, 0);
 RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
 Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
 
 //outlet2 R=1.2760, (9.0465, 1.02552, 18.6363), (-0.0417, 0.0701, 0.9967)
-Vec3d outlet_02_half = Vec3d(1.5, 1.5, 0.35);
+Vec3d outlet_02_half = Vec3d(0.35, 1.5, 1.5);
 Vec3d outlet_02_translation = Vec3d(9.0590, 1.0045, 18.3373);
 Vec3d outlet_02_normal(-0.0417, 0.0701, 0.9967);
-Vec3d outlet_02_standard_direction(0, 0, 1);
+Vec3d outlet_02_standard_direction(1, 0, 0);
 RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
 Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
 //----------------------------------------------------------------------
