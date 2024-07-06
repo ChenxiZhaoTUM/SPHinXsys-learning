@@ -68,7 +68,7 @@ RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_st
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 //outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Vec3d outlet_01_half = Vec3d(0.35, 2.0, 2.0);
+Vec3d outlet_01_half = Vec3d(0.35, 2.4, 2.4);
 Vec3d outlet_01_translation = Vec3d(-2.6027, -0.4327, 21.5009);
 Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
 Vec3d outlet_01_standard_direction(1, 0, 0);

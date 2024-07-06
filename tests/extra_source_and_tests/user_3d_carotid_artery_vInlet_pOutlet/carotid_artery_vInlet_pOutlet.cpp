@@ -68,10 +68,10 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (-0.1034, 0.0458, -0.9935)
 Real DW_in = 2.9293 * 2 * length_scale;
-Vec3d inlet_half = Vec3d(0.3, 3.2, 3.2) * length_scale;
+Vec3d inlet_half = Vec3d(3.2, 3.2, 0.35) * length_scale;
 Vec3d inlet_translation = Vec3d(1.5921, 5.8422, -30.5904) * length_scale;
 Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
-Vec3d inlet_standard_direction(1, 0, 0);
+Vec3d inlet_standard_direction(0, 0, 1);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_desposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
@@ -151,31 +151,30 @@ struct InflowVelocity
         int n = static_cast<int>(run_time / interval_);
         Real t_in_cycle = run_time - n * interval_;
 
-        //target_velocity[2] = t_in_cycle < t_ref_ ? 0.5 * sin(4 * Pi * (run_time + 0.0160236)) : u_ref_;
-        target_velocity[2] = 1;
+        target_velocity[2] = t_in_cycle < t_ref_ ? 0.5 * sin(4 * Pi * (run_time + 0.0160236)) : u_ref_;
         return target_velocity;
     }
 };
 
-//class TimeDependentAcceleration : public Gravity
-//{
-//    Real t_ref_, du_ave_dt_, interval_;
-//
-//  public:
-//    explicit TimeDependentAcceleration(Vecd gravity_vector)
-//        : Gravity(gravity_vector), t_ref_(0.218), du_ave_dt_(0), interval_(0.5) {}
-//
-//    virtual Vecd InducedAcceleration(const Vecd &position) override
-//    {
-//        Real run_time = GlobalStaticVariables::physical_time_;
-//        int n = static_cast<int>(run_time / interval_);
-//        Real t_in_cycle = run_time - n * interval_;
-//
-//        du_ave_dt_ = 0.5 * 4 * Pi * cos(4 * Pi * run_time);
-//
-//        return t_in_cycle < t_ref_ ? Vecd(0.0, 0.0, du_ave_dt_) : global_acceleration_;
-//    }
-//};
+class TimeDependentAcceleration : public Gravity
+{
+    Real t_ref_, du_ave_dt_, interval_;
+
+  public:
+    explicit TimeDependentAcceleration(Vecd gravity_vector)
+        : Gravity(gravity_vector), t_ref_(0.218), du_ave_dt_(0), interval_(0.5) {}
+
+    virtual Vecd InducedAcceleration(const Vecd &position) override
+    {
+        Real run_time = GlobalStaticVariables::physical_time_;
+        int n = static_cast<int>(run_time / interval_);
+        Real t_in_cycle = run_time - n * interval_;
+
+        du_ave_dt_ = 0.5 * 4 * Pi * cos(4 * Pi * run_time);
+
+        return t_in_cycle < t_ref_ ? Vecd(0.0, 0.0, du_ave_dt_) : global_acceleration_;
+    }
+};
 
 //----------------------------------------------------------------------
 //	Pressure boundary definition.
@@ -208,12 +207,6 @@ struct RightInflowPressure
 //-----------------------------------------------------------------------------------------------------------
 int main(int ac, char *av[])
 {
-    std::cout << "inlet_rotation_result.axis = " << inlet_rotation_result.axis << std::endl;
-    std::cout << "outlet_01_rotation_result.axis = " << outlet_01_rotation_result.axis << std::endl;
-    std::cout << "outlet_02_rotation_result.axis = " << outlet_02_rotation_result.axis << std::endl;
-
-
-
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
@@ -312,8 +305,8 @@ int main(int ac, char *av[])
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
-    /*TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
-    SimpleDynamics<GravityForce> apply_gravity_force(water_block, time_dependent_acceleration);*/
+    TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
+    SimpleDynamics<GravityForce> apply_gravity_force(water_block, time_dependent_acceleration);
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_wall_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_wall_contact);
@@ -327,14 +320,14 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
 
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
-    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer, xAxis);
+    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer, zAxis);
     BodyAlignedBoxByCell right_emitter_01(water_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_emitter_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
     fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_emitter_inflow_injection_01(right_emitter_01, in_outlet_particle_buffer, xAxis);
     BodyAlignedBoxByCell right_emitter_02(water_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_emitter_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
     fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_emitter_inflow_injection_02(right_emitter_02, in_outlet_particle_buffer, xAxis);
 
     BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_desposer_rotation),Vec3d(inlet_translation)), inlet_half));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer, xAxis);
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer, zAxis);
     BodyAlignedBoxByCell right_disposer_01(water_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion_01(right_disposer_01, xAxis);
     BodyAlignedBoxByCell right_disposer_02(water_block, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
@@ -397,7 +390,7 @@ int main(int ac, char *av[])
         while (integration_time < Output_Time)
         {
             time_instance = TickCount::now();
-            //apply_gravity_force.exec();
+            apply_gravity_force.exec();
             Real Dt = get_fluid_advection_time_step_size.exec();
             //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
