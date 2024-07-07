@@ -47,10 +47,59 @@ class SolidBodyFromMesh : public ComplexShape
     {
         add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * dp_0, full_path_to_file, translation, scaling);
         subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-
-        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 };
+
+struct RotationResult
+{
+    Vec3d axis;
+    Real angle;
+};
+
+RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
+{
+    target_normal.normalize();
+
+    Vec3d axis = standard_direction.cross(target_normal);
+    Real angle = std::acos(standard_direction.dot(target_normal));
+
+    if (axis.norm() < 1e-6)
+    {
+        if (standard_direction.dot(target_normal) < 0)
+        {
+            axis = Vec3d(1, 0, 0);
+            angle = M_PI;
+        }
+        else
+        {
+            axis = Vec3d(0, 0, 1);
+            angle = 0;
+        }
+    }
+    else
+    {
+        axis.normalize();
+    }
+
+    return {axis, angle};
+}
+
+// inlet R=41.7567, (-203.6015, 204.1509, -135.3577), (0.2987, 0.1312, 0.9445)
+Vec3d inlet_half = Vec3d(2.0 * dp_0, 43.0 * scaling, 43.0 * scaling);
+Vec3d inlet_normal(-0.2987, -0.1312, -0.9445);
+Vec3d inlet_translation = Vec3d(-203.6015, 204.1509, -135.3577) * scaling + inlet_normal * 2.0 * dp_0;
+Vec3d inlet_standard_direction(1, 0, 0);
+RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
+Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
+
+// inlet R=36.1590, (-172.2628, 205.9036, -19.8868), (0.2678, 0.3191, -0.9084)
+Vec3d outlet_half_01 = Vec3d(2.0 * dp_0, 45.0 * scaling, 45.0 * scaling);
+Vec3d outlet_normal_01(-0.2678, -0.3191, 0.9084);
+Vec3d outlet_translation_01 = Vec3d(-172.2628, 205.9036, -19.8868) * scaling + outlet_normal_01 * 2.0 * dp_0;
+Vec3d outlet_standard_direction_01(1, 0, 0);
+RotationResult outlet_rotation_result_01 = RotationCalculator(outlet_normal_01, outlet_standard_direction_01);
+Rotation3d outlet_rotation_01(outlet_rotation_result_01.angle, outlet_rotation_result_01.axis);
+
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -71,13 +120,15 @@ int main(int ac, char *av[])
         ->cleanLevelSet()->writeLevelSet(sph_system);
     //imported_model.defineBodyLevelSetShape()->writeLevelSet(sph_system);
     imported_model.generateParticles<BaseParticles, Lattice>();
-    //----------------------------------------------------------------------
-    //	Define simple file input and outputs functions.
-    //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_imported_model_to_vtp(sph_system);
-    
-    write_imported_model_to_vtp.writeToFile();
-    //MeshRecordingToPlt write_cell_linked_list(sph_system, imported_model.getCellLinkedList());
+
+    RealBody test_body_in(
+        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
+    test_body_in.generateParticles<BaseParticles, Lattice>();
+
+    RealBody test_body_out01(
+        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_rotation_01), Vec3d(outlet_translation_01)), outlet_half_01, "TestBodyOut01"));
+    test_body_out01.generateParticles<BaseParticles, Lattice>();
+
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -96,6 +147,11 @@ int main(int ac, char *av[])
         SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
         /** A  Physics relaxation step. */
         RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
+
+        /** Write the body state to Vtp file. */
+        BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
+        /** Write the particle reload files. */
+        ReloadParticleIO write_particle_reload_files(imported_model);
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
@@ -119,7 +175,12 @@ int main(int ac, char *av[])
             }
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
+
+        write_particle_reload_files.writeToFile(0);
+        return 0;
     }
-    
+
+    BodyStatesRecordingToVtp write_body_states(sph_system);
+    write_body_states.writeToFile();
     return 0;
 }
