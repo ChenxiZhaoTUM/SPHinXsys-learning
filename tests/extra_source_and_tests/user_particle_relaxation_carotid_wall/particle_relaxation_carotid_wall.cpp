@@ -37,7 +37,7 @@ Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 //	Below are common parts for the two test geometries.
 //----------------------------------------------------------------------
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.1;
+Real dp_0 = 0.1 * scaling;
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -86,8 +86,8 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
-Vec3d inlet_half = Vec3d(0.2, 3.0, 3.0);
-Vec3d inlet_translation = Vec3d(1.54042, 5.86506, -31.0872);
+Vec3d inlet_half = Vec3d(0.2, 3.0, 3.0) * scaling; // 2.5dp_0
+Vec3d inlet_translation = Vec3d(1.54042, 5.86506, -31.0872) * scaling;
 Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
 Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
@@ -102,8 +102,8 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(false);
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(true);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
