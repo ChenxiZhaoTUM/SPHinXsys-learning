@@ -96,6 +96,25 @@ void UpdateSmoothingLengthRatioByShape::update(size_t index_i, Real dt_square)
     h_ratio_[index_i] = reference_spacing_ / local_spacing;
     Vol_[index_i] = pow(local_spacing, Dimensions);
 }
+
+//=================================================================================================//
+AlignedBoxParticlesDetection::
+    AlignedBoxParticlesDetection(BodyAlignedBoxByCell &aligned_box_part, int axis)
+    : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+      DataDelegateSimple(aligned_box_part.getSPHBody()),
+      pos_(*particles_->getVariableByName<Vecd>("Position")),
+      axis_(axis), aligned_box_(aligned_box_part.aligned_box_) {}
+//=================================================================================================//
+void AlignedBoxParticlesDetection::update(size_t index_i, Real dt)
+{
+    mutex_switch_to_ghost_.lock();
+    while (aligned_box_.checkInBounds(axis_, pos_[index_i]) && index_i < particles_->total_real_particles_)
+    {
+        particles_->switchToBufferParticle(index_i);
+    }
+    mutex_switch_to_ghost_.unlock();
+}
+
 //=================================================================================================//
 } // namespace relax_dynamics
 } // namespace SPH

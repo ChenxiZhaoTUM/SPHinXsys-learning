@@ -29,7 +29,7 @@ std::string full_path_to_file = "./input/normal_fluid_repair.stl";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
-Real scaling = 1.0;
+Real scaling = pow(10, -3);
 Vec3d domain_lower_bound(-375.0 * scaling, 100.0 * scaling, -340 * scaling);
 Vec3d domain_upper_bound(-100.0 * scaling, 360.0 * scaling, 0.0 * scaling);
 //----------------------------------------------------------------------
@@ -60,6 +60,7 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
+    sph_system.setRunParticleRelaxation(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
@@ -69,11 +70,13 @@ int main(int ac, char *av[])
     imported_model.defineBodyLevelSetShape()->correctLevelSetSign()
         ->cleanLevelSet()->writeLevelSet(sph_system);
     //imported_model.defineBodyLevelSetShape()->writeLevelSet(sph_system);
-    imported_model.generateParticles<Lattice>();
+    imported_model.generateParticles<BaseParticles, Lattice>();
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
+    BodyStatesRecordingToVtp write_imported_model_to_vtp(sph_system);
+    
+    write_imported_model_to_vtp.writeToFile();
     //MeshRecordingToPlt write_cell_linked_list(sph_system, imported_model.getCellLinkedList());
     //----------------------------------------------------------------------
     //	Define body relation map.
@@ -83,37 +86,40 @@ int main(int ac, char *av[])
     //  At last, we define the complex relaxations by combining previous defined
     //  inner and contact relations.
     //----------------------------------------------------------------------
-    InnerRelation imported_model_inner(imported_model);
-    //----------------------------------------------------------------------
-    //	Methods used for particle relaxation.
-    //----------------------------------------------------------------------
-    using namespace relax_dynamics;
-    SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
-    /** A  Physics relaxation step. */
-    RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
-    //----------------------------------------------------------------------
-    //	Particle relaxation starts here.
-    //----------------------------------------------------------------------
-    random_imported_model_particles.exec(0.25);
-    relaxation_step_inner.SurfaceBounding().exec();
-    write_imported_model_to_vtp.writeToFile(0.0);
-    imported_model.updateCellLinkedList();
-    //write_cell_linked_list.writeToFile(0.0);
-    //----------------------------------------------------------------------
-    //	Particle relaxation time stepping start here.
-    //----------------------------------------------------------------------
-    int ite_p = 0;
-    while (ite_p < 1000)
+    if (sph_system.RunParticleRelaxation())
     {
-        relaxation_step_inner.exec();
-        ite_p += 1;
-        if (ite_p % 100 == 0)
+        InnerRelation imported_model_inner(imported_model);
+        //----------------------------------------------------------------------
+        //	Methods used for particle relaxation.
+        //----------------------------------------------------------------------
+        using namespace relax_dynamics;
+        SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
+        /** A  Physics relaxation step. */
+        RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
+        //----------------------------------------------------------------------
+        //	Particle relaxation starts here.
+        //----------------------------------------------------------------------
+        random_imported_model_particles.exec(0.25);
+        relaxation_step_inner.SurfaceBounding().exec();
+        write_imported_model_to_vtp.writeToFile(0.0);
+        imported_model.updateCellLinkedList();
+        // write_cell_linked_list.writeToFile(0.0);
+        //----------------------------------------------------------------------
+        //	Particle relaxation time stepping start here.
+        //----------------------------------------------------------------------
+        int ite_p = 0;
+        while (ite_p < 1000)
         {
-            std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
-            write_imported_model_to_vtp.writeToFile(ite_p);
+            relaxation_step_inner.exec();
+            ite_p += 1;
+            if (ite_p % 100 == 0)
+            {
+                std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
+                write_imported_model_to_vtp.writeToFile(ite_p);
+            }
         }
+        std::cout << "The physics relaxation process of imported model finish !" << std::endl;
     }
-    std::cout << "The physics relaxation process of imported model finish !" << std::endl;
-
+    
     return 0;
 }

@@ -47,7 +47,6 @@ void RelaxationStep<RelaxationResidueType>::exec(Real dt)
     position_relaxation_.exec(scaling);
     surface_bounding_.exec();
 }
-//=================================================================================================//
 } // namespace relax_dynamics
 } // namespace SPH
 #endif // RELAX_STEPPING_HPP

@@ -86,8 +86,8 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment(); // handle command line arguments
 #endif

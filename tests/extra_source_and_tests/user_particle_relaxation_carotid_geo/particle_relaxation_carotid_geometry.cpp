@@ -133,7 +133,6 @@ int main(int ac, char *av[])
 
     write_body_states.writeToFile();
 
-
     //MeshRecordingToPlt write_cell_linked_list(sph_system, imported_model.getCellLinkedList());
     if (sph_system.RunParticleRelaxation())
     {
@@ -176,7 +175,7 @@ int main(int ac, char *av[])
             }
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
-
     }
+
     return 0;
 }

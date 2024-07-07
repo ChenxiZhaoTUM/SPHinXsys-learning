@@ -186,6 +186,22 @@ using RelaxationStepInner = RelaxationStep<RelaxationResidue<Inner<>>>;
 using RelaxationStepLevelSetCorrectionInner = RelaxationStep<RelaxationResidue<Inner<LevelSetCorrection>>>;
 using RelaxationStepComplex = RelaxationStep<ComplexInteraction<RelaxationResidue<Inner<>, Contact<>>>>;
 using RelaxationStepLevelSetCorrectionComplex = RelaxationStep<ComplexInteraction<RelaxationResidue<Inner<LevelSetCorrection>, Contact<>>>>;
+
+class AlignedBoxParticlesDetection : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+{
+  public:
+    AlignedBoxParticlesDetection(BodyAlignedBoxByCell &aligned_box_part, int axis);
+    virtual ~AlignedBoxParticlesDetection(){};
+
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    std::mutex mutex_switch_to_ghost_; /**< mutex exclusion for memory conflict */
+    StdLargeVec<Vecd> &pos_;
+    const int axis_; /**< the axis direction for bounding*/
+    AlignedBoxShape &aligned_box_;
+};
+
 } // namespace relax_dynamics
 } // namespace SPH
 #endif // RELAX_STEPPING_H

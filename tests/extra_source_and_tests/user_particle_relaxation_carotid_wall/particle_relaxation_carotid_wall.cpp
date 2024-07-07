@@ -30,7 +30,7 @@ std::string full_path_to_file = "./input/carotid_fluid_geo.stl";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
-Real scaling = 1.0;
+Real scaling = pow(10, -3);
 Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
 Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 //----------------------------------------------------------------------
@@ -46,12 +46,53 @@ class SolidBodyFromMesh : public ComplexShape
   public:
     explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name)
     {
-       /* add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * dp_0, full_path_to_file, translation, scaling);
-        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);*/
-        
-        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(4.0 * dp_0, full_path_to_file, translation, scaling);
+        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 };
+
+struct RotationResult
+{
+    Vec3d axis;
+    Real angle;
+};
+
+RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
+{
+    target_normal.normalize();
+
+    Vec3d axis = standard_direction.cross(target_normal);
+    Real angle = std::acos(standard_direction.dot(target_normal));
+
+    if (axis.norm() < 1e-6)
+    {
+        if (standard_direction.dot(target_normal) < 0)
+        {
+            axis = Vec3d(1, 0, 0);
+            angle = M_PI;
+        }
+        else
+        {
+            axis = Vec3d(0, 0, 1);
+            angle = 0;
+        }
+    }
+    else
+    {
+        axis.normalize();
+    }
+
+    return {axis, angle};
+}
+
+// inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
+Vec3d inlet_half = Vec3d(0.2, 3.0, 3.0);
+Vec3d inlet_translation = Vec3d(1.54042, 5.86506, -31.0872);
+Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
+Vec3d inlet_standard_direction(1, 0, 0);
+RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
+Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
+
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -61,6 +102,8 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
@@ -68,52 +111,74 @@ int main(int ac, char *av[])
     RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("SolidBodyFromMesh"));
     // level set shape is used for particle relaxation
     imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
-    imported_model.defineParticlesAndMaterial();
-    imported_model.generateParticles<Lattice>();
-    //----------------------------------------------------------------------
-    //	Define simple file input and outputs functions.
-    //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
-    //MeshRecordingToPlt write_cell_linked_list(sph_system, imported_model.getCellLinkedList());
-    //----------------------------------------------------------------------
-    //	Define body relation map.
-    //	The contact map gives the topological connections between the bodies.
-    //	Basically the the range of bodies to build neighbor particle lists.
-    //  Generally, we first define all the inner relations, then the contact relations.
-    //  At last, we define the complex relaxations by combining previous defined
-    //  inner and contact relations.
-    //----------------------------------------------------------------------
-    InnerRelation imported_model_inner(imported_model);
-    //----------------------------------------------------------------------
-    //	Methods used for particle relaxation.
-    //----------------------------------------------------------------------
-    using namespace relax_dynamics;
-    SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
-    /** A  Physics relaxation step. */
-    RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
-    //----------------------------------------------------------------------
-    //	Particle relaxation starts here.
-    //----------------------------------------------------------------------
-    random_imported_model_particles.exec(0.25);
-    relaxation_step_inner.SurfaceBounding().exec();
-    write_imported_model_to_vtp.writeToFile(0.0);
-    imported_model.updateCellLinkedList();
-    //write_cell_linked_list.writeToFile(0.0);
-    //----------------------------------------------------------------------
-    //	Particle relaxation time stepping start here.
-    //----------------------------------------------------------------------
-    int ite_p = 0;
-    while (ite_p < 500)
-    {
-        relaxation_step_inner.exec();
-        ite_p += 1;
-        if (ite_p % 50 == 0)
-        {
-            std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
-            write_imported_model_to_vtp.writeToFile(ite_p);
-        }
-    }
-    std::cout << "The physics relaxation process of imported model finish !" << std::endl;
+    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+        ? imported_model.generateParticles<BaseParticles, Reload>(imported_model.getName())
+        : imported_model.generateParticles<BaseParticles, Lattice>();
 
+    RealBody test_body_in(
+        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
+    test_body_in.generateParticles<BaseParticles, Lattice>();
+
+    BodyAlignedBoxByCell inlet_detection_box(imported_model, 
+        makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
+    
+    if (sph_system.RunParticleRelaxation())
+    {
+        //----------------------------------------------------------------------
+        //	Define body relation map.
+        //	The contact map gives the topological connections between the bodies.
+        //	Basically the the range of bodies to build neighbor particle lists.
+        //  Generally, we first define all the inner relations, then the contact relations.
+        //  At last, we define the complex relaxations by combining previous defined
+        //  inner and contact relations.
+        //----------------------------------------------------------------------
+        InnerRelation imported_model_inner(imported_model);
+        //----------------------------------------------------------------------
+        //	Methods used for particle relaxation.
+        //----------------------------------------------------------------------
+        using namespace relax_dynamics;
+        SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
+        /** A  Physics relaxation step. */
+        RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
+        
+        // here, need a class to switch particles in aligned box to ghost particles (not real particles)
+        SimpleDynamics<AlignedBoxParticlesDetection> inlet_particles_detection(inlet_detection_box, xAxis);
+
+        /** Write the body state to Vtp file. */
+        BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
+        /** Write the particle reload files. */
+        ReloadParticleIO write_particle_reload_files(imported_model);
+        //----------------------------------------------------------------------
+        //	Particle relaxation starts here.
+        //----------------------------------------------------------------------
+        random_imported_model_particles.exec(0.25);
+        relaxation_step_inner.SurfaceBounding().exec();
+        write_imported_model_to_vtp.writeToFile(0.0);
+        imported_model.updateCellLinkedList();
+        // write_cell_linked_list.writeToFile(0.0);
+        //----------------------------------------------------------------------
+        //	Particle relaxation time stepping start here.
+        //----------------------------------------------------------------------
+        int ite_p = 0;
+        while (ite_p < 500)
+        {
+            relaxation_step_inner.exec();
+            ite_p += 1;
+            if (ite_p % 50 == 0)
+            {
+                std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
+                write_imported_model_to_vtp.writeToFile(ite_p);
+            }
+        }
+        std::cout << "The physics relaxation process of imported model finish !" << std::endl;
+
+        inlet_particles_detection.exec();
+        write_particle_reload_files.writeToFile(0);
+
+        return 0;
+    }
+
+    BodyStatesRecordingToVtp write_body_states(sph_system);
+    write_body_states.writeToFile();
     return 0;
 }
