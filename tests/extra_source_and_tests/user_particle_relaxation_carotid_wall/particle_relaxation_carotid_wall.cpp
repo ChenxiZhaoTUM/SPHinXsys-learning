@@ -9,23 +9,11 @@
 #include "sphinxsys.h"
 using namespace SPH;
 //----------------------------------------------------------------------
-//	Setting for the first geometry.
-//	To use this, please commenting the setting for the second geometry.
-//----------------------------------------------------------------------
-// std::string full_path_to_file = "./input/SPHinXsys.stl";
-//----------------------------------------------------------------------
-//	Basic geometry parameters and numerical setup.
-//----------------------------------------------------------------------
-/*Vec3d domain_lower_bound(-2.3, -0.1, -0.3);
-Vec3d domain_upper_bound(2.3, 4.5, 0.3);
-Vecd translation(0.0, 0.0, 0.0);
-Real scaling = 1.0; */
-//----------------------------------------------------------------------
-//	Setting for the second geometry.
+//	Setting for the geometry.
 //	To use this, please commenting the setting for the first geometry.
 //----------------------------------------------------------------------
 std::string full_path_to_file = "./input/carotid_fluid_geo.stl";
-//std::string full_path_to_file = "./input/carotid_solid_geo.stl";
+// std::string full_path_to_file = "./input/carotid_solid_geo.stl";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
@@ -86,12 +74,28 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
-Vec3d inlet_half = Vec3d(0.2, 3.0, 3.0) * scaling; // 2.5dp_0
-Vec3d inlet_translation = Vec3d(1.54042, 5.86506, -31.0872) * scaling;
+Vec3d inlet_half = Vec3d(2.0 * dp_0, 3.0 * scaling, 3.0 * scaling);
 Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
+Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 2.0 * dp_0;
 Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
+
+// outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
+Vec3d outlet_01_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
+Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
+Vec3d outlet_01_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_01_normal * 2.0 * dp_0;
+Vec3d outlet_01_standard_direction(1, 0, 0);
+RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
+Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
+
+// outlet2 R=1.2760, (9.0465, 1.02552, 18.6363), (-0.0417, 0.0701, 0.9967)
+Vec3d outlet_02_half = Vec3d(2.0 * dp_0, 1.5 * scaling, 1.5 * scaling);
+Vec3d outlet_02_normal(-0.0417, 0.0701, 0.9967);
+Vec3d outlet_02_translation = Vec3d(9.0590, 1.0045, 18.3373) * scaling + outlet_02_normal * 2.0 * dp_0;
+Vec3d outlet_02_standard_direction(1, 0, 0);
+RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
+Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
 
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
@@ -102,8 +106,8 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(true);
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
@@ -118,10 +122,21 @@ int main(int ac, char *av[])
     RealBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
     test_body_in.generateParticles<BaseParticles, Lattice>();
+    BodyAlignedBoxByCell inlet_detection_box(imported_model,
+                                             makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
 
-    BodyAlignedBoxByCell inlet_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
-    
+    RealBody test_body_out01(
+        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
+    test_body_out01.generateParticles<BaseParticles, Lattice>();
+    BodyAlignedBoxByCell outlet01_detection_box(imported_model,
+                                                makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
+
+    RealBody test_body_out02(
+        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
+    test_body_out02.generateParticles<BaseParticles, Lattice>();
+    BodyAlignedBoxByCell outlet02_detection_box(imported_model,
+                                                makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
+
     if (sph_system.RunParticleRelaxation())
     {
         //----------------------------------------------------------------------
@@ -140,9 +155,11 @@ int main(int ac, char *av[])
         SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
         /** A  Physics relaxation step. */
         RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
-        
+
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
         SimpleDynamics<AlignedBoxParticlesDetection> inlet_particles_detection(inlet_detection_box, xAxis);
+        SimpleDynamics<AlignedBoxParticlesDetection> outlet01_particles_detection(outlet01_detection_box, xAxis);
+        SimpleDynamics<AlignedBoxParticlesDetection> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
@@ -173,6 +190,10 @@ int main(int ac, char *av[])
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
         inlet_particles_detection.exec();
+        outlet01_particles_detection.exec();
+        outlet02_particles_detection.exec();
+
+        write_imported_model_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
 
         return 0;
