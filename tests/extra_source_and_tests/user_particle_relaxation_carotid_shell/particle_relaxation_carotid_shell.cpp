@@ -75,12 +75,16 @@ public:
 
         // Generate particles on the triangle mesh surface
         int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
-        for (int i = 0; i < num_faces; ++i)
+
+        std::cout << "num_faces calculation = " << num_faces << std::endl;
+
+        for (int i = 0; i < num_faces; ++i)  // here the interations will be 38292 times that needs to be optimized
         {
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                vertices[j] = SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(i * 3 + j)); // Get vertices of the i-th face
+                int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
+                vertices[j] = SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(vertexIndex));
             }
             // Generate particles on this triangle face
             generateParticlesOnFace(vertices);
