@@ -33,71 +33,81 @@ Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
 //----------------------------------------------------------------------
 class SolidBodyFromMesh : public ComplexShape
 {
-  public:
-    explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name)
+public:
+    explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name),
+        mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
     {
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
-        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        //add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
+        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
+
+    TriangleMeshShapeSTL* getMeshShape() const
+    {
+        return mesh_shape_.get();
+    }
+
+private:
+    std::unique_ptr<TriangleMeshShapeSTL> mesh_shape_;
+
 };
 
-struct RotationResult
+class FromSTLFile;
+template <>
+class ParticleGenerator<FromSTLFile> : public ParticleGenerator<Surface>
 {
-    Vec3d axis;
-    Real angle;
+
+    const Real thickness_;
+    TriangleMeshShapeSTL* mesh_shape_;
+
+
+public:
+    explicit ParticleGenerator(SPHBody& sph_body, TriangleMeshShapeSTL* mesh_shape) 
+        : ParticleGenerator<Surface>(sph_body),
+        thickness_(sph_body.sph_adaptation_->ReferenceSpacing()),
+        mesh_shape_(mesh_shape) {};
+    virtual void initializeGeometricVariables() override
+    {
+        if (!mesh_shape_)
+        {
+            std::cerr << "Error: Mesh shape is not set!" << std::endl;
+            return;
+        }
+
+        // Generate particles on the triangle mesh surface
+        int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
+        for (int i = 0; i < num_faces; ++i)
+        {
+            Vec3d vertices[3];
+            for (int j = 0; j < 3; ++j)
+            {
+                vertices[j] = SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(i * 3 + j)); // Get vertices of the i-th face
+            }
+            // Generate particles on this triangle face
+            generateParticlesOnFace(vertices);
+        }
+    }
+
+private:
+    void generateParticlesOnFace(const Vec3d vertices[3])
+    {
+        Vec3d edge1 = vertices[1] - vertices[0];
+        Vec3d edge2 = vertices[2] - vertices[0];
+        Vec3d face_normal = edge1.cross(edge2).normalized();
+        double area = 0.5 * edge1.cross(edge2).norm();
+        int num_particles = static_cast<int>(area / (thickness_ * thickness_));
+        double step_size = sqrt(area / num_particles);
+
+        for (double u = 0; u <= 1.0; u += step_size)
+        {
+            for (double v = 0; u + v <= 1.0; v += step_size)
+            {
+                Vec3d particle_position = (1 - u - v) * vertices[0] + u * vertices[1] + v * vertices[2];
+                initializePositionAndVolumetricMeasure(particle_position, thickness_ * thickness_);
+                initializeSurfaceProperties(face_normal, thickness_);
+            }
+        }
+    }
 };
-
-RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
-{
-    target_normal.normalize();
-
-    Vec3d axis = standard_direction.cross(target_normal);
-    Real angle = std::acos(standard_direction.dot(target_normal));
-
-    if (axis.norm() < 1e-6)
-    {
-        if (standard_direction.dot(target_normal) < 0)
-        {
-            axis = Vec3d(1, 0, 0);
-            angle = M_PI;
-        }
-        else
-        {
-            axis = Vec3d(0, 0, 1);
-            angle = 0;
-        }
-    }
-    else
-    {
-        axis.normalize();
-    }
-
-    return {axis, angle};
-}
-
-// inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
-Vec3d inlet_half = Vec3d(0.5 * thickness, 3.0 * scaling, 3.0 * scaling);
-Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
-Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 0.5 * thickness;
-Vec3d inlet_standard_direction(1, 0, 0);
-RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
-Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
-
-// outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Vec3d outlet_01_half = Vec3d(0.5 * thickness, 2.4 * scaling, 2.4 * scaling);
-Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_01_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_01_normal * 2.0 * dp_0;
-Vec3d outlet_01_standard_direction(1, 0, 0);
-RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
-Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
-
-// outlet2 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
-Vec3d outlet_02_half = Vec3d(0.5 * thickness, 2.0 * scaling, 2.0 * scaling);
-Vec3d outlet_02_normal(-0.0399, 0.0693, 0.9972);
-Vec3d.3261 outlet_02_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_02_normal * 2.0 * dp_0;
-Vec3d outlet_02_standard_direction(1, 0, 0);
-RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
-Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
 
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
@@ -114,31 +124,16 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
+    SolidBodyFromMesh solid_body_from_mesh("SolidBodyFromMesh");
+    TriangleMeshShapeSTL* mesh_shape = solid_body_from_mesh.getMeshShape();
+
     RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("SolidBodyFromMesh"));
     imported_model.defineAdaptation<SPHAdaptation>(1.15, 1.0);
-    imported_model.defineBodyLevelSetShape(level_set_refinement_ratio)->correctLevelSetSign()->writeLevelSet(sph_system);
+    //imported_model.defineBodyLevelSetShape(level_set_refinement_ratio)->correctLevelSetSign()->writeLevelSet(sph_system);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
-        : imported_model.generateParticles<SurfaceParticles, ThickSurface, Lattice>(thickness);
-
-    RealBody test_body_in(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
-    test_body_in.generateParticles<BaseParticles, Lattice>();
-    BodyAlignedBoxByCell inlet_detection_box(imported_model,
-                                             makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
-
-    RealBody test_body_out01(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
-    test_body_out01.generateParticles<BaseParticles, Lattice>();
-    BodyAlignedBoxByCell outlet01_detection_box(imported_model,
-                                                makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
-
-    RealBody test_body_out02(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
-    test_body_out02.generateParticles<BaseParticles, Lattice>();
-    BodyAlignedBoxByCell outlet02_detection_box(imported_model,
-                                                makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
-
+        : imported_model.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
+                       
     if (sph_system.RunParticleRelaxation())
     {
         //----------------------------------------------------------------------
@@ -157,12 +152,7 @@ int main(int ac, char *av[])
         SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
         /** A  Physics relaxation step. */
         ShellRelaxationStep relaxation_step_inner(imported_model_inner);
-        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness);
-
-        // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-        SimpleDynamics<AlignedBoxParticlesDetection> inlet_particles_detection(inlet_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet01_particles_detection(outlet01_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet02_particles_detection(outlet02_detection_box, xAxis);
+        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness, cos(Pi / 3.75));
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
@@ -191,10 +181,6 @@ int main(int ac, char *av[])
             }
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
-
-        inlet_particles_detection.exec();
-        outlet01_particles_detection.exec();
-        outlet02_particles_detection.exec();
 
         shell_normal_prediction.exec();
         write_imported_model_to_vtp.writeToFile(ite_p);
