@@ -101,14 +101,24 @@ private:
         int num_particles = static_cast<int>(area / (thickness_ * thickness_));
         double step_size = sqrt(area / num_particles);
 
+        std::vector<Vec3d> particle_positions;
+        particle_positions.reserve(num_particles);
+
         for (double u = 0; u <= 1.0; u += step_size)
         {
             for (double v = 0; u + v <= 1.0; v += step_size)
             {
+                if (u + v > 1.0) continue;
+
                 Vec3d particle_position = (1 - u - v) * vertices[0] + u * vertices[1] + v * vertices[2];
-                initializePositionAndVolumetricMeasure(particle_position, thickness_ * thickness_);
-                initializeSurfaceProperties(face_normal, thickness_);
+                particle_positions.push_back(particle_position);
             }
+        }
+
+        for (const Vec3d& pos : particle_positions)
+        {
+            initializePositionAndVolumetricMeasure(pos, thickness_ * thickness_);
+            initializeSurfaceProperties(face_normal, thickness_);
         }
     }
 };
