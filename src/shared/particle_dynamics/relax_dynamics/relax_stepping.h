@@ -202,6 +202,7 @@ class ParticlesInAlignedBoxDetectionByCell : public BaseLocalDynamics<BodyPartBy
     AlignedBoxShape &aligned_box_;
 };
 
+// useless!
 class ParticlesInAlignedBoxDetectionByParticle : public BaseLocalDynamics<BodyPartByParticle>, public DataDelegateSimple
 {
   public:

@@ -106,6 +106,10 @@ ParticlesInAlignedBoxDetectionByCell::
 //=================================================================================================//
 void ParticlesInAlignedBoxDetectionByCell::update(size_t index_i, Real dt)
 {
+    // for debug
+    /*if (index_i == 1014)
+            std::cout << "index_i = 1014, " << "unsorted_id = " << particles_->unsorted_id_[index_i] << std::endl;*/
+
     mutex_switch_to_ghost_.lock();
     while (aligned_box_.checkInBounds(axis_, pos_[index_i]) && index_i < particles_->total_real_particles_)
     {
