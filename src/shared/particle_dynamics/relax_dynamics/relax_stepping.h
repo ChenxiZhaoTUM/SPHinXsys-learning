@@ -187,11 +187,26 @@ using RelaxationStepLevelSetCorrectionInner = RelaxationStep<RelaxationResidue<I
 using RelaxationStepComplex = RelaxationStep<ComplexInteraction<RelaxationResidue<Inner<>, Contact<>>>>;
 using RelaxationStepLevelSetCorrectionComplex = RelaxationStep<ComplexInteraction<RelaxationResidue<Inner<LevelSetCorrection>, Contact<>>>>;
 
-class AlignedBoxParticlesDetection : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+class ParticlesInAlignedBoxDetectionByCell : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
 {
   public:
-    AlignedBoxParticlesDetection(BodyAlignedBoxByCell &aligned_box_part, int axis);
-    virtual ~AlignedBoxParticlesDetection(){};
+    ParticlesInAlignedBoxDetectionByCell(BodyAlignedBoxByCell &aligned_box_part, int axis);
+    virtual ~ParticlesInAlignedBoxDetectionByCell(){};
+
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    std::mutex mutex_switch_to_ghost_; /**< mutex exclusion for memory conflict */
+    StdLargeVec<Vecd> &pos_;
+    const int axis_; /**< the axis direction for bounding*/
+    AlignedBoxShape &aligned_box_;
+};
+
+class ParticlesInAlignedBoxDetectionByParticle : public BaseLocalDynamics<BodyPartByParticle>, public DataDelegateSimple
+{
+  public:
+    ParticlesInAlignedBoxDetectionByParticle(BodyAlignedBoxByParticle &aligned_box_part, int axis);
+    virtual ~ParticlesInAlignedBoxDetectionByParticle(){};
 
     void update(size_t index_i, Real dt = 0.0);
 
