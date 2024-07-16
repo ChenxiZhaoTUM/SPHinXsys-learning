@@ -225,8 +225,6 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell outlet02_detection_box(imported_model,
                                                 makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
 
-    InnerRelation imported_model_inner(imported_model);
-
     if (sph_system.RunParticleRelaxation())
     {
         //----------------------------------------------------------------------
@@ -237,7 +235,7 @@ int main(int ac, char *av[])
         //  At last, we define the complex relaxations by combining previous defined
         //  inner and contact relations.
         //----------------------------------------------------------------------
-        
+        InnerRelation imported_model_inner(imported_model);
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
