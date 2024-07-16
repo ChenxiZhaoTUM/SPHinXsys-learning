@@ -210,21 +210,22 @@ int main(int ac, char *av[])
     RealBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
     test_body_in.generateParticles<BaseParticles, Lattice>();
-    BodyAlignedBoxByParticle inlet_detection_box(imported_model,
+    BodyAlignedBoxByCell inlet_detection_box(imported_model,
                                              makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
 
     RealBody test_body_out01(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
     test_body_out01.generateParticles<BaseParticles, Lattice>();
-    BodyAlignedBoxByParticle outlet01_detection_box(imported_model,
+    BodyAlignedBoxByCell outlet01_detection_box(imported_model,
                                                 makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
 
     RealBody test_body_out02(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
     test_body_out02.generateParticles<BaseParticles, Lattice>();
-    BodyAlignedBoxByParticle outlet02_detection_box(imported_model,
+    BodyAlignedBoxByCell outlet02_detection_box(imported_model,
                                                 makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
 
+    InnerRelation imported_model_inner(imported_model);
 
     if (sph_system.RunParticleRelaxation())
     {
@@ -236,7 +237,7 @@ int main(int ac, char *av[])
         //  At last, we define the complex relaxations by combining previous defined
         //  inner and contact relations.
         //----------------------------------------------------------------------
-        InnerRelation imported_model_inner(imported_model);
+        
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
@@ -281,10 +282,12 @@ int main(int ac, char *av[])
         return 0;
     }
 
+    imported_model.updateCellLinkedList();
+
     // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByParticle> inlet_particles_detection(inlet_detection_box, xAxis);
-    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByParticle> outlet01_particles_detection(outlet01_detection_box, xAxis);
-    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByParticle> outlet02_particles_detection(outlet02_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
     BodyStatesRecordingToVtp write_body_states(sph_system);
 
