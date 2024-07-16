@@ -96,39 +96,22 @@ public:
                 int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
                 vertices[j] = SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(vertexIndex));
             }
+
             // Generate particles on this triangle face
-            generateParticlesOnFace(vertices);
+            generateParticleAtFaceCenter(vertices);
         }
     }
 
 private:
-    void generateParticlesOnFace(const Vec3d vertices[3])
+    void generateParticleAtFaceCenter(const Vec3d vertices[3])
     {
+        Vec3d face_center = (vertices[0] + vertices[1] + vertices[2]) / 3.0;
         Vec3d edge1 = vertices[1] - vertices[0];
         Vec3d edge2 = vertices[2] - vertices[0];
         double area = 0.5 * edge1.cross(edge2).norm();
-        int num_particles = static_cast<int>(area / (thickness_ * thickness_));
-        double step_size = sqrt(area / num_particles);
 
-        std::vector<Vec3d> particle_positions;
-        particle_positions.reserve(num_particles);
-
-        for (double u = 0; u <= 1.0; u += step_size)
-        {
-            for (double v = 0; u + v <= 1.0; v += step_size)
-            {
-                if (u + v > 1.0) continue;
-
-                Vec3d particle_position = (1 - u - v) * vertices[0] + u * vertices[1] + v * vertices[2];
-                particle_positions.push_back(particle_position);
-            }
-        }
-
-        for (const Vec3d& pos : particle_positions)
-        {
-            initializePositionAndVolumetricMeasure(pos, thickness_ * thickness_);
-            initializeSurfaceProperties(initial_shape_.findNormalDirection(pos), thickness_);
-        }
+        initializePositionAndVolumetricMeasure(face_center, area);
+        initializeSurfaceProperties(initial_shape_.findNormalDirection(face_center), thickness_);
     }
 };
 
@@ -141,7 +124,7 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
     sph_system.setReloadParticles(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
