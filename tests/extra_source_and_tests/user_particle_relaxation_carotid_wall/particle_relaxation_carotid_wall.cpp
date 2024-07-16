@@ -166,8 +166,8 @@ int main(int ac, char *av[])
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files(imported_model);
 
-        ReduceDynamics<MaximumResidueForRelaxation> get_max_residue_for_relaxation(imported_model);
-        ReducedQuantityRecording<MaximumResidueForRelaxation> write_max_residue_for_relaxation(imported_model);
+        //ReduceDynamics<MaximumResidueForRelaxation> get_max_residue_for_relaxation(imported_model);
+        //ReducedQuantityRecording<MaximumResidueForRelaxation> write_max_residue_for_relaxation(imported_model);
 
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
@@ -181,7 +181,7 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        Real max_residue_value = get_max_residue_for_relaxation.exec();
+        /*Real max_residue_value = get_max_residue_for_relaxation.exec();
         while (max_residue_value < 2 * 10e4)
         {
             relaxation_step_inner.exec();
@@ -193,6 +193,17 @@ int main(int ac, char *av[])
                 write_imported_model_to_vtp.writeToFile(ite_p);
             }
             max_residue_value = get_max_residue_for_relaxation.exec();
+        }*/
+
+        while (ite_p < 2000)
+        {
+            relaxation_step_inner.exec();
+            ite_p += 1;
+            if (ite_p % 200 == 0)
+            {
+                std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
+                write_imported_model_to_vtp.writeToFile(ite_p);
+            }
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 

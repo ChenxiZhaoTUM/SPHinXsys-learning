@@ -281,17 +281,17 @@ int main(int ac, char *av[])
         /** A  Physics relaxation step. */
         RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
 
-        //SimpleDynamics<AlignedBoxParticlesDetection> inlet_particles_detection(inlet_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_main_particles_detection(outlet_main_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_left01_particles_detection(outlet_left01_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_left02_particles_detection(outlet_left02_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_left03_particles_detection(outlet_left03_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightF01_particles_detection(outlet_rightF01_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightF02_particles_detection(outlet_rightF02_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightB01_particles_detection(outlet_rightB01_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightB02_particles_detection(outlet_rightB02_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightB03_particles_detection(outlet_rightB03_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightB04_particles_detection(outlet_rightB04_detection_box, xAxis);
+        //SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_main_particles_detection(outlet_main_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_left01_particles_detection(outlet_left01_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_left02_particles_detection(outlet_left02_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_left03_particles_detection(outlet_left03_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightF01_particles_detection(outlet_rightF01_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightF02_particles_detection(outlet_rightF02_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightB01_particles_detection(outlet_rightB01_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightB02_particles_detection(outlet_rightB02_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightB03_particles_detection(outlet_rightB03_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightB04_particles_detection(outlet_rightB04_detection_box, xAxis);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
@@ -322,16 +322,28 @@ int main(int ac, char *av[])
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
         //inlet_particles_detection.exec();
+        //imported_model.updateCellLinkedListWithParticleSort(100);
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_main_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_left01_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_left02_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_left03_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_rightF01_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_rightF02_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_rightB01_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_rightB02_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_rightB03_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_rightB04_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
 
         write_imported_model_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
