@@ -83,21 +83,29 @@ public:
 
     virtual void initializeGeometricVariables() override
     {
-        // Generate particles on the triangle mesh surface
-        int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
+        // Preload vertex positions
+        std::vector<Vec3d> vertex_positions;
+        int num_vertices = mesh_shape_->getTriangleMesh()->getNumVertices();
+        vertex_positions.reserve(num_vertices);
+        for (int i = 0; i < num_vertices; ++i)
+        {
+            vertex_positions.push_back(SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(i)));
+        }
 
+        // Generate particles at the center of each triangle face
+        int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
         std::cout << "num_faces calculation = " << num_faces << std::endl;
 
-        for (int i = 0; i < num_faces; ++i)  // here the interations will be 38292 times that needs to be optimized
+        for (int i = 0; i < num_faces; ++i)
         {
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
                 int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
-                vertices[j] = SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(vertexIndex));
+                vertices[j] = vertex_positions[vertexIndex];
             }
 
-            // Generate particles on this triangle face
+            // Generate particle at the center of this triangle face
             generateParticleAtFaceCenter(vertices);
         }
     }
