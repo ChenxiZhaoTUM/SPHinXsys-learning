@@ -290,8 +290,13 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp write_body_states(sph_system);
 
     inlet_particles_detection.exec();
+    imported_model.updateCellLinkedListWithParticleSort(100);
+
     outlet01_particles_detection.exec();
+    imported_model.updateCellLinkedListWithParticleSort(100);
+
     outlet02_particles_detection.exec();
+    imported_model.updateCellLinkedListWithParticleSort(100);
 
     write_body_states.writeToFile();
     return 0;

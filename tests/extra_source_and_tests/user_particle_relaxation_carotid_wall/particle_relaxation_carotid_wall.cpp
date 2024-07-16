@@ -197,8 +197,11 @@ int main(int ac, char *av[])
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
         inlet_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet01_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         outlet02_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
 
         write_imported_model_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
