@@ -74,7 +74,7 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
-Vec3d inlet_half = Vec3d(2.0 * dp_0, 3.0 * scaling, 3.0 * scaling);
+Vec3d inlet_half = Vec3d(2.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
 Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
 Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 2.0 * dp_0;
 Vec3d inlet_standard_direction(1, 0, 0);
@@ -157,14 +157,18 @@ int main(int ac, char *av[])
         RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-        SimpleDynamics<AlignedBoxParticlesDetection> inlet_particles_detection(inlet_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet01_particles_detection(outlet01_detection_box, xAxis);
-        SimpleDynamics<AlignedBoxParticlesDetection> outlet02_particles_detection(outlet02_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files(imported_model);
+
+        ReduceDynamics<MaximumResidueForRelaxation> get_max_residue_for_relaxation(imported_model);
+        ReducedQuantityRecording<MaximumResidueForRelaxation> write_max_residue_for_relaxation(imported_model);
+
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
@@ -177,15 +181,18 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 500)
+        Real max_residue_value = get_max_residue_for_relaxation.exec();
+        while (max_residue_value < 2 * 10e4)
         {
             relaxation_step_inner.exec();
             ite_p += 1;
-            if (ite_p % 50 == 0)
+            if (ite_p % 100 == 0)
             {
+                write_max_residue_for_relaxation.writeToFile(ite_p);
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
                 write_imported_model_to_vtp.writeToFile(ite_p);
             }
+            max_residue_value = get_max_residue_for_relaxation.exec();
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 

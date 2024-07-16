@@ -29,6 +29,19 @@ Real MaximumSpeed::reduce(size_t index_i, Real dt)
     return vel_[index_i].norm();
 }
 //=================================================================================================//
+MaximumResidueForRelaxation::MaximumResidueForRelaxation(SPHBody &sph_body)
+    : LocalDynamicsReduce<ReduceMax>(sph_body),
+      DataDelegateSimple(sph_body),
+      residue_(*particles_->getVariableByName<Vecd>("ZeroOrderResidue"))
+{
+    quantity_name_ = "MaximumZeroOrderResidue";
+}
+//=================================================================================================//
+Real MaximumResidueForRelaxation::reduce(size_t index_i, Real dt)
+{
+    return residue_[index_i].norm();
+}
+//=================================================================================================//
 PositionLowerBound::PositionLowerBound(SPHBody &sph_body)
     : LocalDynamicsReduce<ReduceLowerBound>(sph_body),
       DataDelegateSimple(sph_body),

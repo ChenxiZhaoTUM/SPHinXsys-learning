@@ -120,6 +120,20 @@ class MaximumSpeed : public LocalDynamicsReduce<ReduceMax>,
     Real reduce(size_t index_i, Real dt = 0.0);
 };
 
+class MaximumResidueForRelaxation : public LocalDynamicsReduce<ReduceMax>,
+                     public DataDelegateSimple
+{
+  protected:
+    StdLargeVec<Vecd> &residue_;
+
+  public:
+    explicit MaximumResidueForRelaxation(SPHBody &sph_body);
+    virtual ~MaximumResidueForRelaxation(){};
+
+    Real reduce(size_t index_i, Real dt = 0.0);
+};
+
+
 /**
  * @class	PositionLowerBound
  * @brief	the lower bound of a body by reduced particle positions.

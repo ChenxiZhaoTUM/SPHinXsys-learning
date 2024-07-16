@@ -90,6 +90,7 @@ int main(int ac, char *av[])
     SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
     /** A  Physics relaxation step. */
     RelaxationStepLevelSetCorrectionInner relaxation_step_inner(imported_model_inner);
+    ReducedQuantityRecording<MaximumResidueForRelaxation> write_max_residue_for_relaxation(imported_model);
     //----------------------------------------------------------------------
     //	Particle relaxation starts here.
     //----------------------------------------------------------------------
@@ -108,6 +109,7 @@ int main(int ac, char *av[])
         ite_p += 1;
         if (ite_p % 100 == 0)
         {
+            write_max_residue_for_relaxation.writeToFile(ite_p);
             std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
             write_imported_model_to_vtp.writeToFile(ite_p);
         }
