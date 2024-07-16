@@ -58,14 +58,14 @@ class ParticleGenerator<FromSTLFile> : public ParticleGenerator<Surface>
 
     const Real thickness_;
     TriangleMeshShapeSTL* mesh_shape_;
+    Shape &initial_shape_;
 
 
 public:
     explicit ParticleGenerator(SPHBody& sph_body, TriangleMeshShapeSTL* mesh_shape) 
         : ParticleGenerator<Surface>(sph_body),
         thickness_(sph_body.sph_adaptation_->ReferenceSpacing()),
-        mesh_shape_(mesh_shape) {};
-    virtual void initializeGeometricVariables() override
+        mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
     {
         if (!mesh_shape_)
         {
@@ -73,6 +73,16 @@ public:
             return;
         }
 
+        if (!initial_shape_.isValid())
+        {
+            std::cout << "\n BaseParticleGeneratorLattice Error: initial_shape_ is invalid." << std::endl;
+            std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+            throw;
+        }
+    }
+
+    virtual void initializeGeometricVariables() override
+    {
         // Generate particles on the triangle mesh surface
         int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
 
@@ -96,7 +106,6 @@ private:
     {
         Vec3d edge1 = vertices[1] - vertices[0];
         Vec3d edge2 = vertices[2] - vertices[0];
-        Vec3d face_normal = edge1.cross(edge2).normalized();
         double area = 0.5 * edge1.cross(edge2).norm();
         int num_particles = static_cast<int>(area / (thickness_ * thickness_));
         double step_size = sqrt(area / num_particles);
@@ -118,7 +127,7 @@ private:
         for (const Vec3d& pos : particle_positions)
         {
             initializePositionAndVolumetricMeasure(pos, thickness_ * thickness_);
-            initializeSurfaceProperties(face_normal, thickness_);
+            initializeSurfaceProperties(initial_shape_.findNormalDirection(pos), thickness_);
         }
     }
 };
