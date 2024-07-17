@@ -18,7 +18,8 @@ std::string full_path_to_file = "./input/carotid_fluid_geo.stl";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
-Real scaling = pow(10, -3);
+//Real scaling = pow(10, -3);
+Real scaling = 1.0;
 Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
 Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 //----------------------------------------------------------------------
@@ -181,7 +182,6 @@ Vec3d outlet_02_standard_direction(1, 0, 0);
 RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
 Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
 
-
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -288,6 +288,7 @@ int main(int ac, char *av[])
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
     BodyStatesRecordingToVtp write_body_states(sph_system);
+    write_body_states.addVariableRecording<Real>(imported_model, "VolumetricMeasure");
 
     inlet_particles_detection.exec();
     imported_model.updateCellLinkedListWithParticleSort(100);
