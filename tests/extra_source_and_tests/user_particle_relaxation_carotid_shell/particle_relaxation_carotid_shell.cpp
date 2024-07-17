@@ -28,7 +28,7 @@ Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 //	Below are common parts for the two test geometries.
 //----------------------------------------------------------------------
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.5 * scaling;
+Real dp_0 = 0.1 * scaling;
 Real thickness = 1.0 * dp_0;
 Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
 //----------------------------------------------------------------------
@@ -120,13 +120,14 @@ public:
 
         Real number_of_particles = total_volume_ / avg_particle_volume_ + 0.5;
         planned_number_of_particles_ = int(number_of_particles);
+        std::cout << "planned_number_of_particles calculation = " << planned_number_of_particles_ << std::endl;
 
         // initialize a uniform distribution between 0 (inclusive) and 1 (exclusive)
         std::mt19937_64 rng;
         std::uniform_real_distribution<Real> unif(0, 1);
 
         // Calculate the interval based on the number of particles.
-        Real interval = planned_number_of_particles_ / (num_faces + TinyReal);  // if particle num > num_faces, every face will generate particles
+        Real interval = planned_number_of_particles_ / (num_faces + TinyReal);  // if particle num >= num_faces, every face will generate particles
         if (interval <= 0)
             interval = 1; // It has to be lager than 0.
 
@@ -143,7 +144,11 @@ public:
             if (random_real <= interval && base_particles_.total_real_particles_ < planned_number_of_particles_)
             {
                 // Generate particle at the center of this triangle face
-                generateParticleAtFaceCenter(vertices, avg_particle_volume_/thickness_);
+                //generateParticleAtFaceCenter(vertices, avg_particle_volume_/thickness_);
+                
+                // Generate particles on this triangle face
+                int particles_per_face = std::max(1, int(planned_number_of_particles_ / num_faces));
+                generateParticlesOnFace(vertices, particles_per_face, avg_particle_volume_/thickness_);
             }
         }
     }
@@ -164,6 +169,25 @@ private:
         initializePositionAndVolumetricMeasure(face_center, avg_particle_area);
         initializeSurfaceProperties(initial_shape_.findNormalDirection(face_center), thickness_);
     }
+
+    void generateParticlesOnFace(const Vec3d vertices[3], int particles_per_face, Real avg_particle_area)
+    {
+        for (int k = 0; k < particles_per_face; ++k)
+        {
+            Real u = static_cast<Real>(rand()) / static_cast<Real>(RAND_MAX);
+            Real v = static_cast<Real>(rand()) / static_cast<Real>(RAND_MAX);
+
+            if (u + v > 1.0) {
+                u = 1.0 - u;
+                v = 1.0 - v;
+            }
+            Vec3d particle_position = (1 - u - v) * vertices[0] + u * vertices[1] + v * vertices[2];
+
+            initializePositionAndVolumetricMeasure(particle_position, avg_particle_area);
+            initializeSurfaceProperties(initial_shape_.findNormalDirection(particle_position), thickness_);
+        }
+    }
+
 };
 
 struct RotationResult
@@ -339,14 +363,14 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp write_body_states(sph_system);
     write_body_states.addVariableRecording<Real>(imported_model, "VolumetricMeasure");
 
-    inlet_particles_detection.exec();
+    /*inlet_particles_detection.exec();
     imported_model.updateCellLinkedListWithParticleSort(100);
 
     outlet01_particles_detection.exec();
     imported_model.updateCellLinkedListWithParticleSort(100);
 
     outlet02_particles_detection.exec();
-    imported_model.updateCellLinkedListWithParticleSort(100);
+    imported_model.updateCellLinkedListWithParticleSort(100);*/
 
     write_body_states.writeToFile();
     return 0;
