@@ -28,10 +28,10 @@ Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 //	Below are common parts for the two test geometries.
 //----------------------------------------------------------------------
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.3 * scaling;
-//Real dp_0 = 0.2 * scaling;
+//Real dp_0 = 0.3 * scaling;
+Real dp_0 = 0.2 * scaling;
 Real thickness = 1.0 * dp_0;
-Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
+//Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -51,7 +51,17 @@ public:
 
 private:
     std::unique_ptr<TriangleMeshShapeSTL> mesh_shape_;
+};
 
+
+class ShellShape : public ComplexShape
+{
+public:
+    explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name)
+    {
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
+        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+    }
 };
 
 class FromSTLFile;
@@ -257,7 +267,7 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
     sph_system.setReloadParticles(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
@@ -266,9 +276,9 @@ int main(int ac, char *av[])
     SolidBodyFromMesh solid_body_from_mesh("SolidBodyFromMesh");
     TriangleMeshShapeSTL* mesh_shape = solid_body_from_mesh.getMeshShape();
 
-    RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("SolidBodyFromMesh"));
+    RealBody imported_model(sph_system, makeShared<ShellShape>("ShellShape"));
     imported_model.defineAdaptation<SPHAdaptation>(1.15, 1.0);
-    //imported_model.defineBodyLevelSetShape(level_set_refinement_ratio)->correctLevelSetSign()->writeLevelSet(sph_system);
+    imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
         : imported_model.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
@@ -280,21 +290,21 @@ int main(int ac, char *av[])
     //std::cout << "total_volume: " << total_volume << std::endl;
 
     // aligned box for detect useless inlet and outlet partcles for wall
-    RealBody test_body_in(
+    /*RealBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
-    test_body_in.generateParticles<BaseParticles, Lattice>();
+    test_body_in.generateParticles<BaseParticles, Lattice>();*/
     BodyAlignedBoxByCell inlet_detection_box(imported_model,
                                              makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
 
-    RealBody test_body_out01(
+    /*RealBody test_body_out01(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
-    test_body_out01.generateParticles<BaseParticles, Lattice>();
+    test_body_out01.generateParticles<BaseParticles, Lattice>();*/
     BodyAlignedBoxByCell outlet01_detection_box(imported_model,
                                                 makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
 
-    RealBody test_body_out02(
+    /*RealBody test_body_out02(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
-    test_body_out02.generateParticles<BaseParticles, Lattice>();
+    test_body_out02.generateParticles<BaseParticles, Lattice>();*/
     BodyAlignedBoxByCell outlet02_detection_box(imported_model,
                                                 makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
 
@@ -313,10 +323,15 @@ int main(int ac, char *av[])
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
         using namespace relax_dynamics;
-        SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
+        //SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
         /** A  Physics relaxation step. */
         ShellRelaxationStep relaxation_step_inner(imported_model_inner);
         ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness, cos(Pi / 3.75));
+
+        // here, need a class to switch particles in aligned box to ghost particles (not real particles)
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box, xAxis);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
@@ -325,7 +340,7 @@ int main(int ac, char *av[])
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
-        random_imported_model_particles.exec(0.25);
+        //random_imported_model_particles.exec(0.25);
         relaxation_step_inner.MidSurfaceBounding().exec();
         write_imported_model_to_vtp.writeToFile(0.0);
         imported_model.updateCellLinkedList();
@@ -334,11 +349,11 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 500)
+        while (ite_p < 5000)
         {
             relaxation_step_inner.exec();
             ite_p += 1;
-            if (ite_p % 50 == 0)
+            if (ite_p % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
                 write_imported_model_to_vtp.writeToFile(ite_p);
@@ -347,31 +362,39 @@ int main(int ac, char *av[])
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
         shell_normal_prediction.exec();
+
+        inlet_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
+        outlet01_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
+        outlet02_particles_detection.exec();
+        imported_model.updateCellLinkedListWithParticleSort(100);
         write_imported_model_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
 
         return 0;
     }
 
-    imported_model.updateCellLinkedList();
+    //imported_model.updateCellLinkedList();
 
-    // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
-    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box, xAxis);
-    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
+    //// here, need a class to switch particles in aligned box to ghost particles (not real particles)
+    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
+    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box, xAxis);
+    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
     BodyStatesRecordingToVtp write_body_states(sph_system);
     write_body_states.addVariableRecording<Real>(imported_model, "VolumetricMeasure");
 
-    inlet_particles_detection.exec();
-    imported_model.updateCellLinkedListWithParticleSort(100);
+    //inlet_particles_detection.exec();
+    //imported_model.updateCellLinkedListWithParticleSort(100);
 
-    outlet01_particles_detection.exec();
-    imported_model.updateCellLinkedListWithParticleSort(100);
+    //outlet01_particles_detection.exec();
+    //imported_model.updateCellLinkedListWithParticleSort(100);
 
-    outlet02_particles_detection.exec();
-    imported_model.updateCellLinkedListWithParticleSort(100);
+    //outlet02_particles_detection.exec();
+    //imported_model.updateCellLinkedListWithParticleSort(100);
 
     write_body_states.writeToFile();
+
     return 0;
 }

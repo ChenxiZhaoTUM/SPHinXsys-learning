@@ -9,19 +9,7 @@
 #include "sphinxsys.h"
 using namespace SPH;
 //----------------------------------------------------------------------
-//	Setting for the first geometry.
-//	To use this, please commenting the setting for the second geometry.
-//----------------------------------------------------------------------
-// std::string full_path_to_file = "./input/SPHinXsys.stl";
-//----------------------------------------------------------------------
-//	Basic geometry parameters and numerical setup.
-//----------------------------------------------------------------------
-/*Vec3d domain_lower_bound(-2.3, -0.1, -0.3);
-Vec3d domain_upper_bound(2.3, 4.5, 0.3);
-Vecd translation(0.0, 0.0, 0.0);
-Real scaling = 1.0; */
-//----------------------------------------------------------------------
-//	Setting for the second geometry.
+//	Setting for the geometry.
 //	To use this, please commenting the setting for the first geometry.
 //----------------------------------------------------------------------
 std::string full_path_to_file = "./input/normal_fluid_repair.stl";
@@ -29,7 +17,8 @@ std::string full_path_to_file = "./input/normal_fluid_repair.stl";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
-Real scaling = pow(10, -3);
+//Real scaling = pow(10, -3);
+Real scaling = 1.0;
 Vec3d domain_lower_bound(-375.0 * scaling, 100.0 * scaling, -340 * scaling);
 Vec3d domain_upper_bound(-100.0 * scaling, 360.0 * scaling, 0.0 * scaling);
 //----------------------------------------------------------------------
@@ -39,18 +28,173 @@ BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
 //Real dp_0 = (domain_upper_bound[0] - domain_lower_bound[0]) / 200.0;  // 1.375 * pow(10, -3)
 Real dp_0 = 0.6 * scaling;
 Real thickness = 1.0 * dp_0;
-Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
+//Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
 class SolidBodyFromMesh : public ComplexShape
 {
-  public:
-    explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name)
+public:
+    explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name),
+        mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
+    {
+        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+    }
+
+    TriangleMeshShapeSTL* getMeshShape() const
+    {
+        return mesh_shape_.get();
+    }
+
+private:
+    std::unique_ptr<TriangleMeshShapeSTL> mesh_shape_;
+};
+
+
+class ShellShape : public ComplexShape
+{
+public:
+    explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name)
     {
         add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
         subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
+};
+
+class FromSTLFile;
+template <>
+class ParticleGenerator<FromSTLFile> : public ParticleGenerator<Surface>
+{
+    Real total_volume_;
+    Real particle_spacing_;
+    const Real thickness_;
+    Real avg_particle_volume_;
+    size_t planned_number_of_particles_;
+
+    TriangleMeshShapeSTL* mesh_shape_;
+    Shape &initial_shape_;
+
+public:
+    explicit ParticleGenerator(SPHBody& sph_body, TriangleMeshShapeSTL* mesh_shape) 
+        : ParticleGenerator<Surface>(sph_body),
+        total_volume_(0),
+        particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
+        thickness_(particle_spacing_),
+        avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
+        planned_number_of_particles_(0),
+        mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
+    {
+        if (!mesh_shape_)
+        {
+            std::cerr << "Error: Mesh shape is not set!" << std::endl;
+            return;
+        }
+
+        if (!initial_shape_.isValid())
+        {
+            std::cout << "\n BaseParticleGeneratorLattice Error: initial_shape_ is invalid." << std::endl;
+            std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+            throw;
+        }
+    }
+
+    virtual void initializeGeometricVariables() override
+    {
+        // Preload vertex positions
+        std::vector<Vec3d> vertex_positions;
+        int num_vertices = mesh_shape_->getTriangleMesh()->getNumVertices();
+        vertex_positions.reserve(num_vertices);
+        for (int i = 0; i < num_vertices; ++i)
+        {
+            vertex_positions.push_back(SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(i)));
+        }
+
+        // Generate particles at the center of each triangle face
+        int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
+        std::cout << "num_faces calculation = " << num_faces << std::endl;
+
+        for (int i = 0; i < num_faces; ++i)
+        {
+            Vec3d vertices[3];
+            for (int j = 0; j < 3; ++j)
+            {
+                int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
+                vertices[j] = vertex_positions[vertexIndex];
+            }
+
+            total_volume_ += calculateEachFaceArea(vertices);
+        }
+
+        Real number_of_particles = total_volume_ / avg_particle_volume_ + 0.5;
+        planned_number_of_particles_ = int(number_of_particles);
+        std::cout << "planned_number_of_particles calculation = " << planned_number_of_particles_ << std::endl;
+
+        // initialize a uniform distribution between 0 (inclusive) and 1 (exclusive)
+        std::mt19937_64 rng;
+        std::uniform_real_distribution<Real> unif(0, 1);
+
+        // Calculate the interval based on the number of particles.
+        Real interval = planned_number_of_particles_ / (num_faces + TinyReal);  // if planned_number_of_particles_ >= num_faces, every face will generate particles
+        if (interval <= 0)
+            interval = 1; // It has to be lager than 0.
+
+        for (int i = 0; i < num_faces; ++i)
+        {
+            Vec3d vertices[3];
+            for (int j = 0; j < 3; ++j)
+            {
+                int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
+                vertices[j] = vertex_positions[vertexIndex];
+            }
+
+            Real random_real = unif(rng);
+            if (random_real <= interval && base_particles_.total_real_particles_ < planned_number_of_particles_)
+            {
+                // Generate particle at the center of this triangle face
+                //generateParticleAtFaceCenter(vertices);
+                
+                // Generate particles on this triangle face
+                int particles_per_face = std::max(1, int(planned_number_of_particles_ / num_faces));
+                generateParticlesOnFace(vertices, particles_per_face);
+            }
+        }
+    }
+
+private:
+    Real calculateEachFaceArea(const Vec3d vertices[3])
+    {
+        Vec3d edge1 = vertices[1] - vertices[0];
+        Vec3d edge2 = vertices[2] - vertices[0];
+        Real area = 0.5 * edge1.cross(edge2).norm();
+        return area;
+    }
+
+    void generateParticleAtFaceCenter(const Vec3d vertices[3])
+    {
+        Vec3d face_center = (vertices[0] + vertices[1] + vertices[2]) / 3.0;
+
+        initializePositionAndVolumetricMeasure(face_center, avg_particle_volume_/thickness_);
+        initializeSurfaceProperties(initial_shape_.findNormalDirection(face_center), thickness_);
+    }
+
+    void generateParticlesOnFace(const Vec3d vertices[3], int particles_per_face)
+    {
+        for (int k = 0; k < particles_per_face; ++k)
+        {
+            Real u = static_cast<Real>(rand()) / static_cast<Real>(RAND_MAX);
+            Real v = static_cast<Real>(rand()) / static_cast<Real>(RAND_MAX);
+
+            if (u + v > 1.0) {
+                u = 1.0 - u;
+                v = 1.0 - v;
+            }
+            Vec3d particle_position = (1 - u - v) * vertices[0] + u * vertices[1] + v * vertices[2];
+
+            initializePositionAndVolumetricMeasure(particle_position, avg_particle_volume_/thickness_);
+            initializeSurfaceProperties(initial_shape_.findNormalDirection(particle_position), thickness_);
+        }
+    }
+
 };
 
 struct RotationResult
@@ -88,90 +232,90 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 
 // inlet: R=41.7567, (-203.6015, 204.1509, -135.3577), (0.2987, 0.1312, 0.9445)
-Vec3d inlet_half = Vec3d(0.6 * dp_0, 42.36 * scaling, 42.36 * scaling);
+Vec3d inlet_half = Vec3d(1.5 * dp_0, 42.36 * scaling, 42.36 * scaling);
 Vec3d inlet_normal(-0.2987, -0.1312, -0.9445);
-Vec3d inlet_translation = Vec3d(-203.6015, 204.1509, -135.3577) * scaling + inlet_normal * thickness / 2;
+Vec3d inlet_translation = Vec3d(-203.6015, 204.1509, -135.3577) * scaling + inlet_normal * 1.0 * dp_0;
 Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 // outlet main: R=36.1590, (-172.2628, 205.9036, -19.8868), (0.2678, 0.3191, -0.9084)
 // intersection occurs!!!
-Vec3d outlet_half_main = Vec3d(0.6 * dp_0, 45.0 * scaling, 45.0 * scaling);
+Vec3d outlet_half_main = Vec3d(1.5 * dp_0, 45.0 * scaling, 45.0 * scaling);
 Vec3d outlet_normal_main(-0.2678, -0.3191, 0.9084);
-Vec3d outlet_translation_main = Vec3d(-172.2628, 205.9036, -19.8868) * scaling + outlet_normal_main * thickness / 2;
+Vec3d outlet_translation_main = Vec3d(-172.2628, 205.9036, -19.8868) * scaling + outlet_normal_main * 1.0 * dp_0;
 Vec3d outlet_standard_direction_main(1, 0, 0);
 RotationResult outlet_rotation_result_main = RotationCalculator(outlet_normal_main, outlet_standard_direction_main);
 Rotation3d outlet_rotation_main(outlet_rotation_result_main.angle, outlet_rotation_result_main.axis);
 
 // outlet x_pos 01: R=2.6964, (-207.4362, 136.7848, -252.6892), (0.636, 0.771, -0.022)
-Vec3d outlet_half_left_01 = Vec3d(0.6 * dp_0, 9.0 * scaling, 9.0 * scaling);
+Vec3d outlet_half_left_01 = Vec3d(1.5 * dp_0, 9.0 * scaling, 9.0 * scaling);
 Vec3d outlet_normal_left_01(-0.636, -0.771, 0.022);
-Vec3d outlet_translation_left_01 = Vec3d(-207.4362, 136.7848, -252.6892) * scaling + outlet_normal_left_01 * thickness / 2;
+Vec3d outlet_translation_left_01 = Vec3d(-207.4362, 136.7848, -252.6892) * scaling + outlet_normal_left_01 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_left_01(1, 0, 0);
 RotationResult outlet_rotation_result_left_01 = RotationCalculator(outlet_normal_left_01, outlet_standard_direction_left_01);
 Rotation3d outlet_rotation_left_01(outlet_rotation_result_left_01.angle, outlet_rotation_result_left_01.axis);
 
 // outlet x_pos 02: R=2.8306, (-193.2735, 337.4625, -270.2884), (-0.6714, 0.3331, -0.6620)
-Vec3d outlet_half_left_02 = Vec3d(0.6 * dp_0, 10.0 * scaling, 10.0 * scaling);
+Vec3d outlet_half_left_02 = Vec3d(1.5 * dp_0, 10.0 * scaling, 10.0 * scaling);
 Vec3d outlet_normal_left_02(-0.6714, 0.3331, -0.6620);
-Vec3d outlet_translation_left_02 = Vec3d(-193.2735, 337.4625, -270.2884) * scaling + outlet_normal_left_02 * thickness / 2;
+Vec3d outlet_translation_left_02 = Vec3d(-193.2735, 337.4625, -270.2884) * scaling + outlet_normal_left_02 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_left_02(1, 0, 0);
 RotationResult outlet_rotation_result_left_02 = RotationCalculator(outlet_normal_left_02, outlet_standard_direction_left_02);
 Rotation3d outlet_rotation_left_02(outlet_rotation_result_left_02.angle, outlet_rotation_result_left_02.axis);
 
 // outlet x_pos 03: R=2.2804, (-165.5566, 326.1601, -139.9323), (0.6563, -0.6250, 0.4226)
-Vec3d outlet_half_left_03 = Vec3d(0.6 * dp_0, 9.0 * scaling, 9.0 * scaling);
+Vec3d outlet_half_left_03 = Vec3d(1.5 * dp_0, 9.0 * scaling, 9.0 * scaling);
 Vec3d outlet_normal_left_03(-0.6563, 0.6250, -0.4226);
-Vec3d outlet_translation_left_03 = Vec3d(-165.5566, 326.1601, -139.9323) * scaling + outlet_normal_left_03 * thickness / 2;
+Vec3d outlet_translation_left_03 = Vec3d(-165.5566, 326.1601, -139.9323) * scaling + outlet_normal_left_03 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_left_03(1, 0, 0);
 RotationResult outlet_rotation_result_left_03 = RotationCalculator(outlet_normal_left_03, outlet_standard_direction_left_03);
 Rotation3d outlet_rotation_left_03(outlet_rotation_result_left_03.angle, outlet_rotation_result_left_03.axis);
 
 // outlet x_neg_front 01: R=2.6437, (-307.8, 312.1402, -333.2), (-0.185, -0.967, -0.176)
-Vec3d outlet_half_rightF_01 = Vec3d(0.6 * dp_0, 10.0 * scaling, 10.0 * scaling);
+Vec3d outlet_half_rightF_01 = Vec3d(1.5 * dp_0, 10.0 * scaling, 10.0 * scaling);
 Vec3d outlet_normal_rightF_01(-0.185, -0.967, -0.176);
-Vec3d outlet_translation_rightF_01 = Vec3d(-307.8, 312.1402, -333.2) * scaling + outlet_normal_rightF_01 * thickness / 2;
+Vec3d outlet_translation_rightF_01 = Vec3d(-307.8, 312.1402, -333.2) * scaling + outlet_normal_rightF_01 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_rightF_01(1, 0, 0);
 RotationResult outlet_rotation_result_rightF_01 = RotationCalculator(outlet_normal_rightF_01, outlet_standard_direction_rightF_01);
 Rotation3d outlet_rotation_rightF_01(outlet_rotation_result_rightF_01.angle, outlet_rotation_result_rightF_01.axis);
 
 // outlet x_neg_front 02: R=1.5424, (-369.1252, 235.2617, -193.7022), (-0.501, 0.059, -0.863)
-Vec3d outlet_half_rightF_02 = Vec3d(0.6 * dp_0, 8.0 * scaling, 8.0 * scaling);
+Vec3d outlet_half_rightF_02 = Vec3d(1.5 * dp_0, 8.0 * scaling, 8.0 * scaling);
 Vec3d outlet_normal_rightF_02(-0.501, 0.059, -0.863);
-Vec3d outlet_translation_rightF_02 = Vec3d(-369.1252, 235.2617, -193.7022) * scaling + outlet_normal_rightF_02 * thickness / 2;
+Vec3d outlet_translation_rightF_02 = Vec3d(-369.1252, 235.2617, -193.7022) * scaling + outlet_normal_rightF_02 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_rightF_02(1, 0, 0);
 RotationResult outlet_rotation_result_rightF_02 = RotationCalculator(outlet_normal_rightF_02, outlet_standard_direction_rightF_02);
 Rotation3d outlet_rotation_rightF_02(outlet_rotation_result_rightF_02.angle, outlet_rotation_result_rightF_02.axis);
 
 // outlet x_neg_behind 01: R=1.5743, (-268.3522, 116.0357, -182.4896), (0.325, -0.086, -0.942)
-Vec3d outlet_half_rightB_01 = Vec3d(0.6 * dp_0, 8.0 * scaling, 8.0 * scaling);
+Vec3d outlet_half_rightB_01 = Vec3d(1.5 * dp_0, 8.0 * scaling, 8.0 * scaling);
 Vec3d outlet_normal_rightB_01(0.325, -0.086, -0.942);
-Vec3d outlet_translation_rightB_01 = Vec3d(-268.3522, 116.0357, -182.4896) * scaling + outlet_normal_rightB_01 * thickness / 2;
+Vec3d outlet_translation_rightB_01 = Vec3d(-268.3522, 116.0357, -182.4896) * scaling + outlet_normal_rightB_01 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_rightB_01(1, 0, 0);
 RotationResult outlet_rotation_result_rightB_01 = RotationCalculator(outlet_normal_rightB_01, outlet_standard_direction_rightB_01);
 Rotation3d outlet_rotation_rightB_01(outlet_rotation_result_rightB_01.angle, outlet_rotation_result_rightB_01.axis);
 
 // outlet x_neg_behind 02: R=1.8204, (-329.0846, 180.5258, -274.3232), (-0.1095, 0.9194, -0.3777)
-Vec3d outlet_half_rightB_02 = Vec3d(0.6 * dp_0, 9.0 * scaling, 9.0 * scaling);
+Vec3d outlet_half_rightB_02 = Vec3d(1.5 * dp_0, 9.0 * scaling, 9.0 * scaling);
 Vec3d outlet_normal_rightB_02(-0.1095, 0.9194, -0.3777);
-Vec3d outlet_translation_rightB_02 = Vec3d(-329.0846, 180.5258, -274.3232) * scaling + outlet_normal_rightB_02 * thickness / 2;
+Vec3d outlet_translation_rightB_02 = Vec3d(-329.0846, 180.5258, -274.3232) * scaling + outlet_normal_rightB_02 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_rightB_02(1, 0, 0);
 RotationResult outlet_rotation_result_rightB_02 = RotationCalculator(outlet_normal_rightB_02, outlet_standard_direction_rightB_02);
 Rotation3d outlet_rotation_rightB_02(outlet_rotation_result_rightB_02.angle, outlet_rotation_result_rightB_02.axis);
 
 // outlet x_neg_behind 03: R=1.5491, (-342.1711, 197.1107, -277.8681), (0.1992, 0.5114, -0.8361)
-Vec3d outlet_half_rightB_03 = Vec3d(0.6 * dp_0, 8.0 * scaling, 8.0 * scaling);
+Vec3d outlet_half_rightB_03 = Vec3d(1.5 * dp_0, 8.0 * scaling, 8.0 * scaling);
 Vec3d outlet_normal_rightB_03(0.1992, 0.5114, -0.8361);
-Vec3d outlet_translation_rightB_03 = Vec3d(-342.1711, 197.1107, -277.8681) * scaling + outlet_normal_rightB_03 * thickness / 2;
+Vec3d outlet_translation_rightB_03 = Vec3d(-342.1711, 197.1107, -277.8681) * scaling + outlet_normal_rightB_03 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_rightB_03(1, 0, 0);
 RotationResult outlet_rotation_result_rightB_03 = RotationCalculator(outlet_normal_rightB_03, outlet_standard_direction_rightB_03);
 Rotation3d outlet_rotation_rightB_03(outlet_rotation_result_rightB_03.angle, outlet_rotation_result_rightB_03.axis);
 
 // outlet x_neg_behind 04: R=2.1598, (-362.0112, 200.5693, -253.8417), (0.3694, 0.6067, -0.7044)
-Vec3d outlet_half_rightB_04 = Vec3d(0.6 * dp_0, 9.0 * scaling, 9.0 * scaling);
+Vec3d outlet_half_rightB_04 = Vec3d(1.5 * dp_0, 9.0 * scaling, 9.0 * scaling);
 Vec3d outlet_normal_rightB_04(0.3694, 0.6067, -0.7044);
-Vec3d outlet_translation_rightB_04 = Vec3d(-362.0112, 200.5693, -253.8417) * scaling + outlet_normal_rightB_04 * thickness / 2;
+Vec3d outlet_translation_rightB_04 = Vec3d(-362.0112, 200.5693, -253.8417) * scaling + outlet_normal_rightB_04 * 1.0 * dp_0;
 Vec3d outlet_standard_direction_rightB_04(1, 0, 0);
 RotationResult outlet_rotation_result_rightB_04 = RotationCalculator(outlet_normal_rightB_04, outlet_standard_direction_rightB_04);
 Rotation3d outlet_rotation_rightB_04(outlet_rotation_result_rightB_04.angle, outlet_rotation_result_rightB_04.axis);
@@ -185,23 +329,22 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(true);
+    sph_system.setRunParticleRelaxation(false);
     sph_system.setReloadParticles(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("SolidBodyFromMesh"));
+    SolidBodyFromMesh solid_body_from_mesh("SolidBodyFromMesh");
+    TriangleMeshShapeSTL* mesh_shape = solid_body_from_mesh.getMeshShape();
+
+    RealBody imported_model(sph_system, makeShared<ShellShape>("ShellShape"));
     imported_model.defineAdaptation<SPHAdaptation>(1.15, 1.0);
-    // level set shape is used for particle relaxation
-    //imported_model.defineBodyLevelSetShape()->correctLevelSetSign()
-        //->cleanLevelSet()->writeLevelSet(sph_system);
-    //imported_model.defineBodyLevelSetShape(level_set_refinement_ratio)->correctLevelSetSign()->writeLevelSet(sph_system);
-    imported_model.defineBodyLevelSetShape(level_set_refinement_ratio);
+    imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
-        : imported_model.generateParticles<SurfaceParticles, ThickSurface, Lattice>(thickness);
-
+        : imported_model.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
+    
     /*RealBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
     test_body_in.generateParticles<BaseParticles, Lattice>();*/
@@ -346,7 +489,35 @@ int main(int ac, char *av[])
         return 0;
     }
 
+    imported_model.updateCellLinkedList();
+
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_main_particles_detection(outlet_main_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_left01_particles_detection(outlet_left01_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_left02_particles_detection(outlet_left02_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_left03_particles_detection(outlet_left03_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightF01_particles_detection(outlet_rightF01_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightF02_particles_detection(outlet_rightF02_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB01_particles_detection(outlet_rightB01_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB02_particles_detection(outlet_rightB02_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB03_particles_detection(outlet_rightB03_detection_box, xAxis);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB04_particles_detection(outlet_rightB04_detection_box, xAxis);
+
+
     BodyStatesRecordingToVtp write_body_states(sph_system);
+
+    inlet_particles_detection.exec();
+    outlet_main_particles_detection.exec();
+    outlet_left01_particles_detection.exec();
+    outlet_left02_particles_detection.exec();
+    outlet_left03_particles_detection.exec();
+    outlet_rightF01_particles_detection.exec();
+    outlet_rightF02_particles_detection.exec();
+    outlet_rightB01_particles_detection.exec();
+    outlet_rightB02_particles_detection.exec();
+    outlet_rightB03_particles_detection.exec();
+    outlet_rightB04_particles_detection.exec();
+
     write_body_states.writeToFile();
     return 0;
 }

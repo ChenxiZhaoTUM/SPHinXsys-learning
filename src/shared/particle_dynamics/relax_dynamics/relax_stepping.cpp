@@ -102,7 +102,10 @@ ParticlesInAlignedBoxDetectionByCell::
     : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
       DataDelegateSimple(aligned_box_part.getSPHBody()),
       pos_(*particles_->getVariableByName<Vecd>("Position")),
-      axis_(axis), aligned_box_(aligned_box_part.aligned_box_) {}
+      axis_(axis), aligned_box_(aligned_box_part.aligned_box_) 
+{
+    //std::cout << "Particle num is " << aligned_box_part.getSPHBody().getBaseParticles().total_real_particles_ << std::endl;
+}
 //=================================================================================================//
 void ParticlesInAlignedBoxDetectionByCell::update(size_t index_i, Real dt)
 {
