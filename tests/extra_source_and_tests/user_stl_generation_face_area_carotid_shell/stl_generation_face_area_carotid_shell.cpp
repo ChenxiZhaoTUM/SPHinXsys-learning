@@ -7,8 +7,6 @@
  */
 
 #include "sphinxsys.h"
-#include <numeric>
-
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Setting for the geometry.
@@ -27,7 +25,7 @@ Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 //	Below are common parts for the two test geometries.
 //----------------------------------------------------------------------
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.5 * scaling;
+Real dp_0 = 0.1 * scaling;
 Real thickness = 1.0 * dp_0;
 Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
 //----------------------------------------------------------------------
@@ -57,23 +55,16 @@ class FromSTLFile;
 template <>
 class ParticleGenerator<FromSTLFile> : public ParticleGenerator<Surface>
 {
-    Real total_volume_;
-    Real particle_spacing_;
-    const Real thickness_;
-    Real avg_particle_volume_;
-    size_t planned_number_of_particles_;
 
+    const Real thickness_;
     TriangleMeshShapeSTL* mesh_shape_;
     Shape &initial_shape_;
+
 
 public:
     explicit ParticleGenerator(SPHBody& sph_body, TriangleMeshShapeSTL* mesh_shape) 
         : ParticleGenerator<Surface>(sph_body),
-        total_volume_(0),
-        particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
-        thickness_(particle_spacing_),
-        avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
-        planned_number_of_particles_(0),
+        thickness_(sph_body.sph_adaptation_->ReferenceSpacing()),
         mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
     {
         if (!mesh_shape_)
@@ -114,53 +105,20 @@ public:
                 vertices[j] = vertex_positions[vertexIndex];
             }
 
-            total_volume_ += calculateEachFaceArea(vertices);
-        }
-
-        Real number_of_particles = total_volume_ / avg_particle_volume_ + 0.5;
-        planned_number_of_particles_ = int(number_of_particles);
-
-        // initialize a uniform distribution between 0 (inclusive) and 1 (exclusive)
-        std::mt19937_64 rng;
-        std::uniform_real_distribution<Real> unif(0, 1);
-
-        // Calculate the interval based on the number of particles.
-        Real interval = planned_number_of_particles_ / (num_faces + TinyReal);  // if particle num > num_faces, every face will generate particles
-        if (interval <= 0)
-            interval = 1; // It has to be lager than 0.
-
-        for (int i = 0; i < num_faces; ++i)
-        {
-            Vec3d vertices[3];
-            for (int j = 0; j < 3; ++j)
-            {
-                int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
-                vertices[j] = vertex_positions[vertexIndex];
-            }
-
-            Real random_real = unif(rng);
-            if (random_real <= interval && base_particles_.total_real_particles_ < planned_number_of_particles_)
-            {
-                // Generate particle at the center of this triangle face
-                generateParticleAtFaceCenter(vertices, avg_particle_volume_);
-            }
+            // Generate particle at the center of this triangle face
+            generateParticleAtFaceCenter(vertices);
         }
     }
 
 private:
-    Real calculateEachFaceArea(const Vec3d vertices[3])
-    {
-        Vec3d edge1 = vertices[1] - vertices[0];
-        Vec3d edge2 = vertices[2] - vertices[0];
-        Real area = 0.5 * edge1.cross(edge2).norm();
-        return area;
-    }
-
-    void generateParticleAtFaceCenter(const Vec3d vertices[3], Real avg_particle_volume)
+    void generateParticleAtFaceCenter(const Vec3d vertices[3])
     {
         Vec3d face_center = (vertices[0] + vertices[1] + vertices[2]) / 3.0;
+        Vec3d edge1 = vertices[1] - vertices[0];
+        Vec3d edge2 = vertices[2] - vertices[0];
+        double area = 0.5 * edge1.cross(edge2).norm();
 
-        initializePositionAndVolumetricMeasure(face_center, avg_particle_volume);
+        initializePositionAndVolumetricMeasure(face_center, area);
         initializeSurfaceProperties(initial_shape_.findNormalDirection(face_center), thickness_);
     }
 };
@@ -249,13 +207,6 @@ int main(int ac, char *av[])
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
         : imported_model.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
     
-    //auto shell_particles = dynamic_cast<SurfaceParticles *>(&imported_model.getBaseParticles());
-    //// test volume
-    //StdLargeVec<Real> &Vol_ = *shell_particles->getVariableByName<Real>("VolumetricMeasure");
-    //Real total_volume = std::accumulate(Vol_.begin(), Vol_.end(), 0.0);
-    //std::cout << "total_volume: " << total_volume << std::endl;
-
-    // aligned box for detect useless inlet and outlet partcles for wall
     RealBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
     test_body_in.generateParticles<BaseParticles, Lattice>();
@@ -337,7 +288,6 @@ int main(int ac, char *av[])
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
     BodyStatesRecordingToVtp write_body_states(sph_system);
-    //write_body_states.addVariableRecording<Real>(imported_model, "Density");
 
     inlet_particles_detection.exec();
     imported_model.updateCellLinkedListWithParticleSort(100);

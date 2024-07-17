@@ -196,7 +196,8 @@ int main(int ac, char *av[])
     // level set shape is used for particle relaxation
     //imported_model.defineBodyLevelSetShape()->correctLevelSetSign()
         //->cleanLevelSet()->writeLevelSet(sph_system);
-    imported_model.defineBodyLevelSetShape(level_set_refinement_ratio)->correctLevelSetSign()->writeLevelSet(sph_system);
+    //imported_model.defineBodyLevelSetShape(level_set_refinement_ratio)->correctLevelSetSign()->writeLevelSet(sph_system);
+    imported_model.defineBodyLevelSetShape(level_set_refinement_ratio);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
         : imported_model.generateParticles<SurfaceParticles, ThickSurface, Lattice>(thickness);
