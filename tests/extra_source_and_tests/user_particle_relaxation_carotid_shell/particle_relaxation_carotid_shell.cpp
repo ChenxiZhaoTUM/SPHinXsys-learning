@@ -20,7 +20,8 @@ std::string full_path_to_file = "./input/carotid_fluid_geo.stl";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
-Real scaling = pow(10, -3);
+//Real scaling = pow(10, -3);
+Real scaling = 1.0;
 Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
 Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 //----------------------------------------------------------------------
@@ -142,7 +143,7 @@ public:
             if (random_real <= interval && base_particles_.total_real_particles_ < planned_number_of_particles_)
             {
                 // Generate particle at the center of this triangle face
-                generateParticleAtFaceCenter(vertices, avg_particle_volume_);
+                generateParticleAtFaceCenter(vertices, avg_particle_volume_/thickness_);
             }
         }
     }
@@ -156,11 +157,11 @@ private:
         return area;
     }
 
-    void generateParticleAtFaceCenter(const Vec3d vertices[3], Real avg_particle_volume)
+    void generateParticleAtFaceCenter(const Vec3d vertices[3], Real avg_particle_area)
     {
         Vec3d face_center = (vertices[0] + vertices[1] + vertices[2]) / 3.0;
 
-        initializePositionAndVolumetricMeasure(face_center, avg_particle_volume);
+        initializePositionAndVolumetricMeasure(face_center, avg_particle_area);
         initializeSurfaceProperties(initial_shape_.findNormalDirection(face_center), thickness_);
     }
 };
@@ -337,7 +338,7 @@ int main(int ac, char *av[])
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
     BodyStatesRecordingToVtp write_body_states(sph_system);
-    //write_body_states.addVariableRecording<Real>(imported_model, "Density");
+    write_body_states.addVariableRecording<Real>(imported_model, "VolumetricMeasure");
 
     inlet_particles_detection.exec();
     imported_model.updateCellLinkedListWithParticleSort(100);
