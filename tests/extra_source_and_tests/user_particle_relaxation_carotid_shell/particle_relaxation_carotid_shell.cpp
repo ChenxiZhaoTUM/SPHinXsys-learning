@@ -116,6 +116,8 @@ public:
         int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
         std::cout << "num_faces calculation = " << num_faces << std::endl;
 
+        // Calculate total volume
+        std::vector<Real> face_areas(num_faces);
         for (int i = 0; i < num_faces; ++i)
         {
             Vec3d vertices[3];
@@ -125,7 +127,9 @@ public:
                 vertices[j] = vertex_positions[vertexIndex];
             }
 
-            total_volume_ += calculateEachFaceArea(vertices);
+            Real each_area = calculateEachFaceArea(vertices);
+            face_areas[i] = each_area;
+            total_volume_ += each_area;
         }
 
         Real number_of_particles = total_volume_ / avg_particle_volume_ + 0.5;
@@ -154,10 +158,10 @@ public:
             if (random_real <= interval && base_particles_.total_real_particles_ < planned_number_of_particles_)
             {
                 // Generate particle at the center of this triangle face
-                //generateParticleAtFaceCenter(vertices);
+                // generateParticleAtFaceCenter(vertices);
                 
-                // Generate particles on this triangle face
-                int particles_per_face = std::max(1, int(planned_number_of_particles_ / num_faces));
+                // Generate particles on this triangle face, unequal
+                int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / total_volume_)));
                 generateParticlesOnFace(vertices, particles_per_face);
             }
         }
@@ -197,7 +201,6 @@ private:
             initializeSurfaceProperties(initial_shape_.findNormalDirection(particle_position), thickness_);
         }
     }
-
 };
 
 struct RotationResult
