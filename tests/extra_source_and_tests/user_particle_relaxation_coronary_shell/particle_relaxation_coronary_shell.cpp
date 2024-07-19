@@ -7,6 +7,8 @@
  */
 
 #include "sphinxsys.h"
+#include <execution>
+
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Setting for the geometry.
@@ -113,18 +115,27 @@ public:
         int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
         std::cout << "num_faces calculation = " << num_faces << std::endl;
 
-        for (int i = 0; i < num_faces; ++i)
-        {
-            Vec3d vertices[3];
-            for (int j = 0; j < 3; ++j)
+        std::vector<Real> face_areas(num_faces);
+
+        // Parallel computation of face areas
+        parallel_for(
+            IndexRange(0, num_faces, 10000),
+            [&](const IndexRange &r)
             {
-                int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
-                vertices[j] = vertex_positions[vertexIndex];
-            }
+                for (size_t i = r.begin(); i != r.end(); ++i)
+                {
+                    Vec3d vertices[3];
+                    for (int j = 0; j < 3; ++j)
+                    {
+                        int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
+                        vertices[j] = vertex_positions[vertexIndex];
+                    }
+                    face_areas[i] = calculateEachFaceArea(vertices);
+                }
+            },
+            ap);
 
-            total_volume_ += calculateEachFaceArea(vertices);
-        }
-
+        total_volume_ = std::accumulate(face_areas.begin(), face_areas.end(), 0.0);
         Real number_of_particles = total_volume_ / avg_particle_volume_ + 0.5;
         planned_number_of_particles_ = int(number_of_particles);
         std::cout << "planned_number_of_particles calculation = " << planned_number_of_particles_ << std::endl;
@@ -138,26 +149,32 @@ public:
         if (interval <= 0)
             interval = 1; // It has to be lager than 0.
 
-        for (int i = 0; i < num_faces; ++i)
-        {
-            Vec3d vertices[3];
-            for (int j = 0; j < 3; ++j)
+        parallel_for(
+            IndexRange(0, num_faces, 10000),
+            [&](const IndexRange &r)
             {
-                int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
-                vertices[j] = vertex_positions[vertexIndex];
-            }
+                for (size_t i = r.begin(); i != r.end(); ++i)
+                {
+                    Vec3d vertices[3];
+                    for (int j = 0; j < 3; ++j)
+                    {
+                        int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
+                        vertices[j] = vertex_positions[vertexIndex];
+                    }
 
-            Real random_real = unif(rng);
-            if (random_real <= interval && base_particles_.total_real_particles_ < planned_number_of_particles_)
-            {
-                // Generate particle at the center of this triangle face
-                //generateParticleAtFaceCenter(vertices);
-                
-                // Generate particles on this triangle face
-                int particles_per_face = std::max(1, int(planned_number_of_particles_ / num_faces));
-                generateParticlesOnFace(vertices, particles_per_face);
-            }
-        }
+                    Real random_real = unif(rng);
+                    if (random_real <= interval && base_particles_.total_real_particles_ < planned_number_of_particles_)
+                    {
+                        // Generate particle at the center of this triangle face
+                        // generateParticleAtFaceCenter(vertices);
+                        
+                        // Generate particles on this triangle face, unequal
+                        int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / total_volume_)));
+                        generateParticlesOnFace(vertices, particles_per_face);
+                    }
+                }
+            },
+            ap);
     }
 
 private:
@@ -194,7 +211,6 @@ private:
             initializeSurfaceProperties(initial_shape_.findNormalDirection(particle_position), thickness_);
         }
     }
-
 };
 
 struct RotationResult
