@@ -98,11 +98,11 @@ void UpdateSmoothingLengthRatioByShape::update(size_t index_i, Real dt_square)
 }
 //=================================================================================================//
 ParticlesInAlignedBoxDetectionByCell::
-    ParticlesInAlignedBoxDetectionByCell(BodyAlignedBoxByCell &aligned_box_part, int axis)
+    ParticlesInAlignedBoxDetectionByCell(BodyAlignedBoxByCell &aligned_box_part)
     : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
       DataDelegateSimple(aligned_box_part.getSPHBody()),
-      pos_(*particles_->getVariableByName<Vecd>("Position")),
-      axis_(axis), aligned_box_(aligned_box_part.aligned_box_) 
+      pos_(*particles_->getVariableDataByName<Vecd>("Position")),
+      aligned_box_(aligned_box_part.getAlignedBoxShape()) 
 {
     //std::cout << "Particle num is " << aligned_box_part.getSPHBody().getBaseParticles().total_real_particles_ << std::endl;
 }
@@ -114,7 +114,7 @@ void ParticlesInAlignedBoxDetectionByCell::update(size_t index_i, Real dt)
             std::cout << "index_i = 1014, " << "unsorted_id = " << particles_->unsorted_id_[index_i] << std::endl;*/
 
     mutex_switch_to_ghost_.lock();
-    while (aligned_box_.checkInBounds(axis_, pos_[index_i]) && index_i < particles_->total_real_particles_)
+    while (aligned_box_.checkInBounds(pos_[index_i]) && index_i < particles_->TotalRealParticles())
     {
         particles_->switchToBufferParticle(index_i);
     }
@@ -122,16 +122,16 @@ void ParticlesInAlignedBoxDetectionByCell::update(size_t index_i, Real dt)
 }
 //=================================================================================================//
 ParticlesInAlignedBoxDetectionByParticle::
-    ParticlesInAlignedBoxDetectionByParticle(BodyAlignedBoxByParticle &aligned_box_part, int axis)
+    ParticlesInAlignedBoxDetectionByParticle(BodyAlignedBoxByParticle &aligned_box_part)
     : BaseLocalDynamics<BodyPartByParticle>(aligned_box_part),
       DataDelegateSimple(aligned_box_part.getSPHBody()),
-      pos_(*particles_->getVariableByName<Vecd>("Position")),
-      axis_(axis), aligned_box_(aligned_box_part.aligned_box_) {}
+      pos_(*particles_->getVariableDataByName<Vecd>("Position")),
+      aligned_box_(aligned_box_part.getAlignedBoxShape()) {}
 //=================================================================================================//
 void ParticlesInAlignedBoxDetectionByParticle::update(size_t index_i, Real dt)
 {
     mutex_switch_to_ghost_.lock();
-    while (aligned_box_.checkInBounds(axis_, pos_[index_i]) && index_i < particles_->total_real_particles_)
+    while (aligned_box_.checkInBounds(pos_[index_i]) && index_i < particles_->TotalRealParticles())
     {
         particles_->switchToBufferParticle(index_i);
     }

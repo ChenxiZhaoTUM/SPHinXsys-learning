@@ -288,7 +288,7 @@ int main(int ac, char *av[])
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
 
     BodyStatesRecordingToVtp write_body_states(sph_system);
-    write_body_states.addVariableRecording<Real>(imported_model, "VolumetricMeasure");
+    write_body_states.addToWrite<Real>(imported_model, "VolumetricMeasure");
 
     inlet_particles_detection.exec();
     imported_model.updateCellLinkedListWithParticleSort(100);

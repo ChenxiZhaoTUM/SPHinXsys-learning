@@ -110,32 +110,32 @@ int main(int ac, char *av[])
     Vec2d test_translation = Vec2d(32.716, 13.854);
     Real test_rotation = -0.8506;
     SolidBody test_up(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation2d(test_rotation), Vec2d(test_translation)), test_half, "TestBody"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(test_rotation), Vec2d(test_translation)), test_half, "TestBody"));
     test_up.defineParticlesAndMaterial<SolidParticles, Solid>();
     test_up.generateParticles<Lattice>();*/
 
     //Vec2d emitter_halfsize = Vec2d(0.5 * BW, 0.5 * 7.0);
     //Vec2d emitter_translation = Vec2d(-0.5 * BW, 0.0);
-    //BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(Transform(Vec2d(emitter_translation)), emitter_halfsize));
+    //BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(emitter_translation)), emitter_halfsize));
 
     //Vec2d disposer_up_halfsize = Vec2d(0.5 * 3.0, 0.5 * BW);
     Vec2d disposer_up_halfsize = Vec2d(0.5 * BW, 0.5 * 10.0);
     Vec2d disposer_up_translation = Vec2d(33.0, 14.2);
     Real disposer_up_rotation = 0.722;
     BodyAlignedBoxByCell disposer_up(
-        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize));
+        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize));
 
     BodyAlignedBoxByCell out_up_detection(
-        wall_boundary, makeShared<AlignedBoxShape>(Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize));
+        wall_boundary, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize));
 
     /*Vec2d disposer_down_halfsize = Vec2d(0.5 * 4.0, 0.5 * BW);
     Vec2d disposer_down_translation = Vec2d(42.0, -9.7);
     Real disposer_down_rotation = 4.3807;
     BodyAlignedBoxByCell disposer_down(
-        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(disposer_down_rotation), Vec2d(disposer_down_translation)), disposer_down_halfsize));*/
+        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(disposer_down_rotation), Vec2d(disposer_down_translation)), disposer_down_halfsize));*/
     
     SolidBody test_up(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize, "TestBody"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize, "TestBody"));
     test_up.generateParticles<BaseParticles, Lattice>();
         
     //----------------------------------------------------------------------
@@ -150,7 +150,7 @@ int main(int ac, char *av[])
         RelaxationStepInner relaxation_step_inner(wall_inner);
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-        SimpleDynamics<AlignedBoxParticlesDetection> out_up_particles_detection(out_up_detection, xAxis);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> out_up_particles_detection(out_up_detection);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_wall_state_to_vtp({wall_boundary});

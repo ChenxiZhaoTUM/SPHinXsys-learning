@@ -32,7 +32,7 @@ Real MaximumSpeed::reduce(size_t index_i, Real dt)
 MaximumResidueForRelaxation::MaximumResidueForRelaxation(SPHBody &sph_body)
     : LocalDynamicsReduce<ReduceMax>(sph_body),
       DataDelegateSimple(sph_body),
-      residue_(*particles_->getVariableByName<Vecd>("ZeroOrderResidue"))
+      residue_(*particles_->getVariableDataByName<Vecd>("ZeroOrderResidue"))
 {
     quantity_name_ = "MaximumZeroOrderResidue";
 }

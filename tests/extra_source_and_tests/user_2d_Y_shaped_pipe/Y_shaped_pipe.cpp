@@ -110,7 +110,7 @@ int main(int ac, char *av[])
     Vec2d test_translation = Vec2d(32.716, 13.854);
     Real test_rotation = -0.8506;
     SolidBody test_up(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation2d(test_rotation), Vec2d(test_translation)), test_half, "TestBody"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(test_rotation), Vec2d(test_translation)), test_half, "TestBody"));
     test_up.defineParticlesAndMaterial<SolidParticles, Solid>();
     test_up.generateParticles<Lattice>();*/
     //----------------------------------------------------------------------
@@ -187,35 +187,35 @@ int main(int ac, char *av[])
 
     Vec2d emitter_halfsize = Vec2d(0.5 * BW, 0.5 * 7.0);
     Vec2d emitter_translation = Vec2d(-0.5 * BW, 0.0);
-    BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(Transform(Vec2d(emitter_translation)), emitter_halfsize));
-    SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, inlet_particle_buffer, xAxis);
+    BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(emitter_translation)), emitter_halfsize));
+    SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, inlet_particle_buffer);
 
     Vec2d inlet_flow_buffer_halfsize = emitter_halfsize;
     Vec2d inlet_flow_buffer_translation = emitter_translation;
-    BodyAlignedBoxByCell inlet_flow_buffer(water_block, makeShared<AlignedBoxShape>(Transform(Vec2d(inlet_flow_buffer_translation)), inlet_flow_buffer_halfsize));
+    BodyAlignedBoxByCell inlet_flow_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(inlet_flow_buffer_translation)), inlet_flow_buffer_halfsize));
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_condition(inlet_flow_buffer);
    
     Vec2d disposer_up_halfsize = Vec2d(0.5 * 3.0, 0.5 * BW);
     Vec2d disposer_up_translation = Vec2d(33.0, 14.2);
     Real disposer_up_rotation = -0.8506;
     BodyAlignedBoxByCell disposer_up(
-        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_up_outflow_deletion(disposer_up, yAxis);
+        water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Rotation2d(disposer_up_rotation), Vec2d(disposer_up_translation)), disposer_up_halfsize));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_up_outflow_deletion(disposer_up);
 
     Vec2d disposer_down_halfsize = Vec2d( 0.5 * 4.0, 0.5 * BW);
     Vec2d disposer_down_translation = Vec2d(42.0, -9.7);
     Real disposer_down_rotation = 4.3807;
     BodyAlignedBoxByCell disposer_down(
-        water_block, makeShared<AlignedBoxShape>(Transform(Rotation2d(disposer_down_rotation), Vec2d(disposer_down_translation)), disposer_down_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_down_outflow_deletion(disposer_down, yAxis);
+        water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Rotation2d(disposer_down_rotation), Vec2d(disposer_down_translation)), disposer_down_halfsize));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_down_outflow_deletion(disposer_down);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp write_body_states(sph_system);
-    write_body_states.addVariableRecording<Real>(water_block, "Pressure");
-    write_body_states.addVariableRecording<int>(water_block, "Indicator");
-    write_body_states.addVariableRecording<Real>(water_block, "Density");
+    write_body_states.addToWrite<Real>(water_block, "Pressure");
+    write_body_states.addToWrite<int>(water_block, "Indicator");
+    write_body_states.addToWrite<Real>(water_block, "Density");
 
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalKineticEnergy>>
         write_water_kinetic_energy(water_block);

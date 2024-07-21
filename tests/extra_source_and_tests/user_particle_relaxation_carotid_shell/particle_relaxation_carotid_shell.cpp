@@ -66,7 +66,7 @@ public:
 
 class FromSTLFile;
 template <>
-class ParticleGenerator<FromSTLFile> : public ParticleGenerator<Surface>
+class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerator<SurfaceParticles>
 {
     Real total_volume_;
     Real particle_spacing_;
@@ -78,8 +78,8 @@ class ParticleGenerator<FromSTLFile> : public ParticleGenerator<Surface>
     Shape &initial_shape_;
 
 public:
-    explicit ParticleGenerator(SPHBody& sph_body, TriangleMeshShapeSTL* mesh_shape) 
-        : ParticleGenerator<Surface>(sph_body),
+    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape) 
+        : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
         total_volume_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
         thickness_(particle_spacing_),
@@ -101,7 +101,7 @@ public:
         }
     }
 
-    virtual void initializeGeometricVariables() override
+    virtual void prepareGeometricData() override
     {
         // Preload vertex positions
         std::vector<Vec3d> vertex_positions;
@@ -155,7 +155,7 @@ public:
             }
 
             Real random_real = unif(rng);
-            if (random_real <= interval && base_particles_.total_real_particles_ < planned_number_of_particles_)
+            if (random_real <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
             {
                 // Generate particle at the center of this triangle face
                 // generateParticleAtFaceCenter(vertices);
@@ -180,8 +180,8 @@ private:
     {
         Vec3d face_center = (vertices[0] + vertices[1] + vertices[2]) / 3.0;
 
-        initializePositionAndVolumetricMeasure(face_center, avg_particle_volume_/thickness_);
-        initializeSurfaceProperties(initial_shape_.findNormalDirection(face_center), thickness_);
+        addPositionAndVolumetricMeasure(face_center, avg_particle_volume_/thickness_);
+        addSurfaceProperties(initial_shape_.findNormalDirection(face_center), thickness_);
     }
 
     void generateParticlesOnFace(const Vec3d vertices[3], int particles_per_face)
@@ -197,8 +197,8 @@ private:
             }
             Vec3d particle_position = (1 - u - v) * vertices[0] + u * vertices[1] + v * vertices[2];
 
-            initializePositionAndVolumetricMeasure(particle_position, avg_particle_volume_/thickness_);
-            initializeSurfaceProperties(initial_shape_.findNormalDirection(particle_position), thickness_);
+            addPositionAndVolumetricMeasure(particle_position, avg_particle_volume_/thickness_);
+            addSurfaceProperties(initial_shape_.findNormalDirection(particle_position), thickness_);
         }
     }
 };
@@ -288,28 +288,28 @@ int main(int ac, char *av[])
     
     //auto shell_particles = dynamic_cast<SurfaceParticles *>(&imported_model.getBaseParticles());
     //// test volume
-    //StdLargeVec<Real> &Vol_ = *shell_particles->getVariableByName<Real>("VolumetricMeasure");
+    //StdLargeVec<Real> &Vol_ = *shell_particles->getVariableDataByName<Real>("VolumetricMeasure");
     //Real total_volume = std::accumulate(Vol_.begin(), Vol_.end(), 0.0);
     //std::cout << "total_volume: " << total_volume << std::endl;
 
     // aligned box for detect useless inlet and outlet partcles for wall
     /*RealBody test_body_in(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
     test_body_in.generateParticles<BaseParticles, Lattice>();*/
     BodyAlignedBoxByCell inlet_detection_box(imported_model,
-                                             makeShared<AlignedBoxShape>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
 
     /*RealBody test_body_out01(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
     test_body_out01.generateParticles<BaseParticles, Lattice>();*/
     BodyAlignedBoxByCell outlet01_detection_box(imported_model,
-                                                makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
+                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
 
     /*RealBody test_body_out02(
-        sph_system, makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
     test_body_out02.generateParticles<BaseParticles, Lattice>();*/
     BodyAlignedBoxByCell outlet02_detection_box(imported_model,
-                                                makeShared<AlignedBoxShape>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
+                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
 
     if (sph_system.RunParticleRelaxation())
     {
@@ -332,9 +332,9 @@ int main(int ac, char *av[])
         ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness, cos(Pi / 3.75));
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
-        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box, xAxis);
-        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
@@ -381,12 +381,12 @@ int main(int ac, char *av[])
     //imported_model.updateCellLinkedList();
 
     //// here, need a class to switch particles in aligned box to ghost particles (not real particles)
-    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box, xAxis);
-    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box, xAxis);
-    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box, xAxis);
+    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
+    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box);
+    //SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);
 
     BodyStatesRecordingToVtp write_body_states(sph_system);
-    write_body_states.addVariableRecording<Real>(imported_model, "VolumetricMeasure");
+    write_body_states.addToWrite<Real>(imported_model, "VolumetricMeasure");
 
     //inlet_particles_detection.exec();
     //imported_model.updateCellLinkedListWithParticleSort(100);

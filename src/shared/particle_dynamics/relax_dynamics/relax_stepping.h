@@ -190,7 +190,7 @@ using RelaxationStepLevelSetCorrectionComplex = RelaxationStep<ComplexInteractio
 class ParticlesInAlignedBoxDetectionByCell : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
 {
   public:
-    ParticlesInAlignedBoxDetectionByCell(BodyAlignedBoxByCell &aligned_box_part, int axis);
+    ParticlesInAlignedBoxDetectionByCell(BodyAlignedBoxByCell &aligned_box_part);
     virtual ~ParticlesInAlignedBoxDetectionByCell(){};
 
     void update(size_t index_i, Real dt = 0.0);
@@ -198,7 +198,6 @@ class ParticlesInAlignedBoxDetectionByCell : public BaseLocalDynamics<BodyPartBy
   protected:
     std::mutex mutex_switch_to_ghost_; /**< mutex exclusion for memory conflict */
     StdLargeVec<Vecd> &pos_;
-    const int axis_; /**< the axis direction for bounding*/
     AlignedBoxShape &aligned_box_;
 };
 
@@ -206,7 +205,7 @@ class ParticlesInAlignedBoxDetectionByCell : public BaseLocalDynamics<BodyPartBy
 class ParticlesInAlignedBoxDetectionByParticle : public BaseLocalDynamics<BodyPartByParticle>, public DataDelegateSimple
 {
   public:
-    ParticlesInAlignedBoxDetectionByParticle(BodyAlignedBoxByParticle &aligned_box_part, int axis);
+    ParticlesInAlignedBoxDetectionByParticle(BodyAlignedBoxByParticle &aligned_box_part);
     virtual ~ParticlesInAlignedBoxDetectionByParticle(){};
 
     void update(size_t index_i, Real dt = 0.0);
@@ -214,7 +213,6 @@ class ParticlesInAlignedBoxDetectionByParticle : public BaseLocalDynamics<BodyPa
   protected:
     std::mutex mutex_switch_to_ghost_; /**< mutex exclusion for memory conflict */
     StdLargeVec<Vecd> &pos_;
-    const int axis_; /**< the axis direction for bounding*/
     AlignedBoxShape &aligned_box_;
 };
 
