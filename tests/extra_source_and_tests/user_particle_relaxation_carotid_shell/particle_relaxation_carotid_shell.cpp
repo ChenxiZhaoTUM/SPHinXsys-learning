@@ -103,18 +103,29 @@ public:
 
     virtual void prepareGeometricData() override
     {
+        
         // Preload vertex positions
-        std::vector<Vec3d> vertex_positions;
+        std::vector<std::array<Real, 3>> vertex_positions;
         int num_vertices = mesh_shape_->getTriangleMesh()->getNumVertices();
         vertex_positions.reserve(num_vertices);
-        for (int i = 0; i < num_vertices; ++i)
+        for (int i = 0; i < num_vertices; i++)
         {
-            vertex_positions.push_back(SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(i)));
+            const auto &p = mesh_shape_->getTriangleMesh()->getVertexPosition(i);
+            vertex_positions.push_back({Real(p[0]), Real(p[1]), Real(p[2])});
         }
 
-        // Generate particles at the center of each triangle face
+        // Preload face
+        std::vector<std::array<int, 3>> faces;
         int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
         std::cout << "num_faces calculation = " << num_faces << std::endl;
+        faces.reserve(num_faces);
+        for (int i = 0; i < num_faces; i++)
+        {
+            auto f1 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 0);
+            auto f2 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 1);
+            auto f3 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 2);
+            faces.push_back({f1, f2, f3});
+        }
 
         // Calculate total volume
         std::vector<Real> face_areas(num_faces);
@@ -123,8 +134,8 @@ public:
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
-                vertices[j] = vertex_positions[vertexIndex];
+                const auto& pos = vertex_positions[faces[i][j]];
+                vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
             }
 
             Real each_area = calculateEachFaceArea(vertices);
@@ -150,8 +161,8 @@ public:
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
-                vertices[j] = vertex_positions[vertexIndex];
+                const auto& pos = vertex_positions[faces[i][j]];
+                vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
             }
 
             Real random_real = unif(rng);
