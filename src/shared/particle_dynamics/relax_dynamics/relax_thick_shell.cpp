@@ -5,6 +5,18 @@ namespace SPH
 namespace relax_dynamics
 {
 //=================================================================================================//
+OnSurfaceBounding::OnSurfaceBounding(RealBody &real_body_)
+    : LocalDynamics(real_body_), DataDelegateSimple(real_body_),
+      pos_(*particles_->getVariableDataByName<Vecd>("Position"))
+{
+    shape_ = &real_body_.getInitialShape();
+}
+//=================================================================================================//
+void OnSurfaceBounding::update(size_t index_i, Real dt)
+{
+    pos_[index_i] = shape_->findClosestPoint(pos_[index_i]);
+}
+//=================================================================================================//
 ShellMidSurfaceBounding::ShellMidSurfaceBounding(NearShapeSurface &body_part)
     : BaseLocalDynamics<BodyPartByCell>(body_part), DataDelegateSimple(body_part.getSPHBody()),
       pos_(*particles_->getVariableDataByName<Vecd>("Position")),
@@ -185,6 +197,24 @@ void ShellRelaxationStep::exec(Real ite_p)
     Real scaling = relaxation_scaling_.exec();
     position_relaxation_.exec(scaling);
     mid_surface_bounding_.exec();
+}
+//=================================================================================================//
+SurfaceRelaxationStep::SurfaceRelaxationStep(BaseInnerRelation &inner_relation)
+    : BaseDynamics<void>(inner_relation.getSPHBody()),
+      real_body_(DynamicCast<RealBody>(this, inner_relation.getSPHBody())),
+      inner_relation_(inner_relation),
+      relaxation_residue_(inner_relation),
+      relaxation_scaling_(real_body_), position_relaxation_(real_body_),
+      on_surface_bounding_(real_body_) {}
+//=================================================================================================//
+void SurfaceRelaxationStep::exec(Real ite_p)
+{
+    real_body_.updateCellLinkedList();
+    inner_relation_.updateConfiguration();
+    relaxation_residue_.exec();
+    Real scaling = relaxation_scaling_.exec();
+    position_relaxation_.exec(scaling);
+    on_surface_bounding_.exec();
 }
 //=================================================================================================//
 } // namespace relax_dynamics

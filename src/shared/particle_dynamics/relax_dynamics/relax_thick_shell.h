@@ -41,6 +41,19 @@ class LevelSetShape;
 
 namespace relax_dynamics
 {
+class OnSurfaceBounding : public LocalDynamics,
+                          public DataDelegateSimple
+{
+  public:
+    OnSurfaceBounding(RealBody &real_body_);
+    virtual ~OnSurfaceBounding(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    StdLargeVec<Vecd> &pos_;
+    Shape *shape_;
+};
+
 /**
  * @class ShellMidSurfaceBounding
  * @brief constrain particles by constraining particles to mid-surface.
@@ -174,6 +187,24 @@ class ShellRelaxationStep : public BaseDynamics<void>
     SimpleDynamics<PositionRelaxation> position_relaxation_;
     SimpleDynamics<ShellMidSurfaceBounding> mid_surface_bounding_;
 };
+
+class SurfaceRelaxationStep : public BaseDynamics<void>
+{
+  public:
+    explicit SurfaceRelaxationStep(BaseInnerRelation &inner_relation);
+    virtual ~SurfaceRelaxationStep(){};
+    virtual void exec(Real dt = 0.0) override;
+    SimpleDynamics<OnSurfaceBounding> &getOnSurfaceBounding() { return on_surface_bounding_; };
+
+  protected:
+    RealBody &real_body_;
+    BaseInnerRelation &inner_relation_;
+    InteractionDynamics<RelaxationResidue<Inner<>>> relaxation_residue_;
+    ReduceDynamics<RelaxationScaling> relaxation_scaling_;
+    SimpleDynamics<PositionRelaxation> position_relaxation_;
+    SimpleDynamics<OnSurfaceBounding> on_surface_bounding_;
+};
+
 } // namespace relax_dynamics
 } // namespace SPH
 #endif // RELAX_THICK_SHELL_H
