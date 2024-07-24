@@ -7,7 +7,7 @@
  */
 
 #include "sphinxsys.h"
-#include "base64.h"
+#include "base64_tobiaslocker.hpp"
 
 using namespace SPH;
 //----------------------------------------------------------------------
@@ -112,49 +112,56 @@ public:
         }
 
         std::string line;
-        bool points_section = false;
-        bool connectivity_section = false;
-        std::string base64_data;
         size_t points_offset = 0;
-        size_t connectivity_offset = 0;
+        size_t polys_connectivity_offset = 0;
+        size_t polys_offset = 0;
+        std::string base64_data;
+        size_t number_of_points = 0;
+        size_t number_of_polys = 0;
 
-        while (std::getline(vtp_file, line)) 
+        while (std::getline(vtp_file, line))
         {
-            if (line.find("<Points>") != std::string::npos) 
+            if (line.find("NumberOfPoints=") != std::string::npos)
             {
-                points_section = true;
-            } 
-            else if (line.find("</Points>") != std::string::npos) 
+                size_t pos = line.find("NumberOfPoints=") + 16;
+                number_of_points = std::stoul(line.substr(pos));
+            }
+            if (line.find("NumberOfPolys=") != std::string::npos)
             {
-                points_section = false;
-            } 
-            else if (points_section && line.find("<DataArray") != std::string::npos && line.find("Float32") != std::string::npos) 
+                size_t pos = line.find("NumberOfPolys=") + 15;
+                number_of_polys = std::stoul(line.substr(pos));
+            }
+            if (line.find("<Points>") != std::string::npos)
             {
-                size_t pos = line.find("offset=");
-                if (pos != std::string::npos) 
+                while (std::getline(vtp_file, line) && line.find("</Points>") == std::string::npos)
                 {
-                    points_offset = std::stoul(line.substr(pos + 8));
+                    if (line.find("offset=") != std::string::npos)
+                    {
+                        size_t pos = line.find("offset=") + 8;
+                        points_offset = std::stoul(line.substr(pos));
+                    }
                 }
-            } 
-            else if (line.find("<Polys>") != std::string::npos) 
+            }
+            if (line.find("<Polys>") != std::string::npos)
             {
-                connectivity_section = true;
-            } 
-            else if (line.find("</Polys>") != std::string::npos) 
-            {
-                connectivity_section = false;
-            } 
-            else if (connectivity_section && line.find("<DataArray") != std::string::npos && line.find("connectivity") != std::string::npos) 
-            {
-                size_t pos = line.find("offset=");
-                if (pos != std::string::npos) {
-                    connectivity_offset = std::stoul(line.substr(pos + 8));
+                while (std::getline(vtp_file, line) && line.find("</Polys>") == std::string::npos)
+                {
+                    if (line.find("connectivity") != std::string::npos && line.find("offset=") != std::string::npos)
+                    {
+                        size_t pos = line.find("offset=") + 8;
+                        polys_connectivity_offset = std::stoul(line.substr(pos));
+                    }
+                    else if (line.find("offsets") != std::string::npos && line.find("offset=") != std::string::npos)
+                    {
+                        size_t pos = line.find("offset=") + 8;
+                        polys_offset = std::stoul(line.substr(pos));
+                    }
                 }
-            } 
-            else if (line.find("<AppendedData") != std::string::npos) 
+            }
+            if (line.find("<AppendedData") != std::string::npos)
             {
                 std::getline(vtp_file, line);  // Skip the first line of appended data
-                base64_data = line.substr(1);  // Remove the leading underscore
+                base64_data = line.substr(4);  // Remove the leading underscore
                 break;
             }
         }
@@ -162,19 +169,20 @@ public:
         vtp_file.close();
 
         // Verify base64 data
-        if (base64_data.empty()) 
+        if (base64_data.empty())
         {
             std::cerr << "Error: Base64 data is empty" << std::endl;
             throw std::runtime_error("Base64 data is empty");
         }
 
         std::cout << "Base64 data length: " << base64_data.size() << std::endl;
+        std::cout << base64_data << std::endl;
 
         // Decode base64 data
-        std::string decoded_data = decodeBase64(base64_data);
+        std::string decoded_data = base64::from_base64(base64_data);
 
         // Verify decoded data
-        if (decoded_data.empty()) 
+        if (decoded_data.empty())
         {
             std::cerr << "Error: Decoded data is empty" << std::endl;
             throw std::runtime_error("Decoded data is empty");
@@ -182,13 +190,14 @@ public:
 
         std::cout << "Decoded data length: " << decoded_data.size() << std::endl;
 
-        // parse
+        // parse points
+        std::cout << "points_offset: " << points_offset << std::endl;
         size_t offset = points_offset + sizeof(int);
         std::vector<std::array<float, 3>> points;
-        size_t num_points = (connectivity_offset - points_offset) / (3 * sizeof(float));
-        std::cout << "Number of points: " << num_points << std::endl;
+        std::cout << "Number of points: " << number_of_points << std::endl;
 
-        for (size_t i = 0; i < num_points; ++i) {
+        for (size_t i = 0; i < number_of_points; ++i)
+        {
             float x, y, z;
             std::memcpy(&x, decoded_data.data() + offset, sizeof(float));
             offset += sizeof(float);
@@ -196,38 +205,35 @@ public:
             offset += sizeof(float);
             std::memcpy(&z, decoded_data.data() + offset, sizeof(float));
             offset += sizeof(float);
-            points.push_back({x, y, z});
+            points.push_back({ x, y, z });
         }
 
-        // parse
-        offset = connectivity_offset + sizeof(int);
+        // parse faces
+        std::cout << "polys_connectivity_offset: " << polys_connectivity_offset << std::endl;
+        size_t face_offset = polys_connectivity_offset + sizeof(int);
         std::vector<std::array<int, 3>> faces;
-        size_t num_faces = (decoded_data.size() - connectivity_offset) / (3 * sizeof(int));
-        std::cout << "Number of faces: " << num_faces << std::endl;
+        std::cout << "Number of faces: " << number_of_polys << std::endl;
 
-        for (size_t i = 0; i < num_faces; ++i) 
+        for (size_t i = 0; i < number_of_polys; ++i)
         {
             int v1, v2, v3;
-            std::memcpy(&v1, decoded_data.data() + offset, sizeof(int));
-            offset += sizeof(int);
-            std::memcpy(&v2, decoded_data.data() + offset, sizeof(int));
-            offset += sizeof(int);
-            std::memcpy(&v3, decoded_data.data() + offset, sizeof(int));
-            offset += sizeof(int);
-            faces.push_back({v1, v2, v3});
+            std::memcpy(&v1, decoded_data.data() + face_offset, sizeof(int));
+            face_offset += sizeof(int);
+            std::memcpy(&v2, decoded_data.data() + face_offset, sizeof(int));
+            face_offset += sizeof(int);
+            std::memcpy(&v3, decoded_data.data() + face_offset, sizeof(int));
+            face_offset += sizeof(int);
+            faces.push_back({ v1, v2, v3 });
         }
 
-        std::cout << "Points: " << points.size() << std::endl;
-        std::cout << "Faces: " << faces.size() << std::endl;
-
         // Calculate total volume
-        std::vector<Real> face_areas(num_faces);
-        for (size_t i = 0; i < num_faces; ++i)
+        std::vector<Real> face_areas(number_of_polys);
+        for (size_t i = 0; i < number_of_polys; ++i)
         {
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                const auto& pos = vertex_positions[faces[i][j]];
+                const auto& pos = points[faces[i][j]];
                 vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
             }
 
@@ -254,7 +260,7 @@ public:
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                const auto& pos = vertex_positions[faces[i][j]];
+                const auto& pos = points[faces[i][j]];
                 vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
             }
 
