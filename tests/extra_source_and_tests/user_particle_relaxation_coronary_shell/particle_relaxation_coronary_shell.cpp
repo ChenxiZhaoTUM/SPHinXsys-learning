@@ -7,7 +7,7 @@
  */
 
 #include "sphinxsys.h"
-#include <execution>
+#include "base64.h"
 
 using namespace SPH;
 //----------------------------------------------------------------------
@@ -15,6 +15,7 @@ using namespace SPH;
 //	To use this, please commenting the setting for the first geometry.
 //----------------------------------------------------------------------
 std::string full_path_to_file = "./input/normal_fluid_repair.stl";
+std::string full_path_to_vtp = "./input/normal1_mesh.vtp";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
@@ -40,6 +41,12 @@ public:
     explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name),
         mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
     {
+        if (!mesh_shape_->isValid())
+        {
+            std::cerr << "Error: Failed to load the mesh from file: " << full_path_to_file << std::endl;
+            throw std::runtime_error("Mesh loading failed");
+        }
+
         add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 
@@ -63,35 +70,30 @@ public:
     }
 };
 
-class FromSTLFile;
+class FromVTPFile;
 template <>
-class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerator<SurfaceParticles>
+class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerator<SurfaceParticles>
 {
     Real total_volume_;
     Real particle_spacing_;
     const Real thickness_;
     Real avg_particle_volume_;
     size_t planned_number_of_particles_;
-
-    TriangleMeshShapeSTL* mesh_shape_;
     Shape &initial_shape_;
 
+    std::vector<Vec3d> vertex_positions;
+    std::vector<std::array<int, 3>> faces;
+
 public:
-    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape) 
+    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles) 
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
         total_volume_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
         thickness_(particle_spacing_),
         avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
         planned_number_of_particles_(0),
-        mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
+        initial_shape_(sph_body.getInitialShape()) 
     {
-        if (!mesh_shape_)
-        {
-            std::cerr << "Error: Mesh shape is not set!" << std::endl;
-            return;
-        }
-
         if (!initial_shape_.isValid())
         {
             std::cout << "\n BaseParticleGeneratorLattice Error: initial_shape_ is invalid." << std::endl;
@@ -102,40 +104,138 @@ public:
 
     virtual void prepareGeometricData() override
     {
-        // Preload vertex positions
-        std::vector<Vec3d> vertex_positions;
-        int num_vertices = mesh_shape_->getTriangleMesh()->getNumVertices();
-        vertex_positions.reserve(num_vertices);
-        for (int i = 0; i < num_vertices; ++i)
+        std::ifstream vtp_file(full_path_to_vtp);
+        if (!vtp_file.is_open())
         {
-            vertex_positions.push_back(SimTKToEigen(mesh_shape_->getTriangleMesh()->getVertexPosition(i)));
+            std::cerr << "Error: Failed to open the VTP file: " << full_path_to_vtp << std::endl;
+            throw std::runtime_error("VTP file opening failed");
         }
 
-        // Generate particles at the center of each triangle face
-        int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
-        std::cout << "num_faces calculation = " << num_faces << std::endl;
+        std::string line;
+        bool points_section = false;
+        bool connectivity_section = false;
+        std::string base64_data;
+        size_t points_offset = 0;
+        size_t connectivity_offset = 0;
 
-        std::vector<Real> face_areas(num_faces);
-
-        // Parallel computation of face areas
-        parallel_for(
-            IndexRange(0, num_faces, 10000),
-            [&](const IndexRange &r)
+        while (std::getline(vtp_file, line)) 
+        {
+            if (line.find("<Points>") != std::string::npos) 
             {
-                for (size_t i = r.begin(); i != r.end(); ++i)
+                points_section = true;
+            } 
+            else if (line.find("</Points>") != std::string::npos) 
+            {
+                points_section = false;
+            } 
+            else if (points_section && line.find("<DataArray") != std::string::npos && line.find("Float32") != std::string::npos) 
+            {
+                size_t pos = line.find("offset=");
+                if (pos != std::string::npos) 
                 {
-                    Vec3d vertices[3];
-                    for (int j = 0; j < 3; ++j)
-                    {
-                        int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
-                        vertices[j] = vertex_positions[vertexIndex];
-                    }
-                    face_areas[i] = calculateEachFaceArea(vertices);
+                    points_offset = std::stoul(line.substr(pos + 8));
                 }
-            },
-            ap);
+            } 
+            else if (line.find("<Polys>") != std::string::npos) 
+            {
+                connectivity_section = true;
+            } 
+            else if (line.find("</Polys>") != std::string::npos) 
+            {
+                connectivity_section = false;
+            } 
+            else if (connectivity_section && line.find("<DataArray") != std::string::npos && line.find("connectivity") != std::string::npos) 
+            {
+                size_t pos = line.find("offset=");
+                if (pos != std::string::npos) {
+                    connectivity_offset = std::stoul(line.substr(pos + 8));
+                }
+            } 
+            else if (line.find("<AppendedData") != std::string::npos) 
+            {
+                std::getline(vtp_file, line);  // Skip the first line of appended data
+                base64_data = line.substr(1);  // Remove the leading underscore
+                break;
+            }
+        }
 
-        total_volume_ = std::accumulate(face_areas.begin(), face_areas.end(), 0.0);
+        vtp_file.close();
+
+        // Verify base64 data
+        if (base64_data.empty()) 
+        {
+            std::cerr << "Error: Base64 data is empty" << std::endl;
+            throw std::runtime_error("Base64 data is empty");
+        }
+
+        std::cout << "Base64 data length: " << base64_data.size() << std::endl;
+
+        // Decode base64 data
+        std::string decoded_data = decodeBase64(base64_data);
+
+        // Verify decoded data
+        if (decoded_data.empty()) 
+        {
+            std::cerr << "Error: Decoded data is empty" << std::endl;
+            throw std::runtime_error("Decoded data is empty");
+        }
+
+        std::cout << "Decoded data length: " << decoded_data.size() << std::endl;
+
+        // parse
+        size_t offset = points_offset + sizeof(int);
+        std::vector<std::array<float, 3>> points;
+        size_t num_points = (connectivity_offset - points_offset) / (3 * sizeof(float));
+        std::cout << "Number of points: " << num_points << std::endl;
+
+        for (size_t i = 0; i < num_points; ++i) {
+            float x, y, z;
+            std::memcpy(&x, decoded_data.data() + offset, sizeof(float));
+            offset += sizeof(float);
+            std::memcpy(&y, decoded_data.data() + offset, sizeof(float));
+            offset += sizeof(float);
+            std::memcpy(&z, decoded_data.data() + offset, sizeof(float));
+            offset += sizeof(float);
+            points.push_back({x, y, z});
+        }
+
+        // parse
+        offset = connectivity_offset + sizeof(int);
+        std::vector<std::array<int, 3>> faces;
+        size_t num_faces = (decoded_data.size() - connectivity_offset) / (3 * sizeof(int));
+        std::cout << "Number of faces: " << num_faces << std::endl;
+
+        for (size_t i = 0; i < num_faces; ++i) 
+        {
+            int v1, v2, v3;
+            std::memcpy(&v1, decoded_data.data() + offset, sizeof(int));
+            offset += sizeof(int);
+            std::memcpy(&v2, decoded_data.data() + offset, sizeof(int));
+            offset += sizeof(int);
+            std::memcpy(&v3, decoded_data.data() + offset, sizeof(int));
+            offset += sizeof(int);
+            faces.push_back({v1, v2, v3});
+        }
+
+        std::cout << "Points: " << points.size() << std::endl;
+        std::cout << "Faces: " << faces.size() << std::endl;
+
+        // Calculate total volume
+        std::vector<Real> face_areas(num_faces);
+        for (size_t i = 0; i < num_faces; ++i)
+        {
+            Vec3d vertices[3];
+            for (int j = 0; j < 3; ++j)
+            {
+                const auto& pos = vertex_positions[faces[i][j]];
+                vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
+            }
+
+            Real each_area = calculateEachFaceArea(vertices);
+            face_areas[i] = each_area;
+            total_volume_ += each_area;
+        }
+
         Real number_of_particles = total_volume_ / avg_particle_volume_ + 0.5;
         planned_number_of_particles_ = int(number_of_particles);
         std::cout << "planned_number_of_particles calculation = " << planned_number_of_particles_ << std::endl;
@@ -145,36 +245,30 @@ public:
         std::uniform_real_distribution<Real> unif(0, 1);
 
         // Calculate the interval based on the number of particles.
-        Real interval = planned_number_of_particles_ / (num_faces + TinyReal);  // if planned_number_of_particles_ >= num_faces, every face will generate particles
+        Real interval = planned_number_of_particles_ / (faces.size() + TinyReal);  // if planned_number_of_particles_ >= num_faces, every face will generate particles
         if (interval <= 0)
-            interval = 1; // It has to be lager than 0.
+            interval = 1; // It has to be larger than 0.
 
-        parallel_for(
-            IndexRange(0, num_faces, 10000),
-            [&](const IndexRange &r)
+        for (size_t i = 0; i < faces.size(); ++i)
+        {
+            Vec3d vertices[3];
+            for (int j = 0; j < 3; ++j)
             {
-                for (size_t i = r.begin(); i != r.end(); ++i)
-                {
-                    Vec3d vertices[3];
-                    for (int j = 0; j < 3; ++j)
-                    {
-                        int vertexIndex = mesh_shape_->getTriangleMesh()->getFaceVertex(i, j);
-                        vertices[j] = vertex_positions[vertexIndex];
-                    }
+                const auto& pos = vertex_positions[faces[i][j]];
+                vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
+            }
 
-                    Real random_real = unif(rng);
-                    if (random_real <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
-                    {
-                        // Generate particle at the center of this triangle face
-                        // generateParticleAtFaceCenter(vertices);
-                        
-                        // Generate particles on this triangle face, unequal
-                        int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / total_volume_)));
-                        generateParticlesOnFace(vertices, particles_per_face);
-                    }
-                }
-            },
-            ap);
+            Real random_real = unif(rng);
+            if (random_real <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
+            {
+                // Generate particle at the center of this triangle face
+                // generateParticleAtFaceCenter(vertices);
+
+                // Generate particles on this triangle face, unequal
+                int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / total_volume_)));
+                generateParticlesOnFace(vertices, particles_per_face);
+            }
+        }
     }
 
 private:
@@ -190,7 +284,7 @@ private:
     {
         Vec3d face_center = (vertices[0] + vertices[1] + vertices[2]) / 3.0;
 
-        addPositionAndVolumetricMeasure(face_center, avg_particle_volume_/thickness_);
+        addPositionAndVolumetricMeasure(face_center, avg_particle_volume_ / thickness_);
         addSurfaceProperties(initial_shape_.findNormalDirection(face_center), thickness_);
     }
 
@@ -207,7 +301,7 @@ private:
             }
             Vec3d particle_position = (1 - u - v) * vertices[0] + u * vertices[1] + v * vertices[2];
 
-            addPositionAndVolumetricMeasure(particle_position, avg_particle_volume_/thickness_);
+            addPositionAndVolumetricMeasure(particle_position, avg_particle_volume_ / thickness_);
             addSurfaceProperties(initial_shape_.findNormalDirection(particle_position), thickness_);
         }
     }
@@ -351,15 +445,15 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    SolidBodyFromMesh solid_body_from_mesh("SolidBodyFromMesh");
-    TriangleMeshShapeSTL* mesh_shape = solid_body_from_mesh.getMeshShape();
+    //SolidBodyFromMesh solid_body_from_mesh("SolidBodyFromMesh");
+    //TriangleMeshShapeSTL* mesh_shape = solid_body_from_mesh.getMeshShape();
 
-    RealBody imported_model(sph_system, makeShared<ShellShape>("ShellShape"));
+    RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("ShellShape"));
     imported_model.defineAdaptation<SPHAdaptation>(1.15, 1.0);
-    imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
+    //imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
-        : imported_model.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
+        : imported_model.generateParticles<SurfaceParticles, FromVTPFile>();
     
     /*RealBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
@@ -505,7 +599,7 @@ int main(int ac, char *av[])
         return 0;
     }
 
-    imported_model.updateCellLinkedList();
+    /*imported_model.updateCellLinkedList();
 
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_main_particles_detection(outlet_main_detection_box);
@@ -517,12 +611,12 @@ int main(int ac, char *av[])
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB01_particles_detection(outlet_rightB01_detection_box);
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB02_particles_detection(outlet_rightB02_detection_box);
     SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB03_particles_detection(outlet_rightB03_detection_box);
-    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB04_particles_detection(outlet_rightB04_detection_box);
+    SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB04_particles_detection(outlet_rightB04_detection_box);*/
 
 
     BodyStatesRecordingToVtp write_body_states(sph_system);
 
-    inlet_particles_detection.exec();
+    /*inlet_particles_detection.exec();
     outlet_main_particles_detection.exec();
     outlet_left01_particles_detection.exec();
     outlet_left02_particles_detection.exec();
@@ -532,7 +626,7 @@ int main(int ac, char *av[])
     outlet_rightB01_particles_detection.exec();
     outlet_rightB02_particles_detection.exec();
     outlet_rightB03_particles_detection.exec();
-    outlet_rightB04_particles_detection.exec();
+    outlet_rightB04_particles_detection.exec();*/
 
     write_body_states.writeToFile();
     return 0;
