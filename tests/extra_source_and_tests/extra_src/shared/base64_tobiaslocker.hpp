@@ -590,35 +590,34 @@ inline OutputBuffer decode_into(std::string_view base64Text) {
   const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&base64Text[0]);
   char* currDecoding = reinterpret_cast<char*>(&decoded[0]);
 
-  for (size_t i = (base64Text.size() >> 2) - (numPadding != 0); i; --i) {
-    const uint8_t t1 = *bytes++;
-    const uint8_t t2 = *bytes++;
-    const uint8_t t3 = *bytes++;
-    const uint8_t t4 = *bytes++;
+  for (size_t i = (base64Text.size() >> 2) - (numPadding != 0); i; --i) 
+  {
+      const uint8_t t1 = *bytes++;
+      const uint8_t t2 = *bytes++;
+      const uint8_t t3 = *bytes++;
+      const uint8_t t4 = *bytes++;
 
-    const uint32_t d1 = detail::decode_table_0[t1];
-    const uint32_t d2 = detail::decode_table_1[t2];
-    const uint32_t d3 = detail::decode_table_2[t3];
-    const uint32_t d4 = detail::decode_table_3[t4];
+      const uint32_t d1 = detail::decode_table_0[t1];
+      const uint32_t d2 = detail::decode_table_1[t2];
+      const uint32_t d3 = (t3 == detail::padding_char) ? 0 : detail::decode_table_2[t3];
+      const uint32_t d4 = (t4 == detail::padding_char) ? 0 : detail::decode_table_3[t4];
 
-    const uint32_t temp = d1 | d2 | d3 | d4;
+      if (d1 == detail::bad_char || d2 == detail::bad_char || d3 == detail::bad_char || d4 == detail::bad_char) 
+      {
+        std::cout << "bad_char is: " << t1 << t2 << t3 << t4 << std::endl;
+        throw std::runtime_error{
+            "Invalid base64 encoded data - Invalid character"};
+      }
 
-    if (temp >= detail::bad_char) {
+      const uint32_t temp = d1 | d2 | d3 | d4;
+      const std::array<char, 4> tempBytes =
+          detail::bit_cast<std::array<char, 4>, uint32_t>(temp);
 
-      std::cout << "bad_char is: " << t1 << t2 << t3 << t4 << std::endl;
-      throw std::runtime_error{
-          "Invalid base64 encoded data - Invalid character"};
-    }
-
-    // Use bit_cast instead of union and type punning to avoid
-    // undefined behaviour risk:
-    // https://en.wikipedia.org/wiki/Type_punning#Use_of_union
-    const std::array<char, 4> tempBytes =
-        detail::bit_cast<std::array<char, 4>, uint32_t>(temp);
-
-    *currDecoding++ = tempBytes[detail::decidx0];
-    *currDecoding++ = tempBytes[detail::decidx1];
-    *currDecoding++ = tempBytes[detail::decidx2];
+      *currDecoding++ = tempBytes[detail::decidx0];
+      *currDecoding++ = tempBytes[detail::decidx1];
+      if (t3 != detail::padding_char) {
+        *currDecoding++ = tempBytes[detail::decidx2];
+      }
   }
 
   switch (numPadding) {
