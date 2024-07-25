@@ -74,6 +74,14 @@ class FromVTPFile;
 template <>
 class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerator<SurfaceParticles>
 {
+    std::string base64_data_;
+    size_t points_offset_;
+    size_t verts_connectivity_offset_;
+    size_t polys_connectivity_offset_;
+    size_t polys_offset_;
+    size_t number_of_points_;
+    size_t number_of_polys_;
+
     Real total_volume_;
     Real particle_spacing_;
     const Real thickness_;
@@ -85,7 +93,7 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
     std::vector<std::array<int, 3>> faces;
 
 public:
-    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles) 
+    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, const std::string &vtp_file_path) 
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
         total_volume_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
@@ -100,135 +108,76 @@ public:
             std::cout << __FILE__ << ':' << __LINE__ << std::endl;
             throw;
         }
+
+        loadVTPFile(vtp_file_path);
     }
 
     virtual void prepareGeometricData() override
     {
-        std::ifstream vtp_file(full_path_to_vtp);
-        if (!vtp_file.is_open())
-        {
-            std::cerr << "Error: Failed to open the VTP file: " << full_path_to_vtp << std::endl;
-            throw std::runtime_error("VTP file opening failed");
-        }
-
-        std::string line;
-        size_t points_offset = 0;
-        size_t polys_connectivity_offset = 0;
-        size_t polys_offset = 0;
-        std::string base64_data;
-        size_t number_of_points = 0;
-        size_t number_of_polys = 0;
-
-        while (std::getline(vtp_file, line))
-        {
-            if (line.find("NumberOfPoints=") != std::string::npos)
-            {
-                size_t pos = line.find("NumberOfPoints=") + 16;
-                number_of_points = std::stoul(line.substr(pos));
-            }
-            if (line.find("NumberOfPolys=") != std::string::npos)
-            {
-                size_t pos = line.find("NumberOfPolys=") + 15;
-                number_of_polys = std::stoul(line.substr(pos));
-            }
-            if (line.find("<Points>") != std::string::npos)
-            {
-                while (std::getline(vtp_file, line) && line.find("</Points>") == std::string::npos)
-                {
-                    if (line.find("offset=") != std::string::npos)
-                    {
-                        size_t pos = line.find("offset=") + 8;
-                        points_offset = std::stoul(line.substr(pos));
-                    }
-                }
-            }
-            if (line.find("<Polys>") != std::string::npos)
-            {
-                while (std::getline(vtp_file, line) && line.find("</Polys>") == std::string::npos)
-                {
-                    if (line.find("connectivity") != std::string::npos && line.find("offset=") != std::string::npos)
-                    {
-                        size_t pos = line.find("offset=") + 8;
-                        polys_connectivity_offset = std::stoul(line.substr(pos));
-                    }
-                    else if (line.find("offsets") != std::string::npos && line.find("offset=") != std::string::npos)
-                    {
-                        size_t pos = line.find("offset=") + 8;
-                        polys_offset = std::stoul(line.substr(pos));
-                    }
-                }
-            }
-            if (line.find("<AppendedData") != std::string::npos)
-            {
-                std::getline(vtp_file, line);  // Skip the first line of appended data
-                base64_data = line.substr(4);  // Remove the leading underscore
-                break;
-            }
-        }
-
-        vtp_file.close();
-
         // Verify base64 data
-        if (base64_data.empty())
+        if (base64_data_.empty())
         {
             std::cerr << "Error: Base64 data is empty" << std::endl;
             throw std::runtime_error("Base64 data is empty");
         }
 
-        std::cout << "Base64 data length: " << base64_data.size() << std::endl;
-        std::cout << base64_data << std::endl;
+        std::cout << "Base64 data length: " << base64_data_.size() << std::endl;
+        // std::cout << base64_data_ << std::endl;
+        std::cout << "points_offset: " << points_offset_ << std::endl;
+        std::cout << "verts_connectivity_offset: " << verts_connectivity_offset_ << std::endl;
+        std::cout << "polys_connectivity_offset: " << polys_connectivity_offset_ << std::endl;
+        std::cout << "polys_offset: " << polys_offset_ << std::endl;
 
         // Decode base64 data
-        std::string decoded_data = base64::from_base64(base64_data);
+        auto [decoded_points, decoded_polys_connectivity, decoded_polys] = extractPointsAndPolys(base64_data_);
 
         // Verify decoded data
-        if (decoded_data.empty())
+        if (decoded_points.empty())
         {
-            std::cerr << "Error: Decoded data is empty" << std::endl;
-            throw std::runtime_error("Decoded data is empty");
+            std::cerr << "Error: Decoded points is empty" << std::endl;
+            throw std::runtime_error("Decoded points is empty");
         }
 
-        std::cout << "Decoded data length: " << decoded_data.size() << std::endl;
+        std::cout << "Decoded points length: " << decoded_points.size() << std::endl;
 
         // parse points
-        std::cout << "points_offset: " << points_offset << std::endl;
-        size_t offset = points_offset + sizeof(int);
+        
+        size_t offset = 0;
         std::vector<std::array<float, 3>> points;
-        std::cout << "Number of points: " << number_of_points << std::endl;
+        std::cout << "Number of points: " << number_of_points_ << std::endl;
 
-        for (size_t i = 0; i < number_of_points; ++i)
+        for (size_t i = 0; i < number_of_points_; ++i)
         {
             float x, y, z;
-            std::memcpy(&x, decoded_data.data() + offset, sizeof(float));
+            std::memcpy(&x, decoded_points.data() + offset, sizeof(float));
             offset += sizeof(float);
-            std::memcpy(&y, decoded_data.data() + offset, sizeof(float));
+            std::memcpy(&y, decoded_points.data() + offset, sizeof(float));
             offset += sizeof(float);
-            std::memcpy(&z, decoded_data.data() + offset, sizeof(float));
+            std::memcpy(&z, decoded_points.data() + offset, sizeof(float));
             offset += sizeof(float);
             points.push_back({ x, y, z });
         }
 
         // parse faces
-        std::cout << "polys_connectivity_offset: " << polys_connectivity_offset << std::endl;
-        size_t face_offset = polys_connectivity_offset + sizeof(int);
+        size_t face_offset = 0;
         std::vector<std::array<int, 3>> faces;
-        std::cout << "Number of faces: " << number_of_polys << std::endl;
+        std::cout << "Number of faces: " << number_of_polys_ << std::endl;
 
-        for (size_t i = 0; i < number_of_polys; ++i)
+        for (size_t i = 0; i < number_of_polys_; ++i)
         {
             int v1, v2, v3;
-            std::memcpy(&v1, decoded_data.data() + face_offset, sizeof(int));
+            std::memcpy(&v1, decoded_polys_connectivity.data() + face_offset, sizeof(int));
             face_offset += sizeof(int);
-            std::memcpy(&v2, decoded_data.data() + face_offset, sizeof(int));
+            std::memcpy(&v2, decoded_polys_connectivity.data() + face_offset, sizeof(int));
             face_offset += sizeof(int);
-            std::memcpy(&v3, decoded_data.data() + face_offset, sizeof(int));
+            std::memcpy(&v3, decoded_polys_connectivity.data() + face_offset, sizeof(int));
             face_offset += sizeof(int);
             faces.push_back({ v1, v2, v3 });
         }
 
         // Calculate total volume
-        std::vector<Real> face_areas(number_of_polys);
-        for (size_t i = 0; i < number_of_polys; ++i)
+        std::vector<Real> face_areas(number_of_polys_);
+        for (size_t i = 0; i < number_of_polys_; ++i)
         {
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
@@ -278,6 +227,91 @@ public:
     }
 
 private:
+    void loadVTPFile(const std::string &filePath)
+    {
+        std::ifstream vtp_file(filePath);
+        if (!vtp_file.is_open())
+        {
+            std::cerr << "Error: Failed to open the VTP file: " << filePath << std::endl;
+            throw std::runtime_error("VTP file opening failed");
+        }
+
+        std::string line;
+        
+        while (std::getline(vtp_file, line))
+        {
+            if (line.find("NumberOfPoints=") != std::string::npos)
+            {
+                size_t pos = line.find("NumberOfPoints=") + 16;
+                number_of_points_ = std::stoul(line.substr(pos));
+            }
+            if (line.find("NumberOfPolys=") != std::string::npos)
+            {
+                size_t pos = line.find("NumberOfPolys=") + 15;
+                number_of_polys_ = std::stoul(line.substr(pos));
+            }
+            if (line.find("<Points>") != std::string::npos)
+            {
+                while (std::getline(vtp_file, line) && line.find("</Points>") == std::string::npos)
+                {
+                    if (line.find("offset=") != std::string::npos)
+                    {
+                        size_t pos = line.find("offset=") + 8;
+                        points_offset_ = std::stoul(line.substr(pos));
+                    }
+                }
+            }
+            if (line.find("<Verts>") != std::string::npos)
+            {
+                while (std::getline(vtp_file, line) && line.find("</Verts>") == std::string::npos)
+                {
+                    if (line.find("connectivity") != std::string::npos && line.find("offset=") != std::string::npos)
+                    {
+                        size_t pos = line.find("offset=") + 8;
+                        verts_connectivity_offset_ = std::stoul(line.substr(pos));
+                    }
+                }
+            }
+            if (line.find("<Polys>") != std::string::npos)
+            {
+                while (std::getline(vtp_file, line) && line.find("</Polys>") == std::string::npos)
+                {
+                    if (line.find("connectivity") != std::string::npos && line.find("offset=") != std::string::npos)
+                    {
+                        size_t pos = line.find("offset=") + 8;
+                        polys_connectivity_offset_ = std::stoul(line.substr(pos));
+                    }
+                    else if (line.find("offsets") != std::string::npos && line.find("offset=") != std::string::npos)
+                    {
+                        size_t pos = line.find("offset=") + 8;
+                        polys_offset_ = std::stoul(line.substr(pos));
+                    }
+                }
+            }
+            if (line.find("<AppendedData") != std::string::npos)
+            {
+                std::getline(vtp_file, line); // Skip the first line of appended data
+                base64_data_ = line.substr(4); // Remove the leading underscore
+                break;
+            }
+        }
+
+        vtp_file.close();
+    }
+
+    std::tuple<std::string, std::string, std::string> extractPointsAndPolys(const std::string &base64_data)
+    {
+        auto points_data = base64_data.substr(points_offset_, verts_connectivity_offset_);
+        auto polys_connectivity_data = base64_data.substr(polys_connectivity_offset_, polys_offset_);
+        auto polys_data = base64_data.substr(polys_offset_);
+
+        auto decoded_points = base64::from_base64(points_data);
+        auto decoded_polys_connectivity = base64::from_base64(polys_connectivity_data);
+        auto decoded_polys = base64::from_base64(polys_data);
+
+        return std::make_tuple(decoded_points, decoded_polys_connectivity, decoded_polys);
+    }
+
     Real calculateEachFaceArea(const Vec3d vertices[3])
     {
         Vec3d edge1 = vertices[1] - vertices[0];
@@ -459,7 +493,7 @@ int main(int ac, char *av[])
     //imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
-        : imported_model.generateParticles<SurfaceParticles, FromVTPFile>();
+        : imported_model.generateParticles<SurfaceParticles, FromVTPFile>(full_path_to_vtp);
     
     /*RealBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
