@@ -203,12 +203,12 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
             throw std::runtime_error("Base64 data is empty");
         }
 
-        std::cout << "Base64 data length: " << base64_data_.size() << std::endl;
+        /* std::cout << "Base64 data length: " << base64_data_.size() << std::endl;
         // std::cout << base64_data_ << std::endl;
         std::cout << "points_offset: " << points_offset_ << std::endl;
         std::cout << "verts_connectivity_offset: " << verts_connectivity_offset_ << std::endl;
         std::cout << "polys_connectivity_offset: " << polys_connectivity_offset_ << std::endl;
-        std::cout << "polys_offset: " << polys_offset_ << std::endl;
+        std::cout << "polys_offset: " << polys_offset_ << std::endl; */
     }
 
     std::tuple<std::string, std::string, std::string> decodeGeometricData()
@@ -221,9 +221,18 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
         auto decoded_polys_connectivity = base64::from_base64(polys_connectivity_data);
         auto decoded_polys = base64::from_base64(polys_data);
 
-        std::cout << "Decoded points length: " << decoded_points.size() << std::endl;
-        std::cout << "Decoded polys_connectivity length: " << decoded_polys_connectivity.size() << std::endl;
-        std::cout << "Decoded polys length: " << decoded_polys.size() << std::endl;
+        /*std::cout << "Decoded points: ";
+        for (size_t i = 0; i < decoded_points.size(); ++i)
+        {
+            printf("%02x ", static_cast<unsigned char>(decoded_points[i]));
+        }
+        std::cout << std::endl;*/
+        
+        /*std::cout << "decoded points length: " << decoded_points.size() << std::endl;
+        std::cout << "points length: " << decoded_points.size() / sizeof(float) / 3 << std::endl;
+
+        std::cout << "polys_connectivity length: " << decoded_polys_connectivity.size() / sizeof(int) / 3 << std::endl;
+        std::cout << "Decoded polys length: " << decoded_polys.size() << std::endl;*/
 
         return std::make_tuple(decoded_points, decoded_polys_connectivity, decoded_polys);
     }
@@ -247,8 +256,6 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
 
             // std::cout << "x = " << x << ", y = " << y << ", z = " << z << std::endl;
         }
-
-        std::cout << "offset for points at the end: " << offset << std::endl;
         return points;
     }
 
@@ -269,8 +276,6 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
             offset += sizeof(int);
             faces.emplace_back(std::array<int, 3>{v1, v2, v3});
         }
-
-        std::cout << "offset for faces at the end: " << offset << std::endl;
         return faces;
     }
 
@@ -483,6 +488,9 @@ Rotation3d outlet_rotation_rightB_04(outlet_rotation_result_rightB_04.angle, out
 //-----------------------------------------------------------------------------------------------------------
 int main(int ac, char *av[])
 {
+    auto decoded_str = base64::from_base64("mA==");
+    std::cout << decoded_str << std::endl;
+
     //----------------------------------------------------------------------
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
