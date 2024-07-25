@@ -488,7 +488,8 @@ Rotation3d outlet_rotation_rightB_04(outlet_rotation_result_rightB_04.angle, out
 //-----------------------------------------------------------------------------------------------------------
 int main(int ac, char *av[])
 {
-    auto decoded_str = base64::from_base64("mA==");
+    auto decoded_str = base64::from_base64("SGVsbG8sIFdvcmxkIQ==");
+    //auto decoded_str = base64::from_base64("mA==");
     std::cout << decoded_str << std::endl;
 
     //----------------------------------------------------------------------
