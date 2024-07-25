@@ -8,6 +8,7 @@
 
 #include "sphinxsys.h"
 #include "base64_tobiaslocker.hpp"
+#include "cppcodec/cppcodec/base64_rfc4648.hpp"
 
 using namespace SPH;
 //----------------------------------------------------------------------
@@ -217,9 +218,15 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
         std::string polys_connectivity_data = base64_data_.substr(polys_connectivity_offset_, polys_offset_ - polys_connectivity_offset_);
         std::string polys_data = base64_data_.substr(polys_offset_);
 
+        // use base64_tobiaslocker.hpp
         auto decoded_points = base64::from_base64(points_data);
         auto decoded_polys_connectivity = base64::from_base64(polys_connectivity_data);
         auto decoded_polys = base64::from_base64(polys_data);
+
+        // use cppcodec/cppcodec/base64_rfc4648.hpp
+        /*auto decoded_points = cppcodec::base64_rfc4648::decode<std::string>(points_data);
+        auto decoded_polys_connectivity = cppcodec::base64_rfc4648::decode<std::string>(polys_connectivity_data);
+        auto decoded_polys = cppcodec::base64_rfc4648::decode<std::string>(polys_data);*/
 
         /*std::cout << "Decoded points: ";
         for (size_t i = 0; i < decoded_points.size(); ++i)
@@ -254,7 +261,7 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
             offset += sizeof(float);
             points.emplace_back(std::array<float, 3>{x, y, z});
 
-            // std::cout << "x = " << x << ", y = " << y << ", z = " << z << std::endl;
+            std::cout << "x = " << x << ", y = " << y << ", z = " << z << std::endl;
         }
         return points;
     }
@@ -488,9 +495,26 @@ Rotation3d outlet_rotation_rightB_04(outlet_rotation_result_rightB_04.angle, out
 //-----------------------------------------------------------------------------------------------------------
 int main(int ac, char *av[])
 {
-    auto decoded_str = base64::from_base64("SGVsbG8sIFdvcmxkIQ==");
-    //auto decoded_str = base64::from_base64("mA==");
-    std::cout << decoded_str << std::endl;
+    // use base64_tobiaslocker.hpp
+    /*auto decoded_str = base64::from_base64("SGVsbG8sIFdvcmxkIQ==");
+    auto decoded_str = base64::from_base64("mA==");
+    std::cout << decoded_str << std::endl;*/
+
+    // use cppcodec/cppcodec/base64_rfc4648.hpp
+    std::string encoded = "SGVsbG8gV29ybGQh"; // This is "Hello World!" in base64
+    std::string decoded;
+
+    try
+    {
+        decoded = cppcodec::base64_rfc4648::decode<std::string>(encoded);
+    }
+    catch (const std::invalid_argument &e)
+    {
+        std::cerr << "test invalid base64 encoding: " << e.what() << std::endl;
+        return 1;
+    }
+
+    std::cout << "test decoded string: " << decoded << std::endl;
 
     //----------------------------------------------------------------------
     //	Build up -- a SPHSystem
