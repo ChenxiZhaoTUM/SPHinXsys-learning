@@ -141,40 +141,16 @@ public:
         std::cout << "Decoded points length: " << decoded_points.size() << std::endl;
 
         // parse points
-        
-        size_t offset = 0;
         std::vector<std::array<float, 3>> points;
         std::cout << "Number of points: " << number_of_points_ << std::endl;
-
-        for (size_t i = 0; i < number_of_points_; ++i)
-        {
-            float x, y, z;
-            std::memcpy(&x, decoded_points.data() + offset, sizeof(float));
-            offset += sizeof(float);
-            std::memcpy(&y, decoded_points.data() + offset, sizeof(float));
-            offset += sizeof(float);
-            std::memcpy(&z, decoded_points.data() + offset, sizeof(float));
-            offset += sizeof(float);
-            points.push_back({ x, y, z });
-        }
-
+        points = parsePoints(decoded_points);
+        
         // parse faces
-        size_t face_offset = 0;
+        
         std::vector<std::array<int, 3>> faces;
         std::cout << "Number of faces: " << number_of_polys_ << std::endl;
-
-        for (size_t i = 0; i < number_of_polys_; ++i)
-        {
-            int v1, v2, v3;
-            std::memcpy(&v1, decoded_polys_connectivity.data() + face_offset, sizeof(int));
-            face_offset += sizeof(int);
-            std::memcpy(&v2, decoded_polys_connectivity.data() + face_offset, sizeof(int));
-            face_offset += sizeof(int);
-            std::memcpy(&v3, decoded_polys_connectivity.data() + face_offset, sizeof(int));
-            face_offset += sizeof(int);
-            faces.push_back({ v1, v2, v3 });
-        }
-
+        faces = parseFaces(decoded_polys_connectivity);
+        
         // Calculate total volume
         std::vector<Real> face_areas(number_of_polys_);
         for (size_t i = 0; i < number_of_polys_; ++i)
@@ -310,6 +286,46 @@ private:
         auto decoded_polys = base64::from_base64(polys_data);
 
         return std::make_tuple(decoded_points, decoded_polys_connectivity, decoded_polys);
+    }
+
+    std::vector<std::array<float, 3>> parsePoints(const std::string &decoded_points)
+    {
+        size_t offset = 0;
+        std::vector<std::array<float, 3>> points;
+        points.reserve(number_of_points_);
+        for (size_t i = 0; i < number_of_points_; ++i)
+        {
+            float x, y, z;
+            std::memcpy(&x, decoded_points.data() + offset, sizeof(float));
+            offset += sizeof(float);
+            std::memcpy(&y, decoded_points.data() + offset, sizeof(float));
+            offset += sizeof(float);
+            std::memcpy(&z, decoded_points.data() + offset, sizeof(float));
+            offset += sizeof(float);
+            points.push_back({x, y, z});
+
+            std::cout << "x = " << x << ", y = " << y << ", z = " << z << std::endl;
+        }
+        return points;
+    }
+
+    std::vector<std::array<int, 3>> parseFaces(const std::string &decoded_polys_connectivity)
+    {
+        size_t face_offset = 0;
+        std::vector<std::array<int, 3>> faces;
+        faces.reserve(number_of_polys_);
+        for (size_t i = 0; i < number_of_polys_; ++i)
+        {
+            int v1, v2, v3;
+            std::memcpy(&v1, decoded_polys_connectivity.data() + face_offset, sizeof(int));
+            face_offset += sizeof(int);
+            std::memcpy(&v2, decoded_polys_connectivity.data() + face_offset, sizeof(int));
+            face_offset += sizeof(int);
+            std::memcpy(&v3, decoded_polys_connectivity.data() + face_offset, sizeof(int));
+            face_offset += sizeof(int);
+            faces.push_back({v1, v2, v3});
+        }
+        return faces;
     }
 
     Real calculateEachFaceArea(const Vec3d vertices[3])
