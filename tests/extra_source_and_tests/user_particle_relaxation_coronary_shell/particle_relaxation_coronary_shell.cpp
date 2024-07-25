@@ -83,126 +83,47 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
     size_t number_of_polys_;
 
     Real total_volume_;
+    std::vector<Real> face_areas_;
     Real particle_spacing_;
     const Real thickness_;
     Real avg_particle_volume_;
     size_t planned_number_of_particles_;
     Shape &initial_shape_;
 
-    std::vector<Vec3d> vertex_positions;
-    std::vector<std::array<int, 3>> faces;
-
-public:
-    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, const std::string &vtp_file_path) 
+  public:
+    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, const std::string &vtp_file_path)
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
-        total_volume_(0),
-        particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
-        thickness_(particle_spacing_),
-        avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
-        planned_number_of_particles_(0),
-        initial_shape_(sph_body.getInitialShape()) 
+          total_volume_(0),
+          particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
+          thickness_(particle_spacing_),
+          avg_particle_volume_(pow(particle_spacing_, 3) * thickness_),
+          planned_number_of_particles_(0),
+          initial_shape_(sph_body.getInitialShape())
     {
+
         if (!initial_shape_.isValid())
         {
-            std::cout << "\n BaseParticleGeneratorLattice Error: initial_shape_ is invalid." << std::endl;
-            std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-            throw;
+            throw std::invalid_argument("Invalid initial shape provided.");
         }
 
         loadVTPFile(vtp_file_path);
+
+        face_areas_.resize(number_of_polys_);
     }
 
-    virtual void prepareGeometricData() override
+    void prepareGeometricData() override
     {
-        // Verify base64 data
-        if (base64_data_.empty())
-        {
-            std::cerr << "Error: Base64 data is empty" << std::endl;
-            throw std::runtime_error("Base64 data is empty");
-        }
+        validateBase64Data();
+        auto [decoded_points, decoded_polys_connectivity, decoded_polys] = decodeGeometricData();
 
-        std::cout << "Base64 data length: " << base64_data_.size() << std::endl;
-        // std::cout << base64_data_ << std::endl;
-        std::cout << "points_offset: " << points_offset_ << std::endl;
-        std::cout << "verts_connectivity_offset: " << verts_connectivity_offset_ << std::endl;
-        std::cout << "polys_connectivity_offset: " << polys_connectivity_offset_ << std::endl;
-        std::cout << "polys_offset: " << polys_offset_ << std::endl;
+        auto points = parsePoints(decoded_points);
+        auto faces = parseFaces(decoded_polys_connectivity);
 
-        // Decode base64 data
-        auto [decoded_points, decoded_polys_connectivity, decoded_polys] = extractPointsAndPolys(base64_data_);
-
-        // Verify decoded data
-        if (decoded_points.empty())
-        {
-            std::cerr << "Error: Decoded points is empty" << std::endl;
-            throw std::runtime_error("Decoded points is empty");
-        }
-
-        std::cout << "Decoded points length: " << decoded_points.size() << std::endl;
-
-        // parse points
-        std::vector<std::array<float, 3>> points;
-        std::cout << "Number of points: " << number_of_points_ << std::endl;
-        points = parsePoints(decoded_points);
-        
-        // parse faces
-        
-        std::vector<std::array<int, 3>> faces;
-        std::cout << "Number of faces: " << number_of_polys_ << std::endl;
-        faces = parseFaces(decoded_polys_connectivity);
-        
-        // Calculate total volume
-        std::vector<Real> face_areas(number_of_polys_);
-        for (size_t i = 0; i < number_of_polys_; ++i)
-        {
-            Vec3d vertices[3];
-            for (int j = 0; j < 3; ++j)
-            {
-                const auto& pos = points[faces[i][j]];
-                vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
-            }
-
-            Real each_area = calculateEachFaceArea(vertices);
-            face_areas[i] = each_area;
-            total_volume_ += each_area;
-        }
-
-        Real number_of_particles = total_volume_ / avg_particle_volume_ + 0.5;
-        planned_number_of_particles_ = int(number_of_particles);
-        std::cout << "planned_number_of_particles calculation = " << planned_number_of_particles_ << std::endl;
-
-        // initialize a uniform distribution between 0 (inclusive) and 1 (exclusive)
-        std::mt19937_64 rng;
-        std::uniform_real_distribution<Real> unif(0, 1);
-
-        // Calculate the interval based on the number of particles.
-        Real interval = planned_number_of_particles_ / (faces.size() + TinyReal);  // if planned_number_of_particles_ >= num_faces, every face will generate particles
-        if (interval <= 0)
-            interval = 1; // It has to be larger than 0.
-
-        for (size_t i = 0; i < faces.size(); ++i)
-        {
-            Vec3d vertices[3];
-            for (int j = 0; j < 3; ++j)
-            {
-                const auto& pos = points[faces[i][j]];
-                vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
-            }
-
-            Real random_real = unif(rng);
-            if (random_real <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
-            {
-                // Generate particle at the center of this triangle face
-                // generateParticleAtFaceCenter(vertices);
-
-                // Generate particles on this triangle face, unequal
-                int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / total_volume_)));
-                generateParticlesOnFace(vertices, particles_per_face);
-            }
-        }
+        calculateTotalVolume(points, faces);
+        distributeParticles(points, faces);
     }
 
-private:
+  private:
     void loadVTPFile(const std::string &filePath)
     {
         std::ifstream vtp_file(filePath);
@@ -213,7 +134,7 @@ private:
         }
 
         std::string line;
-        
+
         while (std::getline(vtp_file, line))
         {
             if (line.find("NumberOfPoints=") != std::string::npos)
@@ -266,7 +187,7 @@ private:
             }
             if (line.find("<AppendedData") != std::string::npos)
             {
-                std::getline(vtp_file, line); // Skip the first line of appended data
+                std::getline(vtp_file, line);  // Skip the first line of appended data
                 base64_data_ = line.substr(4); // Remove the leading underscore
                 break;
             }
@@ -275,65 +196,135 @@ private:
         vtp_file.close();
     }
 
-    std::tuple<std::string, std::string, std::string> extractPointsAndPolys(const std::string &base64_data)
+    void validateBase64Data() const
     {
-        auto points_data = base64_data.substr(points_offset_, verts_connectivity_offset_);
-        auto polys_connectivity_data = base64_data.substr(polys_connectivity_offset_, polys_offset_);
-        auto polys_data = base64_data.substr(polys_offset_);
+        if (base64_data_.empty())
+        {
+            throw std::runtime_error("Base64 data is empty");
+        }
+
+        std::cout << "Base64 data length: " << base64_data_.size() << std::endl;
+        // std::cout << base64_data_ << std::endl;
+        std::cout << "points_offset: " << points_offset_ << std::endl;
+        std::cout << "verts_connectivity_offset: " << verts_connectivity_offset_ << std::endl;
+        std::cout << "polys_connectivity_offset: " << polys_connectivity_offset_ << std::endl;
+        std::cout << "polys_offset: " << polys_offset_ << std::endl;
+    }
+
+    std::tuple<std::string, std::string, std::string> decodeGeometricData()
+    {
+        std::string points_data = base64_data_.substr(points_offset_, verts_connectivity_offset_ - points_offset_);
+        std::string polys_connectivity_data = base64_data_.substr(polys_connectivity_offset_, polys_offset_ - polys_connectivity_offset_);
+        std::string polys_data = base64_data_.substr(polys_offset_);
 
         auto decoded_points = base64::from_base64(points_data);
         auto decoded_polys_connectivity = base64::from_base64(polys_connectivity_data);
         auto decoded_polys = base64::from_base64(polys_data);
+
+        std::cout << "Decoded points length: " << decoded_points.size() << std::endl;
+        std::cout << "Decoded polys_connectivity length: " << decoded_polys_connectivity.size() << std::endl;
+        std::cout << "Decoded polys length: " << decoded_polys.size() << std::endl;
 
         return std::make_tuple(decoded_points, decoded_polys_connectivity, decoded_polys);
     }
 
     std::vector<std::array<float, 3>> parsePoints(const std::string &decoded_points)
     {
-        size_t offset = 0;
         std::vector<std::array<float, 3>> points;
         points.reserve(number_of_points_);
+        size_t offset = 0;
+
         for (size_t i = 0; i < number_of_points_; ++i)
         {
             float x, y, z;
-            std::memcpy(&x, decoded_points.data() + offset, sizeof(float));
+            std::memcpy(&x, &decoded_points[offset], sizeof(float));
             offset += sizeof(float);
-            std::memcpy(&y, decoded_points.data() + offset, sizeof(float));
+            std::memcpy(&y, &decoded_points[offset], sizeof(float));
             offset += sizeof(float);
-            std::memcpy(&z, decoded_points.data() + offset, sizeof(float));
+            std::memcpy(&z, &decoded_points[offset], sizeof(float));
             offset += sizeof(float);
-            points.push_back({x, y, z});
+            points.emplace_back(std::array<float, 3>{x, y, z});
 
-            std::cout << "x = " << x << ", y = " << y << ", z = " << z << std::endl;
+            // std::cout << "x = " << x << ", y = " << y << ", z = " << z << std::endl;
         }
+
+        std::cout << "offset for points at the end: " << offset << std::endl;
         return points;
     }
 
     std::vector<std::array<int, 3>> parseFaces(const std::string &decoded_polys_connectivity)
     {
-        size_t face_offset = 0;
         std::vector<std::array<int, 3>> faces;
         faces.reserve(number_of_polys_);
+        size_t offset = 0;
+
         for (size_t i = 0; i < number_of_polys_; ++i)
         {
             int v1, v2, v3;
-            std::memcpy(&v1, decoded_polys_connectivity.data() + face_offset, sizeof(int));
-            face_offset += sizeof(int);
-            std::memcpy(&v2, decoded_polys_connectivity.data() + face_offset, sizeof(int));
-            face_offset += sizeof(int);
-            std::memcpy(&v3, decoded_polys_connectivity.data() + face_offset, sizeof(int));
-            face_offset += sizeof(int);
-            faces.push_back({v1, v2, v3});
+            std::memcpy(&v1, &decoded_polys_connectivity[offset], sizeof(int));
+            offset += sizeof(int);
+            std::memcpy(&v2, &decoded_polys_connectivity[offset], sizeof(int));
+            offset += sizeof(int);
+            std::memcpy(&v3, &decoded_polys_connectivity[offset], sizeof(int));
+            offset += sizeof(int);
+            faces.emplace_back(std::array<int, 3>{v1, v2, v3});
         }
+
+        std::cout << "offset for faces at the end: " << offset << std::endl;
         return faces;
+    }
+
+    void calculateTotalVolume(const std::vector<std::array<float, 3>> &points, const std::vector<std::array<int, 3>> &faces)
+    {
+#pragma omp parallel for reduction(+ \
+                                   : total_volume_)
+
+        for (size_t i = 0; i < faces.size(); ++i)
+        {
+            const auto &face = faces[i];
+            Vec3d vertices[3] = {
+                Vec3d(points[face[0]][0], points[face[0]][1], points[face[0]][2]),
+                Vec3d(points[face[1]][0], points[face[1]][1], points[face[1]][2]),
+                Vec3d(points[face[2]][0], points[face[2]][1], points[face[2]][2])};
+            Real area = calculateEachFaceArea(vertices);
+            face_areas_[i] = area;
+            total_volume_ += area;
+        }
     }
 
     Real calculateEachFaceArea(const Vec3d vertices[3])
     {
         Vec3d edge1 = vertices[1] - vertices[0];
         Vec3d edge2 = vertices[2] - vertices[0];
-        Real area = 0.5 * edge1.cross(edge2).norm();
-        return area;
+        return 0.5 * edge1.cross(edge2).norm();
+    }
+
+    void distributeParticles(const std::vector<std::array<float, 3>> &points, const std::vector<std::array<int, 3>> &faces)
+    {
+        std::mt19937_64 rng(std::random_device{}());
+        std::uniform_real_distribution<Real> unif(0.0, 1.0);
+
+        planned_number_of_particles_ = static_cast<size_t>(total_volume_ / avg_particle_volume_ + 0.5);
+        std::cout << "planned_number_of_particles calculation = " << planned_number_of_particles_ << std::endl;
+
+        Real interval = static_cast<Real>(planned_number_of_particles_) / faces.size();
+
+        for (size_t i = 0; i < faces.size(); ++i)
+        {
+            const auto &face = faces[i];
+            Vec3d vertices[3] = {
+                Vec3d(points[face[0]][0], points[face[0]][1], points[face[0]][2]),
+                Vec3d(points[face[1]][0], points[face[1]][1], points[face[1]][2]),
+                Vec3d(points[face[2]][0], points[face[2]][1], points[face[2]][2])};
+
+            Real random_value = unif(rng);
+            Real interval = planned_number_of_particles_ * (face_areas_[i] / total_volume_);
+            if (random_value <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
+            {
+                int particles_per_face = std::max(1, static_cast<int>(interval));
+                generateParticlesOnFace(vertices, particles_per_face);
+            }
+        }
     }
 
     void generateParticleAtFaceCenter(const Vec3d vertices[3])
@@ -351,7 +342,8 @@ private:
             Real u = static_cast<Real>(rand()) / static_cast<Real>(RAND_MAX);
             Real v = static_cast<Real>(rand()) / static_cast<Real>(RAND_MAX);
 
-            if (u + v > 1.0) {
+            if (u + v > 1.0)
+            {
                 u = 1.0 - u;
                 v = 1.0 - v;
             }
