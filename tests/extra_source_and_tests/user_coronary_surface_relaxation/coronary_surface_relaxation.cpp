@@ -15,7 +15,7 @@ using namespace SPH;
 //	To use this, please commenting the setting for the first geometry.
 //----------------------------------------------------------------------
 std::string full_path_to_file = "./input/normal_fluid_repair.stl";
-std::string full_vtp_file_path = "./input/converted_normal1_mesh.vtp";
+//std::string full_vtp_file_path = "./input/converted_normal1_mesh.vtp";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
@@ -29,7 +29,7 @@ Vec3d domain_upper_bound(-100.0 * scaling, 360.0 * scaling, 0.0 * scaling);
 //----------------------------------------------------------------------
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
 //Real dp_0 = (domain_upper_bound[0] - domain_lower_bound[0]) / 200.0;  // 1.375 * pow(10, -3)
-Real dp_0 = 0.05 * scaling;
+Real dp_0 = 1.0 * scaling;
 Real thickness = 1.0 * dp_0;
 //Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
 //----------------------------------------------------------------------
@@ -70,9 +70,9 @@ public:
     }
 };
 
-class FromVTPFile;
+class FromSTLFile;
 template <>
-class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerator<SurfaceParticles>
+class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerator<SurfaceParticles>
 {
     Real mesh_total_area_;
     Real particle_spacing_;
@@ -80,23 +80,22 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
     Real avg_particle_volume_;
     size_t planned_number_of_particles_;
 
-    std::vector<Vec3d> vertex_positions_;
-    std::vector<std::array<int, 3>> faces_;
+    TriangleMeshShapeSTL* mesh_shape_;
     Shape &initial_shape_;
 
 public:
-    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles, const std::string& vtp_file_path) 
+    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape) 
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
         mesh_total_area_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
         thickness_(particle_spacing_),
         avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
         planned_number_of_particles_(0),
-        initial_shape_(sph_body.getInitialShape()) 
+        mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
     {
-        if (!readVTPFile(vtp_file_path))
+        if (!mesh_shape_)
         {
-            std::cerr << "Error: VTP file could not be read!" << std::endl;
+            std::cerr << "Error: Mesh shape is not set!" << std::endl;
             return;
         }
 
@@ -111,8 +110,28 @@ public:
     virtual void prepareGeometricData() override
     {
         
-        int num_faces = faces_.size();
+        // Preload vertex positions
+        std::vector<std::array<Real, 3>> vertex_positions;
+        int num_vertices = mesh_shape_->getTriangleMesh()->getNumVertices();
+        vertex_positions.reserve(num_vertices);
+        for (int i = 0; i < num_vertices; i++)
+        {
+            const auto &p = mesh_shape_->getTriangleMesh()->getVertexPosition(i);
+            vertex_positions.push_back({Real(p[0]), Real(p[1]), Real(p[2])});
+        }
+
+        // Preload face
+        std::vector<std::array<int, 3>> faces;
+        int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
         std::cout << "num_faces calculation = " << num_faces << std::endl;
+        faces.reserve(num_faces);
+        for (int i = 0; i < num_faces; i++)
+        {
+            auto f1 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 0);
+            auto f2 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 1);
+            auto f3 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 2);
+            faces.push_back({f1, f2, f3});
+        }
 
         // Calculate total volume
         std::vector<Real> face_areas(num_faces);
@@ -121,7 +140,7 @@ public:
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                const auto& pos = vertex_positions_[faces_[i][j]];
+                const auto& pos = vertex_positions[faces[i][j]];
                 vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
             }
 
@@ -148,7 +167,7 @@ public:
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                const auto& pos = vertex_positions_[faces_[i][j]];
+                const auto& pos = vertex_positions[faces[i][j]];
                 vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
             }
 
@@ -156,7 +175,7 @@ public:
             if (random_real <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
             {
                 // Generate particle at the center of this triangle face
-                //generateParticleAtFaceCenter(vertices);
+                // generateParticleAtFaceCenter(vertices);
                 
                 // Generate particles on this triangle face, unequal
                 int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / mesh_total_area_)));
@@ -166,104 +185,12 @@ public:
     }
 
 private:
-    bool readVTPFile(const std::string& vtp_file)
-    {
-        std::ifstream file(vtp_file);
-        if (!file.is_open())
-        {
-            std::cerr << "Could not open file: " << vtp_file << std::endl;
-            return false;
-        }
-
-        std::string line;
-        bool reading_points = false;
-        bool reading_faces = false;
-        bool reading_points_data = false;
-        bool reading_faces_data = false;
-
-        vertex_positions_.reserve(50000);
-        faces_.reserve(50000);
-
-        int read_face_num = 0;
-
-        while (std::getline(file, line))
-        {
-            if (line.find("<Points>") != std::string::npos)
-            {
-                reading_points = true;
-                continue;
-            }
-            if (line.find("</Points>") != std::string::npos)
-            {
-                reading_points = false;
-                continue;
-            }
-            if (line.find("<Polys>") != std::string::npos)
-            {
-                reading_faces = true;
-                continue;
-            }
-            if (line.find("</Polys>") != std::string::npos)
-            {
-                reading_faces = false;
-                continue;
-            }
-            if (reading_points && line.find("<DataArray") != std::string::npos)
-            {
-                reading_points_data = true;
-                continue;
-            }
-            if (reading_faces && line.find("<DataArray type=\"Int32\" Name=\"connectivity\"") != std::string::npos)
-            {
-                reading_faces_data = true;
-                continue;
-            }
-            if (reading_points_data && line.find("</DataArray>") != std::string::npos)
-            {
-                reading_points_data = false;
-                continue;
-            }
-            if (reading_faces_data && line.find("</DataArray>") != std::string::npos)
-            {
-                reading_faces_data = false;
-                continue;
-            }
-
-            if (reading_points_data)
-            {
-                std::istringstream iss(line);
-                Real x, y, z;
-                if (iss >> x >> y >> z)
-                {
-                    vertex_positions_.push_back({x, y, z});
-                }
-            }
-
-            if (reading_faces_data)
-            {
-                std::istringstream iss(line);
-                int v1, v2, v3;
-                if (iss >> v1 >> v2 >> v3)
-                {
-                    faces_.push_back({v1, v2, v3});
-                }
-            }
-        }
-
-        std::cout << "Read VTP file successfully!" << std::endl;
-
-        // for debug
-        // std::cout << "faces_[39097][0] = " << faces_[39097][0] << ", faces_[39097][1] = " << faces_[39097][1] << ", faces_[39097][2] = " << faces_[39097][2] << std::endl;
-        // std::cout << "faces_[39098][0] = " << faces_[39098][0] << ", faces_[39098][1] = " << faces_[39098][1] << ", faces_[39098][2] = " << faces_[39098][2] << std::endl;
-
-        return true;
-    }
-
     Real calculateEachFaceArea(const Vec3d vertices[3])
     {
         Vec3d edge1 = vertices[1] - vertices[0];
         Vec3d edge2 = vertices[2] - vertices[0];
-        return 0.5 * edge1.cross(edge2).norm();
+        Real area = 0.5 * edge1.cross(edge2).norm();
+        return area;
     }
 
     void generateParticleAtFaceCenter(const Vec3d vertices[3])
@@ -431,15 +358,15 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
-    //SolidBodyFromMesh solid_body_from_mesh("SolidBodyFromMesh");
-    //TriangleMeshShapeSTL* mesh_shape = solid_body_from_mesh.getMeshShape();
+    SolidBodyFromMesh solid_body_from_mesh("SolidBodyFromMesh");
+    TriangleMeshShapeSTL* mesh_shape = solid_body_from_mesh.getMeshShape();
 
     RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("ShellShape"));
     imported_model.defineAdaptation<SPHAdaptation>(1.15, 1.0);
     //imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
-        : imported_model.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path);
+        : imported_model.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
     
     /*RealBody test_body_in(
         sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
