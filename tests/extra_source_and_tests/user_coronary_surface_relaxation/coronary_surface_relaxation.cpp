@@ -156,11 +156,11 @@ public:
             if (random_real <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
             {
                 // Generate particle at the center of this triangle face
-                generateParticleAtFaceCenter(vertices);
+                //generateParticleAtFaceCenter(vertices);
                 
                 // Generate particles on this triangle face, unequal
-                /*int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / mesh_total_area_)));
-                generateParticlesOnFace(vertices, particles_per_face);*/
+                int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / mesh_total_area_)));
+                generateParticlesOnFace(vertices, particles_per_face);
             }
         }
     }
@@ -178,6 +178,13 @@ private:
         std::string line;
         bool reading_points = false;
         bool reading_faces = false;
+        bool reading_points_data = false;
+        bool reading_faces_data = false;
+
+        vertex_positions_.reserve(50000);
+        faces_.reserve(50000);
+
+        int read_face_num = 0;
 
         while (std::getline(file, line))
         {
@@ -201,23 +208,39 @@ private:
                 reading_faces = false;
                 continue;
             }
+            if (reading_points && line.find("<DataArray") != std::string::npos)
+            {
+                reading_points_data = true;
+                continue;
+            }
+            if (reading_faces && line.find("<DataArray type=\"Int32\" Name=\"connectivity\"") != std::string::npos)
+            {
+                reading_faces_data = true;
+                continue;
+            }
+            if (reading_points_data && line.find("</DataArray>") != std::string::npos)
+            {
+                reading_points_data = false;
+                continue;
+            }
+            if (reading_faces_data && line.find("</DataArray>") != std::string::npos)
+            {
+                reading_faces_data = false;
+                continue;
+            }
 
-            if (reading_points)
+            if (reading_points_data)
             {
                 std::istringstream iss(line);
                 Real x, y, z;
                 if (iss >> x >> y >> z)
                 {
                     vertex_positions_.push_back({x, y, z});
-                    // std::cout << "x = " << x << ", y = " << y << ", z = " << z << std::endl; // Debugging output
                 }
             }
 
-            if (reading_faces)
+            if (reading_faces_data)
             {
-                if (line.find("<DataArray") != std::string::npos)
-                    continue;
-
                 std::istringstream iss(line);
                 int v1, v2, v3;
                 if (iss >> v1 >> v2 >> v3)
@@ -226,6 +249,13 @@ private:
                 }
             }
         }
+
+        std::cout << "Read VTP file successfully!" << std::endl;
+
+        // for debug
+        // std::cout << "faces_[39097][0] = " << faces_[39097][0] << ", faces_[39097][1] = " << faces_[39097][1] << ", faces_[39097][2] = " << faces_[39097][2] << std::endl;
+        // std::cout << "faces_[39098][0] = " << faces_[39098][0] << ", faces_[39098][1] = " << faces_[39098][1] << ", faces_[39098][2] = " << faces_[39098][2] << std::endl;
+
         return true;
     }
 
