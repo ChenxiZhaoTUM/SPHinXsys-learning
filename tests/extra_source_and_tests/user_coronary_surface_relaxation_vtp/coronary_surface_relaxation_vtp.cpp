@@ -424,7 +424,7 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(false);
+    sph_system.setRunParticleRelaxation(true);
     sph_system.setReloadParticles(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
@@ -435,7 +435,7 @@ int main(int ac, char *av[])
 
     RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("ShellShape"));
     imported_model.defineAdaptation<SPHAdaptation>(1.15, 1.0);
-    //imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
+    imported_model.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
         : imported_model.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path);
@@ -523,20 +523,20 @@ int main(int ac, char *av[])
         using namespace relax_dynamics;
         SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
         /** A  Physics relaxation step. */
-        ShellRelaxationStep relaxation_step_inner(imported_model_inner);
+        SurfaceRelaxationStep relaxation_step_inner(imported_model_inner);
         ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness);
 
-        //SimpleDynamics<AlignedBoxParticlesDetection> inlet_particles_detection(inlet_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_main_particles_detection(outlet_main_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_left01_particles_detection(outlet_left01_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_left02_particles_detection(outlet_left02_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_left03_particles_detection(outlet_left03_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightF01_particles_detection(outlet_rightF01_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightF02_particles_detection(outlet_rightF02_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightB01_particles_detection(outlet_rightB01_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightB02_particles_detection(outlet_rightB02_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightB03_particles_detection(outlet_rightB03_detection_box);
-        //SimpleDynamics<AlignedBoxParticlesDetection> outlet_rightB04_particles_detection(outlet_rightB04_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_main_particles_detection(outlet_main_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_left01_particles_detection(outlet_left01_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_left02_particles_detection(outlet_left02_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_left03_particles_detection(outlet_left03_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightF01_particles_detection(outlet_rightF01_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightF02_particles_detection(outlet_rightF02_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB01_particles_detection(outlet_rightB01_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB02_particles_detection(outlet_rightB02_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB03_particles_detection(outlet_rightB03_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet_rightB04_particles_detection(outlet_rightB04_detection_box);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
@@ -545,8 +545,8 @@ int main(int ac, char *av[])
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
-        random_imported_model_particles.exec(0.25);
-        relaxation_step_inner.MidSurfaceBounding().exec();
+        //random_imported_model_particles.exec(0.25);
+        relaxation_step_inner.getOnSurfaceBounding().exec();
         write_imported_model_to_vtp.writeToFile(0.0);
         imported_model.updateCellLinkedList();
         // write_cell_linked_list.writeToFile(0.0);
@@ -554,11 +554,11 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 500)
+        while (ite_p < 5000)
         {
             relaxation_step_inner.exec();
             ite_p += 1;
-            if (ite_p % 50 == 0)
+            if (ite_p % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
                 write_imported_model_to_vtp.writeToFile(ite_p);
@@ -566,21 +566,23 @@ int main(int ac, char *av[])
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
-        //inlet_particles_detection.exec();
-        //outlet_main_particles_detection.exec();
-        //outlet_left01_particles_detection.exec();
-        //outlet_left02_particles_detection.exec();
-        //outlet_left03_particles_detection.exec();
-        //outlet_rightF01_particles_detection.exec();
-        //outlet_rightF02_particles_detection.exec();
-        //outlet_rightB01_particles_detection.exec();
-        //outlet_rightB02_particles_detection.exec();
-        //outlet_rightB03_particles_detection.exec();
-        //outlet_rightB04_particles_detection.exec();
+        inlet_particles_detection.exec();
+        outlet_main_particles_detection.exec();
+        outlet_left01_particles_detection.exec();
+        outlet_left02_particles_detection.exec();
+        outlet_left03_particles_detection.exec();
+        outlet_rightF01_particles_detection.exec();
+        outlet_rightF02_particles_detection.exec();
+        outlet_rightB01_particles_detection.exec();
+        outlet_rightB02_particles_detection.exec();
+        outlet_rightB03_particles_detection.exec();
+        outlet_rightB04_particles_detection.exec();
 
-        shell_normal_prediction.exec();
         write_imported_model_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
+
+        shell_normal_prediction.exec();
+        
         return 0;
     }
 
