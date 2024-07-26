@@ -68,7 +68,7 @@ class FromSTLFile;
 template <>
 class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerator<SurfaceParticles>
 {
-    Real total_volume_;
+    Real mesh_total_area_;
     Real particle_spacing_;
     const Real thickness_;
     Real avg_particle_volume_;
@@ -80,7 +80,7 @@ class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerato
 public:
     explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape) 
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
-        total_volume_(0),
+        mesh_total_area_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
         thickness_(particle_spacing_),
         avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
@@ -140,10 +140,10 @@ public:
 
             Real each_area = calculateEachFaceArea(vertices);
             face_areas[i] = each_area;
-            total_volume_ += each_area;
+            mesh_total_area_ += each_area;
         }
 
-        Real number_of_particles = total_volume_ / avg_particle_volume_ + 0.5;
+        Real number_of_particles = mesh_total_area_ * thickness_ / avg_particle_volume_ + 0.5;
         planned_number_of_particles_ = int(number_of_particles);
         std::cout << "planned_number_of_particles calculation = " << planned_number_of_particles_ << std::endl;
 
@@ -172,7 +172,7 @@ public:
                 // generateParticleAtFaceCenter(vertices);
                 
                 // Generate particles on this triangle face, unequal
-                int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / total_volume_)));
+                int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / mesh_total_area_)));
                 generateParticlesOnFace(vertices, particles_per_face);
             }
         }

@@ -83,7 +83,7 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
     size_t number_of_points_;
     size_t number_of_polys_;
 
-    Real total_volume_;
+    Real mesh_total_area_;
     std::vector<Real> face_areas_;
     Real particle_spacing_;
     const Real thickness_;
@@ -94,7 +94,7 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
   public:
     explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, const std::string &vtp_file_path)
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
-          total_volume_(0),
+          mesh_total_area_(0),
           particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
           thickness_(particle_spacing_),
           avg_particle_volume_(pow(particle_spacing_, 3) * thickness_),
@@ -289,7 +289,7 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
     void calculateTotalVolume(const std::vector<std::array<float, 3>> &points, const std::vector<std::array<int, 3>> &faces)
     {
 #pragma omp parallel for reduction(+ \
-                                   : total_volume_)
+                                   : mesh_total_area_)
 
         for (size_t i = 0; i < faces.size(); ++i)
         {
@@ -300,7 +300,7 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
                 Vec3d(points[face[2]][0], points[face[2]][1], points[face[2]][2])};
             Real area = calculateEachFaceArea(vertices);
             face_areas_[i] = area;
-            total_volume_ += area;
+            mesh_total_area_ += area;
         }
     }
 
@@ -316,7 +316,7 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
         std::mt19937_64 rng(std::random_device{}());
         std::uniform_real_distribution<Real> unif(0.0, 1.0);
 
-        planned_number_of_particles_ = static_cast<size_t>(total_volume_ / avg_particle_volume_ + 0.5);
+        planned_number_of_particles_ = static_cast<size_t>(mesh_total_area_ * thickness_ / avg_particle_volume_ + 0.5);
         std::cout << "planned_number_of_particles calculation = " << planned_number_of_particles_ << std::endl;
 
         Real interval = static_cast<Real>(planned_number_of_particles_) / faces.size();
@@ -330,7 +330,7 @@ class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerato
                 Vec3d(points[face[2]][0], points[face[2]][1], points[face[2]][2])};
 
             Real random_value = unif(rng);
-            Real interval = planned_number_of_particles_ * (face_areas_[i] / total_volume_);
+            Real interval = planned_number_of_particles_ * (face_areas_[i] / mesh_total_area_);
             if (random_value <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
             {
                 int particles_per_face = std::max(1, static_cast<int>(interval));
