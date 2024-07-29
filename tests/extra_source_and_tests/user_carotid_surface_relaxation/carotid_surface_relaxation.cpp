@@ -40,7 +40,8 @@ public:
     explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name),
         mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
     {
-        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
     }
 
     TriangleMeshShapeSTL* getMeshShape() const

@@ -31,13 +31,13 @@ Real thickness = 1.0 * dp_0;
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
-class WaterBlock : public ComplexShape
+class ShellShape : public ComplexShape
 {
 public:
-    explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name),
+    explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name),
         mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
     {
-        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
     }
 
     TriangleMeshShapeSTL* getMeshShape() const
@@ -49,13 +49,12 @@ private:
     std::unique_ptr<TriangleMeshShapeSTL> mesh_shape_;
 };
 
-class ShellShape : public ComplexShape
+class WaterBlock : public ComplexShape
 {
 public:
-    explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name)
+    explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
-        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 };
 
@@ -491,9 +490,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
     //----------------------------------------------------------------------
-    WaterBlock body_from_mesh("BodyFromMesh");
+    ShellShape body_from_mesh("BodyFromMesh");
     TriangleMeshShapeSTL* mesh_shape = body_from_mesh.getMeshShape();
-    SolidBody shell_body(sph_system, makeShared<WaterBlock>("ShellBody"));
+    SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
     shell_body.defineAdaptation<SPHAdaptation>(1.15, 1.0);
     shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);

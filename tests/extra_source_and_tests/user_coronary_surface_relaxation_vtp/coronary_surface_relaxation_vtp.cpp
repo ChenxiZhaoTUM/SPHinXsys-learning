@@ -46,7 +46,8 @@ public:
             throw std::runtime_error("Mesh loading failed");
         }
 
-        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
     }
 
     TriangleMeshShapeSTL* getMeshShape() const
