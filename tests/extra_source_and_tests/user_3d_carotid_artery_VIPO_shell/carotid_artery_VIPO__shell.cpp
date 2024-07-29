@@ -26,7 +26,7 @@ Real scaling = 1.0;
 Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
 Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.1 * scaling;
+Real dp_0 = 0.15 * scaling;
 Real thickness = 1.0 * dp_0;
 //----------------------------------------------------------------------
 //	define the imported model.
@@ -247,12 +247,10 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
 Real DW_in = 2.9293 * 2 * scaling;
-//Vec3d inlet_half = Vec3d(1.5 * dp_0, 3.5 * scaling, 3.5 * scaling);
-Vec3d inlet_half = Vec3d(3.5 * scaling, 3.5 * scaling, 1.5 * dp_0);
-Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
+Vec3d inlet_half = Vec3d(1.5 * dp_0, 3.5 * scaling, 3.5 * scaling);
+Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
 Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 1.0 * dp_0;
-//Vec3d inlet_standard_direction(1, 0, 0);
-Vec3d inlet_standard_direction(0, 0, 1);
+Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_desposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
@@ -400,7 +398,7 @@ protected:
 
 public:
 	explicit QuantityMomentOfInertia(SPHBody& sph_body, Vecd mass_center, Real position_1, Real position_2)
-		: QuantitySummation<Real>(sph_body, "MassiveMeasure"),
+		: QuantitySummation<Real>(sph_body, "Mass"),
 		pos_(*particles_->getVariableDataByName<Vecd>("Position")), 
         mass_center_(mass_center), p_1_(position_1), p_2_(position_2)
 	{
@@ -487,8 +485,8 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
@@ -516,6 +514,17 @@ int main(int ac, char *av[])
         BodyAlignedBoxByCell outlet02_detection_box(shell_body,
                                                 makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
 
+        RealBody test_body_in(
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
+        test_body_in.generateParticles<BaseParticles, Lattice>();
+
+        RealBody test_body_out01(
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
+        test_body_out01.generateParticles<BaseParticles, Lattice>();
+
+        RealBody test_body_out02(
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
+        test_body_out02.generateParticles<BaseParticles, Lattice>();
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
@@ -526,12 +535,13 @@ int main(int ac, char *av[])
         ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness, cos(Pi / 3.75));
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
-        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box);
-        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({shell_body});
+        BodyStatesRecordingToVtp write_all_bodies_to_vtp({sph_system});
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files(shell_body);
         //----------------------------------------------------------------------
@@ -564,7 +574,7 @@ int main(int ac, char *av[])
         shell_body.updateCellLinkedListWithParticleSort(100);
         outlet02_particles_detection.exec();
         shell_body.updateCellLinkedListWithParticleSort(100);
-        write_imported_model_to_vtp.writeToFile(ite_p);
+        write_all_bodies_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
 
         shell_normal_prediction.exec();
@@ -594,7 +604,7 @@ int main(int ac, char *av[])
     // Combined relations built from basic relations
     // which is only used for update configuration.
     //----------------------------------------------------------------------
-    ComplexRelation water_block_complex(water_block_inner, {&water_shell_contact, &shell_water_contact});
+    ComplexRelation water_block_complex(water_block_inner, {&water_shell_contact});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
@@ -609,7 +619,7 @@ int main(int ac, char *av[])
 
     /** Exert constrain on shell. */
 	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_body);
-	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(shell_body, "MassiveMeasure");
+	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(shell_body, "Mass");
 	ReduceDynamics<QuantityMassPosition> compute_mass_position_(shell_body);
 	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
 	Matd moment_of_inertia = Matd::Zero();
@@ -632,8 +642,6 @@ int main(int ac, char *av[])
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> density_relaxation(water_block_inner, water_shell_contact);
-
-    InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
     InteractionWithUpdate<ComplexInteraction<fluid_dynamics::ViscousForce<Inner<>, Contact<Wall>>,
@@ -656,6 +664,7 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell right_disposer_02(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion_02(right_disposer_02);
 
+    InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_01(right_emitter_01);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_02(right_emitter_02);
@@ -676,8 +685,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
 
-    body_states_recording.addToWrite<Real>(shell_body, "VonMisesStress");
-    body_states_recording.addToWrite<Real>(shell_body, "VonMisesStrain");
+    //body_states_recording.addToWrite<Real>(shell_body, "VonMisesStress");
+    //body_states_recording.addToWrite<Real>(shell_body, "VonMisesStrain");
     body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
