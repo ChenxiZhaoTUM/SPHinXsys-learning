@@ -116,11 +116,12 @@ void ParticlesInAlignedBoxDetectionByCell::update(size_t index_i, Real dt)
     mutex_switch_to_ghost_.lock();
     while (aligned_box_.checkInBounds(pos_[index_i]) && index_i < particles_->TotalRealParticles())
     {
-        if(index_i == 26819)
+        // for debug
+        /*if(index_i == 26819)
             std::cout << "Find id=26819 in bounds!" << std::endl;
 
         if(index_i == 53007)
-            std::cout << "Find id=53007 in bounds!" << std::endl;
+            std::cout << "Find id=53007 in bounds!" << std::endl;*/
 
         particles_->switchToBufferParticle(index_i);
     }
