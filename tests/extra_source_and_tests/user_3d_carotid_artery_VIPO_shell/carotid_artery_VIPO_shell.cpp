@@ -246,19 +246,23 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
 Real DW_in = 2.9293 * 2 * scaling;
-Vec3d inlet_half = Vec3d(1.5 * dp_0, 3.5 * scaling, 3.5 * scaling);
+Vec3d inlet_cut_half = Vec3d(1.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
+Vec3d inlet_buffer_half = Vec3d(2.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
 Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
-Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 1.0 * dp_0;
+Vec3d inlet_translation_cut = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 1.0 * dp_0;
+Vec3d inlet_translation_buffer = Vec3d(1.5611, 5.8559, -30.8885) * scaling - inlet_normal * 2.0 * dp_0;
 Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
-Rotation3d inlet_desposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
+Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
 
 // outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
 Real DW_out01 = 1.9416 * 2 * scaling;
-Vec3d outlet_01_half = Vec3d(1.5 * dp_0, 2.4 * scaling, 2.4 * scaling);
+Vec3d outlet_01_cut_half = Vec3d(1.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
+Vec3d outlet_01_buffer_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
 Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_01_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_01_normal * 1.0 * dp_0;
+Vec3d outlet_01_translation_cut = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_01_normal * 1.0 * dp_0;
+Vec3d outlet_01_translation_buffer = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_01_normal * 2.0 * dp_0;
 Vec3d outlet_01_standard_direction(1, 0, 0);
 RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
 Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
@@ -266,9 +270,11 @@ Rotation3d outlet_emitter_01_rotation(outlet_01_rotation_result.angle + Pi, outl
 
 // outlet2 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
 Real DW_out02 = 1.3261 * 2 * scaling;
-Vec3d outlet_02_half = Vec3d(1.5 * dp_0, 2.0 * scaling, 2.0 * scaling);
+Vec3d outlet_02_cut_half = Vec3d(1.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
+Vec3d outlet_02_buffer_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
 Vec3d outlet_02_normal(-0.0399, 0.0693, 0.9972);
-Vec3d outlet_02_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_02_normal * 1.0 * dp_0;
+Vec3d outlet_02_translation_cut = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_02_normal * 1.0 * dp_0;
+Vec3d outlet_02_translation_buffer = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_02_normal * 2.0 * dp_0;
 Vec3d outlet_02_standard_direction(1, 0, 0);
 RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
 Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
@@ -507,22 +513,22 @@ int main(int ac, char *av[])
     {
         InnerRelation imported_model_inner(shell_body);
         BodyAlignedBoxByCell inlet_detection_box(shell_body,
-                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation_cut)), inlet_cut_half));
         BodyAlignedBoxByCell outlet01_detection_box(shell_body,
-                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
+                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation_cut)), outlet_01_cut_half));
         BodyAlignedBoxByCell outlet02_detection_box(shell_body,
-                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
+                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation_cut)), outlet_02_cut_half));
 
         RealBody test_body_in(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation_cut)), inlet_cut_half, "TestBodyIn"));
         test_body_in.generateParticles<BaseParticles, Lattice>();
 
         RealBody test_body_out01(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half, "TestBodyOut01"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation_cut)), outlet_01_cut_half, "TestBodyOut01"));
         test_body_out01.generateParticles<BaseParticles, Lattice>();
 
         RealBody test_body_out02(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half, "TestBodyOut02"));
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation_cut)), outlet_02_cut_half, "TestBodyOut02"));
         test_body_out02.generateParticles<BaseParticles, Lattice>();
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
@@ -649,18 +655,18 @@ int main(int ac, char *av[])
     // InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_shell_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_shell_contact);
 
-    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(zAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
+    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_translation_buffer)), inlet_buffer_half));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell right_emitter_01(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
+    BodyAlignedBoxByCell right_emitter_01(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_01_rotation), Vec3d(outlet_01_translation_buffer)), outlet_01_buffer_half));
     fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_emitter_inflow_injection_01(right_emitter_01, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell right_emitter_02(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
+    BodyAlignedBoxByCell right_emitter_02(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_02_rotation), Vec3d(outlet_02_translation_buffer)), outlet_02_buffer_half));
     fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_emitter_inflow_injection_02(right_emitter_02, in_outlet_particle_buffer);
 
-    BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(zAxis, Transform(Rotation3d(inlet_desposer_rotation),Vec3d(inlet_translation)), inlet_half));
+    BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation),Vec3d(inlet_translation_buffer)), inlet_buffer_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
-    BodyAlignedBoxByCell right_disposer_01(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
+    BodyAlignedBoxByCell right_disposer_01(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation_buffer)), outlet_01_buffer_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion_01(right_disposer_01);
-    BodyAlignedBoxByCell right_disposer_02(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
+    BodyAlignedBoxByCell right_disposer_02(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation_buffer)), outlet_02_buffer_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion_02(right_disposer_02);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
@@ -784,7 +790,7 @@ int main(int ac, char *av[])
             {
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
-                          << "	Dt = " << Dt << "	dt = " << dt << "\n";
+                          << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
 
                 body_states_recording.writeToFile();
             }
