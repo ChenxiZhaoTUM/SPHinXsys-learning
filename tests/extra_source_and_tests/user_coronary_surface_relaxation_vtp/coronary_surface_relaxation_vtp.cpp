@@ -46,8 +46,8 @@ public:
             throw std::runtime_error("Mesh loading failed");
         }
 
-        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
+        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        //add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
     }
 
     TriangleMeshShapeSTL* getMeshShape() const
@@ -328,89 +328,89 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 
 // inlet: R=41.7567, (-203.6015, 204.1509, -135.3577), (0.2987, 0.1312, 0.9445)
-Vec3d inlet_half = Vec3d(1.5 * dp_0, 42.0 * scaling, 42.0 * scaling);
+Vec3d inlet_half = Vec3d(1.0 * dp_0, 35.0 * scaling, 35.0 * scaling);
 Vec3d inlet_normal(-0.2987, -0.1312, -0.9445);
-Vec3d inlet_translation = Vec3d(-203.6015, 204.1509, -135.3577) * scaling + inlet_normal * 1.0 * dp_0;
+Vec3d inlet_translation = Vec3d(-203.6015, 204.1509, -135.3577) * scaling;
 Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 // outlet main: R=36.1590, (-172.2628, 205.9036, -19.8868), (0.2678, 0.3191, -0.9084)
-Vec3d outlet_half_main = Vec3d(1.5 * dp_0, 37.0 * scaling, 37.0 * scaling);
+Vec3d outlet_half_main = Vec3d(1.0 * dp_0, 37.0 * scaling, 37.0 * scaling);
 Vec3d outlet_normal_main(-0.2678, -0.3191, 0.9084);
-Vec3d outlet_translation_main = Vec3d(-172.2628, 205.9036, -19.8868) * scaling + outlet_normal_main * 1.0 * dp_0;
+Vec3d outlet_translation_main = Vec3d(-172.2628, 205.9036, -19.8868) * scaling;
 Vec3d outlet_standard_direction_main(1, 0, 0);
 RotationResult outlet_rotation_result_main = RotationCalculator(outlet_normal_main, outlet_standard_direction_main);
 Rotation3d outlet_rotation_main(outlet_rotation_result_main.angle, outlet_rotation_result_main.axis);
 
 // outlet x_pos 01: R=2.6964, (-207.4362, 136.7848, -252.6892), (0.636, 0.771, -0.022)
-Vec3d outlet_half_left_01 = Vec3d(1.5 * dp_0, 9.0 * scaling, 9.0 * scaling);
+Vec3d outlet_half_left_01 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_left_01(-0.636, -0.771, 0.022);
-Vec3d outlet_translation_left_01 = Vec3d(-207.4362, 136.7848, -252.6892) * scaling + outlet_normal_left_01 * 1.0 * dp_0;
+Vec3d outlet_translation_left_01 = Vec3d(-207.4362, 136.7848, -252.6892) * scaling;
 Vec3d outlet_standard_direction_left_01(1, 0, 0);
 RotationResult outlet_rotation_result_left_01 = RotationCalculator(outlet_normal_left_01, outlet_standard_direction_left_01);
 Rotation3d outlet_rotation_left_01(outlet_rotation_result_left_01.angle, outlet_rotation_result_left_01.axis);
 
 // outlet x_pos 02: R=2.8306, (-193.2735, 337.4625, -270.2884), (-0.6714, 0.3331, -0.6620)
-Vec3d outlet_half_left_02 = Vec3d(1.5 * dp_0, 10.0 * scaling, 10.0 * scaling);
+Vec3d outlet_half_left_02 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_left_02(-0.6714, 0.3331, -0.6620);
-Vec3d outlet_translation_left_02 = Vec3d(-193.2735, 337.4625, -270.2884) * scaling + outlet_normal_left_02 * 1.0 * dp_0;
+Vec3d outlet_translation_left_02 = Vec3d(-193.2735, 337.4625, -270.2884) * scaling;
 Vec3d outlet_standard_direction_left_02(1, 0, 0);
 RotationResult outlet_rotation_result_left_02 = RotationCalculator(outlet_normal_left_02, outlet_standard_direction_left_02);
 Rotation3d outlet_rotation_left_02(outlet_rotation_result_left_02.angle, outlet_rotation_result_left_02.axis);
 
 // outlet x_pos 03: R=2.2804, (-165.5566, 326.1601, -139.9323), (0.6563, -0.6250, 0.4226)
-Vec3d outlet_half_left_03 = Vec3d(1.5 * dp_0, 9.0 * scaling, 9.0 * scaling);
+Vec3d outlet_half_left_03 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_left_03(-0.6563, 0.6250, -0.4226);
-Vec3d outlet_translation_left_03 = Vec3d(-165.5566, 326.1601, -139.9323) * scaling + outlet_normal_left_03 * 1.0 * dp_0;
+Vec3d outlet_translation_left_03 = Vec3d(-165.5566, 326.1601, -139.9323) * scaling;
 Vec3d outlet_standard_direction_left_03(1, 0, 0);
 RotationResult outlet_rotation_result_left_03 = RotationCalculator(outlet_normal_left_03, outlet_standard_direction_left_03);
 Rotation3d outlet_rotation_left_03(outlet_rotation_result_left_03.angle, outlet_rotation_result_left_03.axis);
 
 // outlet x_neg_front 01: R=2.6437, (-307.8, 312.1402, -333.2), (-0.185, -0.967, -0.176)
-Vec3d outlet_half_rightF_01 = Vec3d(1.5 * dp_0, 10.0 * scaling, 10.0 * scaling);
+Vec3d outlet_half_rightF_01 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_rightF_01(-0.185, -0.967, -0.176);
-Vec3d outlet_translation_rightF_01 = Vec3d(-307.8, 312.1402, -333.2) * scaling + outlet_normal_rightF_01 * 1.0 * dp_0;
+Vec3d outlet_translation_rightF_01 = Vec3d(-307.8, 312.1402, -333.2) * scaling;
 Vec3d outlet_standard_direction_rightF_01(1, 0, 0);
 RotationResult outlet_rotation_result_rightF_01 = RotationCalculator(outlet_normal_rightF_01, outlet_standard_direction_rightF_01);
 Rotation3d outlet_rotation_rightF_01(outlet_rotation_result_rightF_01.angle, outlet_rotation_result_rightF_01.axis);
 
 // outlet x_neg_front 02: R=1.5424, (-369.1252, 235.2617, -193.7022), (-0.501, 0.059, -0.863)
-Vec3d outlet_half_rightF_02 = Vec3d(1.5 * dp_0, 8.0 * scaling, 8.0 * scaling);
+Vec3d outlet_half_rightF_02 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_rightF_02(-0.501, 0.059, -0.863);
-Vec3d outlet_translation_rightF_02 = Vec3d(-369.1252, 235.2617, -193.7022) * scaling + outlet_normal_rightF_02 * 1.0 * dp_0;
+Vec3d outlet_translation_rightF_02 = Vec3d(-369.1252, 235.2617, -193.7022) * scaling;
 Vec3d outlet_standard_direction_rightF_02(1, 0, 0);
 RotationResult outlet_rotation_result_rightF_02 = RotationCalculator(outlet_normal_rightF_02, outlet_standard_direction_rightF_02);
 Rotation3d outlet_rotation_rightF_02(outlet_rotation_result_rightF_02.angle, outlet_rotation_result_rightF_02.axis);
 
 // outlet x_neg_behind 01: R=1.5743, (-268.3522, 116.0357, -182.4896), (0.325, -0.086, -0.942)
-Vec3d outlet_half_rightB_01 = Vec3d(1.5 * dp_0, 8.0 * scaling, 8.0 * scaling);
+Vec3d outlet_half_rightB_01 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_rightB_01(0.325, -0.086, -0.942);
-Vec3d outlet_translation_rightB_01 = Vec3d(-268.3522, 116.0357, -182.4896) * scaling + outlet_normal_rightB_01 * 1.0 * dp_0;
+Vec3d outlet_translation_rightB_01 = Vec3d(-268.3522, 116.0357, -182.4896) * scaling;
 Vec3d outlet_standard_direction_rightB_01(1, 0, 0);
 RotationResult outlet_rotation_result_rightB_01 = RotationCalculator(outlet_normal_rightB_01, outlet_standard_direction_rightB_01);
 Rotation3d outlet_rotation_rightB_01(outlet_rotation_result_rightB_01.angle, outlet_rotation_result_rightB_01.axis);
 
 // outlet x_neg_behind 02: R=1.8204, (-329.0846, 180.5258, -274.3232), (-0.1095, 0.9194, -0.3777)
-Vec3d outlet_half_rightB_02 = Vec3d(1.5 * dp_0, 9.0 * scaling, 9.0 * scaling);
+Vec3d outlet_half_rightB_02 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_rightB_02(-0.1095, 0.9194, -0.3777);
-Vec3d outlet_translation_rightB_02 = Vec3d(-329.0846, 180.5258, -274.3232) * scaling + outlet_normal_rightB_02 * 1.0 * dp_0;
+Vec3d outlet_translation_rightB_02 = Vec3d(-329.0846, 180.5258, -274.3232) * scaling;
 Vec3d outlet_standard_direction_rightB_02(1, 0, 0);
 RotationResult outlet_rotation_result_rightB_02 = RotationCalculator(outlet_normal_rightB_02, outlet_standard_direction_rightB_02);
 Rotation3d outlet_rotation_rightB_02(outlet_rotation_result_rightB_02.angle, outlet_rotation_result_rightB_02.axis);
 
 // outlet x_neg_behind 03: R=1.5491, (-342.1711, 197.1107, -277.8681), (0.1992, 0.5114, -0.8361)
-Vec3d outlet_half_rightB_03 = Vec3d(1.5 * dp_0, 8.0 * scaling, 8.0 * scaling);
+Vec3d outlet_half_rightB_03 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_rightB_03(0.1992, 0.5114, -0.8361);
-Vec3d outlet_translation_rightB_03 = Vec3d(-342.1711, 197.1107, -277.8681) * scaling + outlet_normal_rightB_03 * 1.0 * dp_0;
+Vec3d outlet_translation_rightB_03 = Vec3d(-342.1711, 197.1107, -277.8681) * scaling;
 Vec3d outlet_standard_direction_rightB_03(1, 0, 0);
 RotationResult outlet_rotation_result_rightB_03 = RotationCalculator(outlet_normal_rightB_03, outlet_standard_direction_rightB_03);
 Rotation3d outlet_rotation_rightB_03(outlet_rotation_result_rightB_03.angle, outlet_rotation_result_rightB_03.axis);
 
 // outlet x_neg_behind 04: R=2.1598, (-362.0112, 200.5693, -253.8417), (0.3694, 0.6067, -0.7044)
-Vec3d outlet_half_rightB_04 = Vec3d(1.5 * dp_0, 9.0 * scaling, 9.0 * scaling);
+Vec3d outlet_half_rightB_04 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
 Vec3d outlet_normal_rightB_04(0.3694, 0.6067, -0.7044);
-Vec3d outlet_translation_rightB_04 = Vec3d(-362.0112, 200.5693, -253.8417) * scaling + outlet_normal_rightB_04 * 1.0 * dp_0;
+Vec3d outlet_translation_rightB_04 = Vec3d(-362.0112, 200.5693, -253.8417) * scaling;
 Vec3d outlet_standard_direction_rightB_04(1, 0, 0);
 RotationResult outlet_rotation_result_rightB_04 = RotationCalculator(outlet_normal_rightB_04, outlet_standard_direction_rightB_04);
 Rotation3d outlet_rotation_rightB_04(outlet_rotation_result_rightB_04.angle, outlet_rotation_result_rightB_04.axis);
@@ -439,40 +439,6 @@ int main(int ac, char *av[])
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
         : imported_model.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path);
-    
-    BodyAlignedBoxByCell inlet_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
-
-    BodyAlignedBoxByCell outlet_main_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_main), Vec3d(outlet_translation_main)), outlet_half_main));
-
-    BodyAlignedBoxByCell outlet_left01_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_01), Vec3d(outlet_translation_left_01)), outlet_half_left_01));
-
-    BodyAlignedBoxByCell outlet_left02_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_02), Vec3d(outlet_translation_left_02)), outlet_half_left_02));
-
-    BodyAlignedBoxByCell outlet_left03_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_03), Vec3d(outlet_translation_left_03)), outlet_half_left_03));
-
-    BodyAlignedBoxByCell outlet_rightF01_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_01), Vec3d(outlet_translation_rightF_01)), outlet_half_rightF_01));
-
-    BodyAlignedBoxByCell outlet_rightF02_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_02), Vec3d(outlet_translation_rightF_02)), outlet_half_rightF_02));
-
-    BodyAlignedBoxByCell outlet_rightB01_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_01), Vec3d(outlet_translation_rightB_01)), outlet_half_rightB_01));
-
-    BodyAlignedBoxByCell outlet_rightB02_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_02), Vec3d(outlet_translation_rightB_02)), outlet_half_rightB_02));
-
-    BodyAlignedBoxByCell outlet_rightB03_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_03), Vec3d(outlet_translation_rightB_03)), outlet_half_rightB_03));
-
-    BodyAlignedBoxByCell outlet_rightB04_detection_box(imported_model, 
-        makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_04), Vec3d(outlet_translation_rightB_04)), outlet_half_rightB_04));
-
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -483,6 +449,29 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     if (sph_system.RunParticleRelaxation())
     {
+        BodyAlignedBoxByCell inlet_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
+        BodyAlignedBoxByCell outlet_main_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_main), Vec3d(outlet_translation_main)), outlet_half_main));
+        BodyAlignedBoxByCell outlet_left01_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_01), Vec3d(outlet_translation_left_01)), outlet_half_left_01));
+        BodyAlignedBoxByCell outlet_left02_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_02), Vec3d(outlet_translation_left_02)), outlet_half_left_02));
+        BodyAlignedBoxByCell outlet_left03_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_03), Vec3d(outlet_translation_left_03)), outlet_half_left_03));
+        BodyAlignedBoxByCell outlet_rightF01_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_01), Vec3d(outlet_translation_rightF_01)), outlet_half_rightF_01));
+        BodyAlignedBoxByCell outlet_rightF02_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_02), Vec3d(outlet_translation_rightF_02)), outlet_half_rightF_02));
+        BodyAlignedBoxByCell outlet_rightB01_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_01), Vec3d(outlet_translation_rightB_01)), outlet_half_rightB_01));
+        BodyAlignedBoxByCell outlet_rightB02_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_02), Vec3d(outlet_translation_rightB_02)), outlet_half_rightB_02));
+        BodyAlignedBoxByCell outlet_rightB03_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_03), Vec3d(outlet_translation_rightB_03)), outlet_half_rightB_03));
+        BodyAlignedBoxByCell outlet_rightB04_detection_box(imported_model, 
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_04), Vec3d(outlet_translation_rightB_04)), outlet_half_rightB_04));
+
         InnerRelation imported_model_inner(imported_model);
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
@@ -507,6 +496,7 @@ int main(int ac, char *av[])
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
+        BodyStatesRecordingToVtp write_all_to_vtp(sph_system);
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files(imported_model);
         //----------------------------------------------------------------------
@@ -556,7 +546,7 @@ int main(int ac, char *av[])
         outlet_rightB04_particles_detection.exec();
         imported_model.updateCellLinkedListWithParticleSort(100);
 
-        write_imported_model_to_vtp.writeToFile(ite_p);
+        write_all_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
 
         shell_normal_prediction.exec();
