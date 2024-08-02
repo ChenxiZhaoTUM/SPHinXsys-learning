@@ -15,37 +15,45 @@
 
 using namespace SPH;
 //----------------------------------------------------------------------
-//	Set the file path to the data file.
-//----------------------------------------------------------------------
-//std::string water_path = "./input/Yshape_water_for_code.dat";
-std::string wall_inner_path = "./input/Yshape_inner_boundary_for_code.dat";
-std::string wall_outer_path = "./input/Yshape_outer_boundary_for_code.dat";
-//----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Vecd translation(0.0, 0.0);
-Real length_scale = pow(10, -2);
-BoundingBox system_domain_bounds(Vec2d(-3.0 * length_scale, -12.0 * length_scale), Vecd(44.0 * length_scale, 16.0 * length_scale));
-Real resolution_ref = 0.5 * length_scale;           /**< Initial reference particle spacing. */
-Real BW = resolution_ref * 4;         /**< Reference size of the emitter. */
-Real DH = 7.0 * length_scale;
-Real DL = 25.0 * length_scale;
-Real thickness = 0.5 * length_scale;
-Real level_set_refinement_ratio = resolution_ref / (0.1 * thickness);
-//-------------------------------------------------------
+Real DL = 0.2;                                               /**< Reference length. */
+Real DH = 0.1;                                               /**< Reference and the height of main channel. */
+Real DL1 = 0.75 * DL;                                        /**< The length of the main channel. */
+Real resolution_ref = 0.002;                                 /**< Initial reference particle spacing. */
+Real BW = resolution_ref * 1.0;                                
+Real buffer_width = resolution_ref * 4.0;                                /**< Reference size of the emitter. */
+Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
+StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
+Real level_set_refinement_ratio = resolution_ref / (0.1 * BW);
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
-Real Inlet_pressure = 0.2;
 Real Outlet_pressure = 0.1;
-Real rho0_f = 1060; /**< Reference density of fluid. */
+Real rho0_f = 1060;                                                 /**< Reference density of fluid. */
+Real Re = 100.0;                                                      /**< Reynolds number. */
 Real U_f = 0.5;                                                      /**< Characteristic velocity. */
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(1.66 * length_scale) + Real(2.57 * length_scale)));
+Real c_f =10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1)));
 
 Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
+//----------------------------------------------------------------------
+//	define geometry of SPH bodies
+//----------------------------------------------------------------------
+/** the water block in T shape polygon. */
+std::vector<Vecd> water_block_shape{
+    Vecd(-DL_sponge, 0.0), Vecd(-DL_sponge, DH), Vecd(DL1, DH), Vecd(DL1, 2.0 * DH),
+    Vecd(DL, 2.0 * DH), Vecd(DL, -DH), Vecd(DL1, -DH), Vecd(DL1, 0.0), Vecd(-DL_sponge, 0.0)};
+/** the outer wall polygon. */
+std::vector<Vecd> outer_wall_shape{
+    Vecd(-DL_sponge, -BW), Vecd(-DL_sponge, DH + BW), Vecd(DL1 - BW, DH + BW), Vecd(DL1 - BW, 2.0 * DH),
+    Vecd(DL + BW, 2.0 * DH), Vecd(DL + BW, -DH), Vecd(DL1 - BW, -DH), Vecd(DL1 - BW, -BW), Vecd(-DL_sponge, -BW)};
+/** the inner wall polygon. */
+std::vector<Vecd> inner_wall_shape{
+    Vecd(-DL_sponge - BW, 0.0), Vecd(-DL_sponge - BW, DH), Vecd(DL1, DH), Vecd(DL1, 2.0 * DH + BW),
+    Vecd(DL, 2.0 * DH + BW), Vecd(DL, -DH - BW), Vecd(DL1, -DH - BW), Vecd(DL1, 0.0), Vecd(-DL_sponge - BW, 0.0)};
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -54,7 +62,7 @@ class WaterBlock : public MultiPolygonShape
   public:
     explicit WaterBlock(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
-        multi_polygon_.addAPolygonFromFile(wall_inner_path, ShapeBooleanOps::add, translation, length_scale);
+        multi_polygon_.addAPolygon(water_block_shape, ShapeBooleanOps::add);
     }
 };
 
@@ -63,8 +71,8 @@ class ShellShape : public MultiPolygonShape
   public:
     explicit ShellShape(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
-        multi_polygon_.addAPolygonFromFile(wall_outer_path, ShapeBooleanOps::add, translation, length_scale);
-        multi_polygon_.addAPolygonFromFile(wall_inner_path, ShapeBooleanOps::sub, translation, length_scale);
+        multi_polygon_.addAPolygon(outer_wall_shape, ShapeBooleanOps::add);
+        multi_polygon_.addAPolygon(inner_wall_shape, ShapeBooleanOps::sub);
     }
 };
 //----------------------------------------------------------------------
@@ -251,9 +259,10 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
+    BoundingBox system_domain_bounds(Vec2d(-DL_sponge - BW, -DH - BW), Vec2d(DL + BW, 2.0 * DH + BW));
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment(); // handle command line arguments
 #endif
@@ -266,20 +275,15 @@ int main(int ac, char *av[])
     water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
 
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
+    shell_body.defineAdaptation<SPHAdaptation>(1.15, 1.0);
     shell_body.defineBodyLevelSetShape(level_set_refinement_ratio)->writeLevelSet(sph_system);
     shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, Lattice>(thickness);
+        : shell_body.generateParticles<SurfaceParticles, Lattice>(BW);
 
-    // test buffer location
-    /*Vec2d test_half = Vec2d(0.5 * 3.0, 0.5 * BW);
-    Vec2d test_translation = Vec2d(32.716, 13.854);
-    Real test_rotation = -0.8506;
-    SolidBody test_up(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(test_rotation), Vec2d(test_translation)), test_half, "TestBody"));
-    test_up.defineParticlesAndMaterial<SolidParticles, Solid>();
-    test_up.generateParticles<Lattice>();*/
+    ObserverBody velocity_observer(sph_system, "VelocityObserver");
+    velocity_observer.generateParticles<ObserverParticles>(observer_location);
     //----------------------------------------------------------------------
     //	SPH Particle relaxation section
     //----------------------------------------------------------------------
@@ -288,10 +292,10 @@ int main(int ac, char *av[])
     {
         InnerRelation imported_model_inner(shell_body);
         using namespace relax_dynamics;
-        SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(shell_body);
+        //SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(shell_body);
         /** A  Physics relaxation step. */
         ShellRelaxationStep relaxation_step_inner(imported_model_inner);
-        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness);
+        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, BW, cos(Pi / 3.75));
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({shell_body});
         /** Write the particle reload files. */
@@ -299,6 +303,7 @@ int main(int ac, char *av[])
         //----------------------------------------------------------------------
         //	Physics relaxation starts here.
         //----------------------------------------------------------------------
+        //random_imported_model_particles.exec();
         relaxation_step_inner.MidSurfaceBounding().exec();
         write_imported_model_to_vtp.writeToFile(0.0);
         shell_body.updateCellLinkedList();
@@ -306,12 +311,12 @@ int main(int ac, char *av[])
         // From here the time stepping begins.
         //----------------------------------------------------------------------
         int ite = 0;
-        int relax_step = 1000;
+        int relax_step = 10000;
         while (ite < relax_step)
         {
             relaxation_step_inner.exec();
             ite++;
-            if (ite % 200 == 0)
+            if (ite % 10 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite << "\n";
                 write_imported_model_to_vtp.writeToFile(ite);
@@ -319,6 +324,8 @@ int main(int ac, char *av[])
         }
 
         std::cout << "The physics relaxation process of wall particles finish !" << std::endl;
+        shell_normal_prediction.exec();
+        write_imported_model_to_vtp.writeToFile(ite);
         write_particle_reload_files.writeToFile(0);
 
         return 0;
@@ -330,7 +337,7 @@ int main(int ac, char *av[])
     //  Generally, we first define all the inner relations, then the contact relations.
     //  At last, we define the complex relaxations by combining previous defined
     //  inner and contact relations.
-    //----------------------------------------------------------------------  
+    //----------------------------------------------------------------------
     InnerRelation water_block_inner(water_block);
     InnerRelation shell_inner(shell_body);
     ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_body}, {false});
@@ -374,40 +381,41 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_shell_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_shell_contact);
 
-    Vec2d left_bidirectional_halfsize = Vec2d(0.5 * BW, 0.5 * 7.0 * length_scale);
-    Vec2d left_bidirectional_translation = Vec2d(0.5 * BW, 0.0);
-    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_bidirectional_translation)), left_bidirectional_halfsize));
+    //----------------------------------------------------------------------
+    // Left buffer
+    //----------------------------------------------------------------------
+    Vec2d left_buffer_halfsize = Vec2d(0.5 * BW, 0.5 * DH);
+    Vec2d left_buffer_translation = Vec2d(-DL_sponge, 0.0) + left_buffer_halfsize;
+    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_buffer_translation)), left_buffer_halfsize));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell left_disposer(
-        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(left_bidirectional_translation)), left_bidirectional_halfsize));
+
+    BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(left_buffer_translation)), left_buffer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
+    //----------------------------------------------------------------------
+    // Up buffer
+    //----------------------------------------------------------------------
+    Vec2d up_buffer_halfsize = Vec2d(0.5 * BW, 0.75);
+    Vec2d up_buffer_translation = Vec2d(0.5 * (DL + DL1), 2.0 * DH - 0.5 * BW);
+    BodyAlignedBoxByCell up_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(-0.5 * Pi), Vec2d(up_buffer_translation)), up_buffer_halfsize));
+    fluid_dynamics::BidirectionalBuffer<UpOutflowPressure> right_up_emitter_inflow_injection(up_emitter, in_outlet_particle_buffer);
 
-    Vec2d right_up_bidirectional_halfsize = Vec2d(0.6 * BW, 0.5 * 3.0 * length_scale);
-    Vec2d right_up_bidirectional_translation = Vec2d(33.0 * length_scale, 14.2 * length_scale);
-    Real right_up_disposer_rotation = 0.722;
-    Real right_up_emitter_rotation = right_up_disposer_rotation + Pi;
-    BodyAlignedBoxByCell right_up_emitter(
-        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(right_up_emitter_rotation), Vec2d(right_up_bidirectional_translation)), right_up_bidirectional_halfsize));
-    fluid_dynamics::BidirectionalBuffer<UpOutflowPressure> right_up_emitter_inflow_injection(right_up_emitter, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell right_up_disposer(
-        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(right_up_disposer_rotation), Vec2d(right_up_bidirectional_translation)), right_up_bidirectional_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_up_disposer_outflow_deletion(right_up_disposer);
+    BodyAlignedBoxByCell up_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(0.5 * Pi), Vec2d(up_buffer_translation)), up_buffer_halfsize));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_up_disposer_outflow_deletion(up_disposer);
+    //----------------------------------------------------------------------
+    // Down buffer
+    //----------------------------------------------------------------------
+    Vec2d down_buffer_halfsize = Vec2d(0.5 * BW, 0.75);
+    Vec2d down_buffer_translation = Vec2d(0.5 * (DL + DL1), -DH + 0.5 * BW);
+    BodyAlignedBoxByCell down_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(0.5 * Pi), Vec2d(down_buffer_translation)), down_buffer_halfsize));
+    fluid_dynamics::BidirectionalBuffer<DownOutflowPressure> right_down_emitter_inflow_injection(down_emitter, in_outlet_particle_buffer);
 
-    Vec2d right_down_bidirectional_halfsize = Vec2d(0.6 * BW, 0.5 * 4.0 * length_scale);
-    Vec2d right_down_bidirectional_translation = Vec2d(42.0 * length_scale, -9.7 * length_scale);
-    Real right_down_disposer_rotation = -0.317;
-    Real right_down_emitter_rotation = right_down_disposer_rotation + Pi;
-    BodyAlignedBoxByCell right_down_emitter(
-        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(right_down_emitter_rotation), Vec2d(right_down_bidirectional_translation)), right_down_bidirectional_halfsize));
-    fluid_dynamics::BidirectionalBuffer<DownOutflowPressure> right_down_emitter_inflow_injection(right_down_emitter, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell right_down_disposer(
-        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(right_down_disposer_rotation), Vec2d(right_down_bidirectional_translation)), right_down_bidirectional_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_down_disposer_outflow_deletion(right_down_disposer);
-    
+    BodyAlignedBoxByCell down_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(-0.5 * Pi), Vec2d(down_buffer_translation)), down_buffer_halfsize));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_down_disposer_outflow_deletion(down_disposer);
+
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<UpOutflowPressure>> up_inflow_pressure_condition(right_up_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<DownOutflowPressure>> down_inflow_pressure_condition(right_down_emitter);
+    SimpleDynamics<fluid_dynamics::PressureCondition<UpOutflowPressure>> up_inflow_pressure_condition(up_emitter);
+    SimpleDynamics<fluid_dynamics::PressureCondition<DownOutflowPressure>> down_inflow_pressure_condition(down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
 
 
@@ -417,7 +425,7 @@ int main(int ac, char *av[])
     solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
 
 
-    RealBody buffer_body_in(
+    /*RealBody buffer_body_in(
         sph_system, makeShared<AlignedBoxShape>(xAxis,Transform(Vec2d(left_bidirectional_translation)), left_bidirectional_halfsize, "BufferBodyIn"));
     buffer_body_in.generateParticles<BaseParticles, Lattice>();
     RealBody buffer_body_out01(
@@ -425,8 +433,7 @@ int main(int ac, char *av[])
     buffer_body_out01.generateParticles<BaseParticles, Lattice>();
     RealBody buffer_body_out02(
         sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(right_down_disposer_rotation), Vec2d(right_down_bidirectional_translation)), right_down_bidirectional_halfsize, "BufferBodyOut02"));
-    buffer_body_out02.generateParticles<BaseParticles, Lattice>();
-
+    buffer_body_out02.generateParticles<BaseParticles, Lattice>();*/
 
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
@@ -558,6 +565,7 @@ int main(int ac, char *av[])
             shell_average_curvature.exec();
             shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
+
             interval_updating_configuration += TickCount::now() - time_instance;
             boundary_indicator.exec();
 

@@ -31,37 +31,6 @@ BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
 Real dp_0 = 0.15 * scaling;
 Real thickness = 1.0 * dp_0;
 //Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
-//----------------------------------------------------------------------
-//	define the imported model.
-//----------------------------------------------------------------------
-class SolidBodyFromMesh : public ComplexShape
-{
-public:
-    explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name),
-        mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
-    {
-        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-        //add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
-    }
-
-    TriangleMeshShapeSTL* getMeshShape() const
-    {
-        return mesh_shape_.get();
-    }
-
-private:
-    std::unique_ptr<TriangleMeshShapeSTL> mesh_shape_;
-};
-
-class ShellShape : public ComplexShape
-{
-public:
-    explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name)
-    {
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
-        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-    }
-};
 
 class FromSTLFile;
 template <>
@@ -250,7 +219,7 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
 Vec3d inlet_half = Vec3d(1.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
 Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
-Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling;
+Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 1.0 * dp_0;
 Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
@@ -258,7 +227,7 @@ Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axi
 // outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
 Vec3d outlet_01_half = Vec3d(1.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
 Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_01_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling;
+Vec3d outlet_01_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_01_normal * 1.0 * dp_0;
 Vec3d outlet_01_standard_direction(1, 0, 0);
 RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
 Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
@@ -266,11 +235,45 @@ Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotatio
 // outlet2 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
 Vec3d outlet_02_half = Vec3d(1.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
 Vec3d outlet_02_normal(-0.0399, 0.0693, 0.9972);
-Vec3d outlet_02_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling;
+Vec3d outlet_02_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_02_normal * 1.0 * dp_0;
 Vec3d outlet_02_standard_direction(1, 0, 0);
 RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
 Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
 
+//----------------------------------------------------------------------
+//	define the imported model.
+//----------------------------------------------------------------------
+class SolidBodyFromMesh : public ComplexShape
+{
+public:
+    explicit SolidBodyFromMesh(const std::string &shape_name) : ComplexShape(shape_name),
+        mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
+    {
+        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
+        subtract<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half);
+        subtract<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half);
+        subtract<TransformShape<GeometricShapeBox>>(Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half);
+    }
+
+    TriangleMeshShapeSTL* getMeshShape() const
+    {
+        return mesh_shape_.get();
+    }
+
+private:
+    std::unique_ptr<TriangleMeshShapeSTL> mesh_shape_;
+};
+
+class ShellShape : public ComplexShape
+{
+public:
+    explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name)
+    {
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
+        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+    }
+};
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -291,7 +294,7 @@ int main(int ac, char *av[])
 
     RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("ShellShape"));
     imported_model.defineAdaptation<SPHAdaptation>(1.15, 1.0);
-    imported_model.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
+    //imported_model.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
         : imported_model.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
@@ -339,12 +342,12 @@ int main(int ac, char *av[])
         //SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(imported_model);
         /** A  Physics relaxation step. */
         SurfaceRelaxationStep relaxation_step_inner(imported_model_inner);
-        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness, cos(Pi / 3.75));
+        //ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness, cos(Pi / 3.75));
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
+        /*SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
         SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box);
-        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);
+        SimpleDynamics<relax_dynamics::ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);*/
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
@@ -374,16 +377,16 @@ int main(int ac, char *av[])
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
-        inlet_particles_detection.exec();
+        /*inlet_particles_detection.exec();
         imported_model.updateCellLinkedListWithParticleSort(100);
         outlet01_particles_detection.exec();
         imported_model.updateCellLinkedListWithParticleSort(100);
         outlet02_particles_detection.exec();
-        imported_model.updateCellLinkedListWithParticleSort(100);
+        imported_model.updateCellLinkedListWithParticleSort(100);*/
         write_imported_model_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
 
-        shell_normal_prediction.exec();
+        //shell_normal_prediction.exec();
 
         return 0;
     }
