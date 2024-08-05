@@ -75,6 +75,80 @@ class ShellShape : public MultiPolygonShape
         multi_polygon_.addAPolygon(inner_wall_shape, ShapeBooleanOps::sub);
     }
 };
+
+/** Particle generator and constraint boundary for shell baffle. */
+class WallBoundary;
+template <>
+class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerator<SurfaceParticles>
+{
+    Real DL_sponge_;
+    Real resolution_ref_;
+    Real wall_thickness_;
+
+  public:
+    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles,
+                               Real resolution_ref, Real wall_thickness)
+        : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
+          DL_sponge_(20 * resolution_ref),
+          resolution_ref_(resolution_ref), wall_thickness_(wall_thickness){};
+    void prepareGeometricData() override
+    {
+        auto particle_number_mid_surface_01 = int((DL1 + DL_sponge_) / resolution_ref_);
+        //std::cout << " particle_number_mid_surface_01 = " << particle_number_mid_surface_01 << std::endl;
+        for (int i = 0; i < particle_number_mid_surface_01; i++)
+        {
+            Real x = -DL_sponge_ + (Real(i) + 0.5) * resolution_ref_;
+            // upper wall
+            Real y1 = DH + 0.5 * resolution_ref_;
+            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_ref_);
+            Vec2d normal_direction_1 = Vec2d(0, 1.0);
+            addSurfaceProperties(normal_direction_1, wall_thickness_);
+            // lower wall
+            Real y2 = - 0.5 * resolution_ref_; // lower wall
+            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_ref_);
+            Vec2d normal_direction_2 = Vec2d(0, -1.0);
+            addSurfaceProperties(normal_direction_2, wall_thickness_);
+        }
+
+        /*addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_ref_, DH + 0.5 * resolution_ref_), resolution_ref_);
+        addSurfaceProperties(Vec2d(-1.0, 1.0), wall_thickness_);
+        addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_ref_, - 0.5 * resolution_ref_), resolution_ref_);
+        addSurfaceProperties(Vec2d(-1.0, -1.0), wall_thickness_);*/
+
+        auto particle_number_mid_surface_02 = int(DH / resolution_ref_);
+        //std::cout << " particle_number_mid_surface_02 = " << particle_number_mid_surface_02 << std::endl;
+        for (int i = 1; i < particle_number_mid_surface_02; i++)
+        {
+            // upper wall
+            Real y1 = DH + (Real(i) + 0.5) * resolution_ref_;
+            Real x = DL1 - 0.5 * resolution_ref_;
+            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_ref_);
+            Vec2d normal_direction = Vec2d(-1.0, 0);
+            addSurfaceProperties(normal_direction, wall_thickness_);
+            // lower wall
+            Real y2 =  -(Real(i) + 0.5) * resolution_ref_;
+            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_ref_);
+            addSurfaceProperties(normal_direction, wall_thickness_);
+        }
+
+        auto particle_number_mid_surface_03 = int(1.5 * DH / resolution_ref_);
+        //std::cout << " particle_number_mid_surface_03 = " << particle_number_mid_surface_03 << std::endl;
+        for (int i = 0; i < particle_number_mid_surface_03; i++)
+        {
+            Real y1 = 0.5 * DH + (Real(i) + 0.5) * resolution_ref_;
+            // upper wall
+            Real x = DL + 0.5 * resolution_ref_;
+            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_ref_);
+            Vec2d normal_direction = Vec2d(1.0, 0);
+            addSurfaceProperties(normal_direction, wall_thickness_);
+            // lower wall
+            Real y2 = 0.5 * DH - (Real(i) + 0.5) * resolution_ref_;
+            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_ref_);
+            addSurfaceProperties(normal_direction, wall_thickness_);
+        }
+    }
+};
+
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -251,6 +325,27 @@ public:
 		vel_[index_i] -= linear_velocity_;
 	}
 };
+
+class BoundaryGeometry : public BodyPartByParticle
+{
+  public:
+    BoundaryGeometry(SPHBody &body, const std::string &body_part_name)
+        : BodyPartByParticle(body, body_part_name)
+    {
+        TaggingParticleMethod tagging_particle_method = std::bind(&BoundaryGeometry::tagManually, this, _1);
+        tagParticles(tagging_particle_method);
+    };
+    virtual ~BoundaryGeometry(){};
+
+  private:
+    void tagManually(size_t index_i)
+    {
+        if (base_particles_.ParticlePositions()[index_i][0] < -0.02)
+        {
+            body_part_particles_.push_back(index_i);
+        }
+    };
+};
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -261,7 +356,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     BoundingBox system_domain_bounds(Vec2d(-DL_sponge - BW, -DH - BW), Vec2d(DL + BW, 2.0 * DH + BW));
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
     sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment(); // handle command line arguments
@@ -277,13 +372,20 @@ int main(int ac, char *av[])
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
     shell_body.defineAdaptation<SPHAdaptation>(1.15, 1.0);
     shell_body.defineBodyLevelSetShape(level_set_refinement_ratio)->writeLevelSet(sph_system);
-    shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
-    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-        ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, Lattice>(BW);
+    shell_body.defineMaterial<Solid>();
+    shell_body.generateParticles<SurfaceParticles, WallBoundary>(resolution_ref, BW);
+    //shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
+    //(!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+    //    ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
+    //    : shell_body.generateParticles<SurfaceParticles, Lattice>(BW);
 
     ObserverBody velocity_observer(sph_system, "VelocityObserver");
     velocity_observer.generateParticles<ObserverParticles>(observer_location);
+
+    // test particles
+    /*BodyStatesRecordingToVtp body_states_recording_test(sph_system);
+    body_states_recording_test.writeToFile();
+    return 0;*/
     //----------------------------------------------------------------------
     //	SPH Particle relaxation section
     //----------------------------------------------------------------------
@@ -292,10 +394,10 @@ int main(int ac, char *av[])
     {
         InnerRelation imported_model_inner(shell_body);
         using namespace relax_dynamics;
-        //SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(shell_body);
+        SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(shell_body);
         /** A  Physics relaxation step. */
         ShellRelaxationStep relaxation_step_inner(imported_model_inner);
-        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, BW, cos(Pi / 3.75));
+        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, BW);
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({shell_body});
         /** Write the particle reload files. */
@@ -303,20 +405,21 @@ int main(int ac, char *av[])
         //----------------------------------------------------------------------
         //	Physics relaxation starts here.
         //----------------------------------------------------------------------
-        //random_imported_model_particles.exec();
+        random_imported_model_particles.exec();
         relaxation_step_inner.MidSurfaceBounding().exec();
         write_imported_model_to_vtp.writeToFile(0.0);
         shell_body.updateCellLinkedList();
+        write_imported_model_to_vtp.addToWrite<Vecd>(shell_body, "NormalDirection");
         //----------------------------------------------------------------------
         // From here the time stepping begins.
         //----------------------------------------------------------------------
         int ite = 0;
-        int relax_step = 10000;
+        int relax_step = 100000;
         while (ite < relax_step)
         {
             relaxation_step_inner.exec();
             ite++;
-            if (ite % 10 == 0)
+            if (ite % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite << "\n";
                 write_imported_model_to_vtp.writeToFile(ite);
@@ -324,10 +427,10 @@ int main(int ac, char *av[])
         }
 
         std::cout << "The physics relaxation process of wall particles finish !" << std::endl;
+
         shell_normal_prediction.exec();
         write_imported_model_to_vtp.writeToFile(ite);
         write_particle_reload_files.writeToFile(0);
-
         return 0;
     }
     //----------------------------------------------------------------------
@@ -341,7 +444,7 @@ int main(int ac, char *av[])
     InnerRelation water_block_inner(water_block);
     InnerRelation shell_inner(shell_body);
     ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_body}, {false});
-    ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
+    //ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
     ShellInnerRelationWithContactKernel shell_curvature_inner(shell_body, water_block);
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
@@ -353,22 +456,25 @@ int main(int ac, char *av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     // shell dynamics
-    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
-    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
-    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
-    ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
+    ///InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
+    //Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
+    //Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
+    //ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
-    SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
+    //SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
 
     /** Exert constrain on shell. */
-	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_body);
+    /*BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);*/
+
+	/*SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_body);
 	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(shell_body, "Mass");
 	ReduceDynamics<QuantityMassPosition> compute_mass_position_(shell_body);
 	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
 	Real moment_of_inertia = Real(0.0);
     ReduceDynamics<QuantityMomentOfInertia<Real, SPHBody>> compute_moment_of_inertia(shell_body, mass_center);
 	moment_of_inertia = compute_moment_of_inertia.exec();;
-	SimpleDynamics<Constrain2DSolidBodyRotation> constrain_rotation(shell_body, mass_center, moment_of_inertia);
+	SimpleDynamics<Constrain2DSolidBodyRotation> constrain_rotation(shell_body, mass_center, moment_of_inertia);*/
 
 
     // fluid dynamics
@@ -384,7 +490,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     // Left buffer
     //----------------------------------------------------------------------
-    Vec2d left_buffer_halfsize = Vec2d(0.5 * BW, 0.5 * DH);
+    Vec2d left_buffer_halfsize = Vec2d(0.5 * buffer_width, 0.5 * DH);
     Vec2d left_buffer_translation = Vec2d(-DL_sponge, 0.0) + left_buffer_halfsize;
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_buffer_translation)), left_buffer_halfsize));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
@@ -394,8 +500,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     // Up buffer
     //----------------------------------------------------------------------
-    Vec2d up_buffer_halfsize = Vec2d(0.5 * BW, 0.75);
-    Vec2d up_buffer_translation = Vec2d(0.5 * (DL + DL1), 2.0 * DH - 0.5 * BW);
+    Vec2d up_buffer_halfsize = Vec2d(0.5 * buffer_width, 0.75);
+    Vec2d up_buffer_translation = Vec2d(0.5 * (DL + DL1), 2.0 * DH - 0.5 * buffer_width);
     BodyAlignedBoxByCell up_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(-0.5 * Pi), Vec2d(up_buffer_translation)), up_buffer_halfsize));
     fluid_dynamics::BidirectionalBuffer<UpOutflowPressure> right_up_emitter_inflow_injection(up_emitter, in_outlet_particle_buffer);
 
@@ -404,8 +510,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     // Down buffer
     //----------------------------------------------------------------------
-    Vec2d down_buffer_halfsize = Vec2d(0.5 * BW, 0.75);
-    Vec2d down_buffer_translation = Vec2d(0.5 * (DL + DL1), -DH + 0.5 * BW);
+    Vec2d down_buffer_halfsize = Vec2d(0.5 * buffer_width, 0.75);
+    Vec2d down_buffer_translation = Vec2d(0.5 * (DL + DL1), -DH + 0.5 * buffer_width);
     BodyAlignedBoxByCell down_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(0.5 * Pi), Vec2d(down_buffer_translation)), down_buffer_halfsize));
     fluid_dynamics::BidirectionalBuffer<DownOutflowPressure> right_down_emitter_inflow_injection(down_emitter, in_outlet_particle_buffer);
 
@@ -420,9 +526,9 @@ int main(int ac, char *av[])
 
 
     // FSI
-    InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
-    InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
-    solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
+    //InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
+    //InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
+    //solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
 
 
     /*RealBody buffer_body_in(
@@ -444,17 +550,20 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
-    body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
+    //body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
+    //body_states_recording.addToWrite<Real>(shell_body, "MidSurfaceVonMisesStress");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
     //----------------------------------------------------------------------
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
-    shell_corrected_configuration.exec();
+    //shell_corrected_configuration.exec();
     shell_average_curvature.exec();
+    //constrain_holder.exec();
     water_block_complex.updateConfiguration();
-    shell_water_contact.updateConfiguration();
+    //shell_water_contact.updateConfiguration();
     boundary_indicator.exec();
     left_emitter_inflow_injection.tag_buffer_particles.exec();
     right_up_emitter_inflow_injection.tag_buffer_particles.exec();
@@ -495,6 +604,7 @@ int main(int ac, char *av[])
             Real Dt = get_fluid_advection_time_step_size.exec();
             //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
+
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
             interval_computing_time_step += TickCount::now() - time_instance;
@@ -514,37 +624,42 @@ int main(int ac, char *av[])
                 inflow_velocity_condition.exec();
                 density_relaxation.exec(dt);
 
-                Real dt_s_sum = 0.0;
-                average_velocity_and_acceleration.initialize_displacement_.exec();
-                while (dt_s_sum < dt)
-                {
-                    dt_s = 0.5 * shell_time_step_size.exec(); // why 0.5?
-                    if (dt - dt_s_sum < dt_s)
-                        dt_s = dt - dt_s_sum;
-                    shell_stress_relaxation_first.exec(dt_s);
+     //           Real dt_s_sum = 0.0;
+     //           average_velocity_and_acceleration.initialize_displacement_.exec();
+     //           while (dt_s_sum < dt)
+     //           {
+     //               dt_s = 0.5 * shell_time_step_size.exec(); // why 0.5?
+     //               if (dt - dt_s_sum < dt_s)
+     //                   dt_s = dt - dt_s_sum;
+     //               shell_stress_relaxation_first.exec(dt_s);
 
-                    constrain_rotation.exec(dt_s);
-					constrain_mass_center.exec(dt_s);
+     //               //constrain_rotation.exec(dt_s);
+					////constrain_mass_center.exec(dt_s);
 
-                    shell_stress_relaxation_second.exec(dt_s);
-                    dt_s_sum += dt_s;
+     //               constrain_holder.exec(dt_s);
 
-                    body_states_recording.writeToFile();
-                }
-                average_velocity_and_acceleration.update_averages_.exec(dt);
+     //               shell_stress_relaxation_second.exec(dt_s);
+     //               dt_s_sum += dt_s;
+
+     //               body_states_recording.writeToFile();
+     //           }
+     //           average_velocity_and_acceleration.update_averages_.exec(dt);
 
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
+                body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
 
             if (number_of_iterations % screen_output_interval == 0)
             {
+                /*std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
+                          << GlobalStaticVariables::physical_time_
+                          << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";*/
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
-                          << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
-
+                          << "	Dt = " << Dt << "	dt = " << dt << "\n";
                 /*body_states_recording.writeToFile();*/
             }
             number_of_iterations++;
@@ -559,11 +674,11 @@ int main(int ac, char *av[])
             right_down_disposer_outflow_deletion.exec();
 
             water_block.updateCellLinkedListWithParticleSort(100);
-            shell_update_normal.exec();
-            shell_body.updateCellLinkedList();
-            shell_curvature_inner.updateConfiguration();
-            shell_average_curvature.exec();
-            shell_water_contact.updateConfiguration();
+            //shell_update_normal.exec();
+            //shell_body.updateCellLinkedList();
+            //shell_curvature_inner.updateConfiguration();
+            //shell_average_curvature.exec();
+            //shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
 
             interval_updating_configuration += TickCount::now() - time_instance;
