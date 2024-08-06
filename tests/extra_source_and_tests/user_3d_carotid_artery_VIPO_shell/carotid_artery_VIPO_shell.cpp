@@ -37,7 +37,8 @@ public:
     explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name),
         mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
     {
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
+        //add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
+        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 
     TriangleMeshShapeSTL* getMeshShape() const
@@ -54,7 +55,8 @@ class WaterBlock : public ComplexShape
 public:
     explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(-thickness, full_path_to_file, translation, scaling);
     }
 };
 
@@ -487,8 +489,8 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
@@ -534,7 +536,7 @@ int main(int ac, char *av[])
         //SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(shell_body);
         /** A  Physics relaxation step. */
         SurfaceRelaxationStep relaxation_step_inner(imported_model_inner);
-        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness, cos(Pi / 3.75));
+        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness);
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
@@ -543,6 +545,7 @@ int main(int ac, char *av[])
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({shell_body});
+        write_imported_model_to_vtp.addToWrite<Vecd>(shell_body, "NormalDirection");
         BodyStatesRecordingToVtp write_all_bodies_to_vtp({sph_system});
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files(shell_body);
@@ -558,17 +561,19 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 5000)
+        while (ite_p < 100000)
         {
             relaxation_step_inner.exec();
             ite_p += 1;
-            if (ite_p % 500 == 0)
+            if (ite_p % 5000 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
                 write_imported_model_to_vtp.writeToFile(ite_p);
             }
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
+
+        shell_normal_prediction.exec();
 
         inlet_particles_detection.exec();
         shell_body.updateCellLinkedListWithParticleSort(100);
@@ -578,8 +583,6 @@ int main(int ac, char *av[])
         shell_body.updateCellLinkedListWithParticleSort(100);
         write_all_bodies_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
-
-        shell_normal_prediction.exec();
 
         return 0;
     }

@@ -95,7 +95,7 @@ class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerat
     {
         auto particle_number_mid_surface_01 = int((DL1 + DL_sponge_) / resolution_ref_);
         //std::cout << " particle_number_mid_surface_01 = " << particle_number_mid_surface_01 << std::endl;
-        for (int i = 0; i < particle_number_mid_surface_01; i++)
+        for (int i = 0; i < particle_number_mid_surface_01 - 1; i++)
         {
             Real x = -DL_sponge_ + (Real(i) + 0.5) * resolution_ref_;
             // upper wall
@@ -110,10 +110,10 @@ class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerat
             addSurfaceProperties(normal_direction_2, wall_thickness_);
         }
 
-        /*addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_ref_, DH + 0.5 * resolution_ref_), resolution_ref_);
+        addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_ref_, DH + 0.5 * resolution_ref_), resolution_ref_);
         addSurfaceProperties(Vec2d(-1.0, 1.0), wall_thickness_);
         addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_ref_, - 0.5 * resolution_ref_), resolution_ref_);
-        addSurfaceProperties(Vec2d(-1.0, -1.0), wall_thickness_);*/
+        addSurfaceProperties(Vec2d(-1.0, -1.0), wall_thickness_);
 
         auto particle_number_mid_surface_02 = int(DH / resolution_ref_);
         //std::cout << " particle_number_mid_surface_02 = " << particle_number_mid_surface_02 << std::endl;
@@ -456,7 +456,7 @@ int main(int ac, char *av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     // shell dynamics
-    ///InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
+    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
     //Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
     //Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
     //ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
@@ -559,7 +559,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
-    //shell_corrected_configuration.exec();
+    shell_corrected_configuration.exec();
     shell_average_curvature.exec();
     //constrain_holder.exec();
     water_block_complex.updateConfiguration();
@@ -677,7 +677,7 @@ int main(int ac, char *av[])
             //shell_update_normal.exec();
             //shell_body.updateCellLinkedList();
             //shell_curvature_inner.updateConfiguration();
-            //shell_average_curvature.exec();
+            shell_average_curvature.exec();
             //shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
 
