@@ -573,7 +573,7 @@ int main(int ac, char *av[])
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
-        shell_normal_prediction.exec();
+        //shell_normal_prediction.exec();
 
         inlet_particles_detection.exec();
         shell_body.updateCellLinkedListWithParticleSort(100);
@@ -583,6 +583,8 @@ int main(int ac, char *av[])
         shell_body.updateCellLinkedListWithParticleSort(100);
         write_all_bodies_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
+
+        shell_normal_prediction.exec();
 
         return 0;
     }
