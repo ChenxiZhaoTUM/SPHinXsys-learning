@@ -4,14 +4,14 @@
  * @details This is the one of the basic test cases for validating fluid-rigid shell interaction
  * @author  Weiyi Kong
  */
-#include "sphinxsys.h"
-#include <gtest/gtest.h>
 #include "bidirectional_buffer.h"
 #include "density_correciton.h"
 #include "density_correciton.hpp"
 #include "kernel_summation.h"
 #include "kernel_summation.hpp"
 #include "pressure_boundary.h"
+#include "sphinxsys.h"
+#include <gtest/gtest.h>
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -30,10 +30,6 @@ const Real Re = 100;
 const Real U_f = Re * mu_f / rho0_f / diameter;
 const Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 const Real c_f = 10.0 * U_max; /**< Reference sound speed. */
-
-Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
 
 namespace SPH
 {
@@ -88,7 +84,7 @@ class ParticleGenerator<SurfaceParticles, ShellBoundary> : public ParticleGenera
         const auto particle_number_mid_surface =
             int(2.0 * radius_mid_surface * Pi / resolution_shell_);
         const auto particle_number_height =
-            int(full_length / resolution_shell_);
+            int(full_length  / resolution_shell_);
         for (int i = 0; i < particle_number_mid_surface; i++)
         {
             for (int j = 0; j < particle_number_height; j++)
@@ -132,6 +128,7 @@ struct InflowVelocity
     }
 };
 
+Real Inlet_pressure = 0.2;
 Real Outlet_pressure = 0.1;
 
 struct LeftInflowPressure
@@ -157,146 +154,6 @@ struct RightInflowPressure
         return pressure;
     }
 };
-
-class BoundaryGeometry : public BodyPartByParticle
-{
-  public:
-    BoundaryGeometry(SPHBody &body, const std::string &body_part_name, Real constrain_len)
-        : BodyPartByParticle(body, body_part_name), constrain_len_(constrain_len)
-    {
-        TaggingParticleMethod tagging_particle_method = std::bind(&BoundaryGeometry::tagManually, this, _1);
-        tagParticles(tagging_particle_method);
-    };
-    virtual ~BoundaryGeometry(){};
-
-  private:
-      Real constrain_len_;
-
-    void tagManually(size_t index_i)
-    {
-        if (base_particles_.ParticlePositions()[index_i][0] < constrain_len_ 
-            || base_particles_.ParticlePositions()[index_i][0] > full_length - constrain_len_)
-        {
-            body_part_particles_.push_back(index_i);
-        }
-    };
-};
-
-//----------------------------------------------------------------------
-//	Define constrain class for tank translation and rotation.
-//----------------------------------------------------------------------
-class QuantityMomentOfMomentum : public QuantitySummation<Vecd>
-{
-protected:
-	StdLargeVec<Real>& mass_;
-	StdLargeVec<Vecd>& pos_;
-	Vecd mass_center_;
-
-public:
-	explicit QuantityMomentOfMomentum(SPHBody& sph_body, Vecd mass_center)
-		: QuantitySummation<Vecd>(sph_body, "Velocity"),
-		mass_center_(mass_center), 
-        mass_(*particles_->getVariableDataByName<Real>("Mass")), 
-        pos_(*particles_->getVariableDataByName<Vecd>("Position"))
-	{
-		this->quantity_name_ = "Moment of Momentum";
-	};
-	virtual ~QuantityMomentOfMomentum() {};
-
-	Vecd reduce(size_t index_i, Real dt = 0.0)
-	{
-		return (pos_[index_i] - mass_center_).cross(this->variable_[index_i]) * mass_[index_i];
-	};
-};
-
-class QuantityMomentOfInertia : public QuantitySummation<Real>
-{
-protected:
-	StdLargeVec<Vecd>& pos_;
-	Vecd mass_center_;
-	Real p_1_;
-	Real p_2_;
-
-public:
-	explicit QuantityMomentOfInertia(SPHBody& sph_body, Vecd mass_center, Real position_1, Real position_2)
-		: QuantitySummation<Real>(sph_body, "Mass"),
-		pos_(*particles_->getVariableDataByName<Vecd>("Position")), 
-        mass_center_(mass_center), p_1_(position_1), p_2_(position_2)
-	{
-		this->quantity_name_ = "Moment of Inertia";
-	};
-	virtual ~QuantityMomentOfInertia() {};
-
-	Real reduce(size_t index_i, Real dt = 0.0)
-	{
-		if (p_1_ == p_2_)
-		{
-			return  ((pos_[index_i] - mass_center_).norm() * (pos_[index_i] - mass_center_).norm()
-				- (pos_[index_i][p_1_] - mass_center_[p_1_]) * (pos_[index_i][p_2_] - mass_center_[p_2_]))
-                * this->variable_[index_i];
-		}
-		else
-		{
-			return -(pos_[index_i][p_1_] - mass_center_[p_1_]) * (pos_[index_i][p_2_] - mass_center_[p_2_])
-                * this->variable_[index_i];
-		}
-	};
-};
-
-class QuantityMassPosition : public QuantitySummation<Vecd>
-{
-protected:
-	StdLargeVec<Real>& mass_;
-
-
-public:
-	explicit QuantityMassPosition(SPHBody& sph_body)
-		: QuantitySummation<Vecd>(sph_body, "Position"),
-		mass_(*particles_->getVariableDataByName<Real>("Mass"))
-	{
-		this->quantity_name_ = "Mass*Position";
-	};
-	virtual ~QuantityMassPosition() {};
-
-	Vecd reduce(size_t index_i, Real dt = 0.0)
-	{
-		return this->variable_[index_i] * mass_[index_i];
-	};
-};
-
-class Constrain3DSolidBodyRotation : public LocalDynamics, public DataDelegateSimple
-{
-private:
-	Vecd mass_center_;
-	Matd moment_of_inertia_;
-	Vecd angular_velocity_;
-	Vecd linear_velocity_;
-	ReduceDynamics<QuantityMomentOfMomentum> compute_total_moment_of_momentum_;
-	StdLargeVec<Vecd>& vel_;
-	StdLargeVec<Vecd>& pos_;
-
-protected:
-	virtual void setupDynamics(Real dt = 0.0) override
-	{
-		angular_velocity_ = moment_of_inertia_.inverse() * compute_total_moment_of_momentum_.exec(dt);
-	}
-
-public:
-	explicit Constrain3DSolidBodyRotation(SPHBody& sph_body, Vecd mass_center, Matd inertia_tensor)
-		: LocalDynamics(sph_body), DataDelegateSimple(sph_body),
-		vel_(*particles_->getVariableDataByName<Vecd>("Velocity")), 
-        pos_(*particles_->getVariableDataByName<Vecd>("Position")), 
-        compute_total_moment_of_momentum_(sph_body, mass_center),
-		mass_center_(mass_center), moment_of_inertia_(inertia_tensor) {}
-
-	virtual ~Constrain3DSolidBodyRotation() {};
-
-	void update(size_t index_i, Real dt = 0.0)
-	{
-		linear_velocity_ = angular_velocity_.cross((pos_[index_i] - mass_center_));
-		vel_[index_i] -= linear_velocity_;
-	}
-};
 } // namespace SPH
 
 //----------------------------------------------------------------------
@@ -317,8 +174,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //----------------------------------------------------------------------
     const Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
     const Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
-    //const Vec3d emitter_buffer_halfsize(inflow_length * 0.5, fluid_radius, fluid_radius);
-    //const Vec3d emitter_buffer_translation(inflow_length * 0.5 - 2 * resolution_ref, 0., 0.);
     const Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
     const Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
 
@@ -355,7 +210,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
 
     SolidBody shell_boundary(system, makeShared<DefaultShape>("Shell"));
     shell_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_shell);
-    shell_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
+    shell_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
     shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, shell_thickness);
 
     ObserverBody observer_axial(system, "fluid_observer_axial");
@@ -370,11 +225,10 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //----------------------------------------------------------------------
     InnerRelation water_block_inner(water_block);
     InnerRelation shell_boundary_inner(shell_boundary);
-    ShellInnerRelationWithContactKernel shell_curvature_inner(shell_boundary, water_block);
+    ShellInnerRelationWithContactKernel wall_curvature_inner(shell_boundary, water_block);
     // shell normal should point from fluid to shell
     // normal corrector set to false if shell normal is already pointing from fluid to shell
     ContactRelationFromShellToFluid water_block_contact(water_block, {&shell_boundary}, {false});
-    ContactRelationFromFluidToShell shell_water_contact(shell_boundary, {&water_block}, {false});
     ContactRelation observer_contact_axial(observer_axial, {&water_block});
     ContactRelation observer_contact_radial(observer_radial, {&water_block});
     //----------------------------------------------------------------------
@@ -382,6 +236,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     // which is only used for update configuration.
     //----------------------------------------------------------------------
     ComplexRelation water_block_complex(water_block_inner, water_block_contact);
+
     //----------------------------------------------------------------------
     // Define the numerical methods used in the simulation.
     // Note that there may be data dependence on the sequence of constructions.
@@ -391,41 +246,17 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     // Finally, the auxillary models such as time step estimator, initial condition,
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
-    // shell dynamics
-    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_boundary_inner);
-    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_boundary_inner, 3, true);
-    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_boundary_inner);
-    ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_boundary);
-    SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(shell_curvature_inner);
-    SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_boundary);
-    /** Exert constrain on shell. */
-    BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_shell* 4);
-    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
-
-	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_boundary);
-	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(shell_boundary, "Mass");
-	ReduceDynamics<QuantityMassPosition> compute_mass_position_(shell_boundary);
-	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
-	Matd moment_of_inertia = Matd::Zero();
-	for (int i = 0; i != Dimensions; ++i)
-	{
-		for (int j = 0; j != Dimensions; ++j)
-		{
-			ReduceDynamics<QuantityMomentOfInertia> compute_moment_of_inertia(shell_boundary, mass_center, i, j);
-			moment_of_inertia(i, j) = compute_moment_of_inertia.exec();
-		}
-	}
-	SimpleDynamics<Constrain3DSolidBodyRotation> constrain_rotation(shell_boundary, mass_center, moment_of_inertia);
-
-
-    // fluid dynamics
+    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> wall_corrected_configuration(shell_boundary_inner);
+    SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(wall_curvature_inner);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_block_contact);
+
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallNoRiemann> density_relaxation(water_block_inner, water_block_contact);
-    //InteractionWithUpdate<fluid_dynamics::DensitySummationFreeStreamComplex> update_density_by_summation(water_block_inner, water_block_contact);
+    // InteractionWithUpdate<fluid_dynamics::DensitySummationFreeStreamComplex> update_density_by_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_block_contact);
+
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_max);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
     //----------------------------------------------------------------------
@@ -443,12 +274,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition(right_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_disposer);
-    
-
-    // FSI
-    InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
-    InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
-    solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_boundary);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //----------------------------------------------------------------------
@@ -457,12 +282,10 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
-    body_states_recording.addToWrite<Vecd>(water_block, "Force");
 
     body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
     body_states_recording.addToWrite<Vecd>(shell_boundary, "NormalDirection");
-    body_states_recording.addToWrite<Vecd>(shell_boundary, "PressureForceFromFluid");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_radial("Velocity", observer_contact_radial);
     //----------------------------------------------------------------------
@@ -471,11 +294,9 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //----------------------------------------------------------------------
     system.initializeSystemCellLinkedLists();
     system.initializeSystemConfigurations();
-    shell_corrected_configuration.exec();
+    wall_corrected_configuration.exec();
     shell_curvature.exec();
     water_block_complex.updateConfiguration();
-    shell_water_contact.updateConfiguration();
-
     boundary_indicator.exec();
     left_emitter_inflow_injection.tag_buffer_particles.exec();
     right_emitter_inflow_injection.tag_buffer_particles.exec();
@@ -487,7 +308,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     Real end_time = 2.0;               /**< End time. */
     Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-    Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
+
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -518,11 +339,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
             update_fluid_density.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
-
-            /** FSI for viscous force. */
-            viscous_force_on_shell.exec();
-            shell_update_normal.exec();
-
             interval_computing_time_step += TickCount::now() - time_instance;
             /** Dynamics including pressure relaxation. */
             time_instance = TickCount::now();
@@ -533,54 +349,24 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                           Dt - relaxation_time);
                 pressure_relaxation.exec(dt);
 
-                /*kernel_summation.exec();
-                left_inflow_pressure_condition.exec(dt);
-                right_inflow_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();*/
-
-                pressure_force_on_shell.exec();
-
-                density_relaxation.exec(dt);
-
-                Real dt_s_sum = 0.0;
-                average_velocity_and_acceleration.initialize_displacement_.exec();
-                while (dt_s_sum < dt)
-                {
-                    //dt_s = 0.5 * shell_time_step_size.exec(); // why 0.5?
-                    dt_s = shell_time_step_size.exec();
-                    if (dt - dt_s_sum < dt_s)
-                        dt_s = dt - dt_s_sum;
-                    shell_stress_relaxation_first.exec(dt_s);
-
-                    //constrain_rotation.exec(dt_s);
-					//constrain_mass_center.exec(dt_s);
-
-                    constrain_holder.exec(dt_s);
-
-                    shell_stress_relaxation_second.exec(dt_s);
-                    dt_s_sum += dt_s;
-
-                    body_states_recording.writeToFile();
-                }
-                average_velocity_and_acceleration.update_averages_.exec(dt);
-
-                relaxation_time += dt;
-                integration_time += dt;
-                GlobalStaticVariables::physical_time_ += dt;
-
                 kernel_summation.exec();
                 left_inflow_pressure_condition.exec(dt);
                 right_inflow_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
+
+                density_relaxation.exec(dt);
+                relaxation_time += dt;
+                integration_time += dt;
+                GlobalStaticVariables::physical_time_ += dt;
             }
             interval_computing_pressure_relaxation +=
                 TickCount::now() - time_instance;
             if (number_of_iterations % screen_output_interval == 0)
             {
-                std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
-                          << GlobalStaticVariables::physical_time_
-                          << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
-                //body_states_recording.writeToFile();
+                std::cout << std::fixed << std::setprecision(9)
+                          << "N=" << number_of_iterations
+                          << "	Time = " << GlobalStaticVariables::physical_time_
+                          << "	Dt = " << Dt << "	dt = " << dt << "\n";
             }
             number_of_iterations++;
             time_instance = TickCount::now();
@@ -592,14 +378,9 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
 
             /** Update cell linked list and configuration. */
             water_block.updateCellLinkedListWithParticleSort(100);
-            //shell_update_normal.exec();
-            shell_boundary.updateCellLinkedList();
-            shell_curvature_inner.updateConfiguration();
-            shell_curvature.exec();
-            shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
-
             interval_updating_configuration += TickCount::now() - time_instance;
+
             boundary_indicator.exec();
             left_emitter_inflow_injection.tag_buffer_particles.exec();
             right_emitter_inflow_injection.tag_buffer_particles.exec();
@@ -635,7 +416,8 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //	Gtest starts from here.
     //----------------------------------------------------------------------
     /* Define analytical solution of the inflow velocity.*/
-    std::function<Vec3d(Vec3d)> inflow_velocity = [&](Vec3d pos) {
+    std::function<Vec3d(Vec3d)> inflow_velocity = [&](Vec3d pos)
+    {
         return Vec3d(2.0 * U_f * (1.0 - (pos[1] * pos[1] + pos[2] * pos[2]) / (diameter * 0.5) / (diameter * 0.5)),
                      0.0,
                      0.0);
