@@ -370,7 +370,7 @@ int main(int ac, char *av[])
     water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
 
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
-    shell_body.defineAdaptation<SPHAdaptation>(1.15, 1.0);
+    shell_body.defineAdaptation<SPHAdaptation>(1.15, 2.0);
     shell_body.defineBodyLevelSetShape(level_set_refinement_ratio)->writeLevelSet(sph_system);
     shell_body.defineMaterial<Solid>();
     shell_body.generateParticles<SurfaceParticles, WallBoundary>(resolution_ref, BW);
@@ -571,13 +571,12 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Setup computing and initial conditions.
     //----------------------------------------------------------------------
-    size_t number_of_iterations = sph_system.RestartStep();
+     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 2.5;   /**< End time. */
-    Real Output_Time = 0.1; /**< Time stamps for output of body states. */
-    Real dt = 0.0;          /**< Default acoustic time step sizes. */
-    Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
+    Real end_time = 30.0;                /**< End time. */
+    Real Output_Time = end_time / 300.0; /**< Time stamps for output of body states. */
+    Real dt = 0.0;                       /**< Default acoustic time step sizes. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -648,7 +647,7 @@ int main(int ac, char *av[])
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
-                body_states_recording.writeToFile();
+                //body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
 

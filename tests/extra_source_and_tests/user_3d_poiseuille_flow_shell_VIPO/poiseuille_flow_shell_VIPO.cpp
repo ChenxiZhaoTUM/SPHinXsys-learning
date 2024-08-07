@@ -32,7 +32,7 @@ const Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 const Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
 Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 1.08e8;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
 
 namespace SPH
@@ -317,8 +317,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //----------------------------------------------------------------------
     const Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
     const Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
-    //const Vec3d emitter_buffer_halfsize(inflow_length * 0.5, fluid_radius, fluid_radius);
-    //const Vec3d emitter_buffer_translation(inflow_length * 0.5 - 2 * resolution_ref, 0., 0.);
     const Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
     const Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
 
@@ -518,10 +516,8 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
             update_fluid_density.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
-
             /** FSI for viscous force. */
             viscous_force_on_shell.exec();
-            shell_update_normal.exec();
 
             interval_computing_time_step += TickCount::now() - time_instance;
             /** Dynamics including pressure relaxation. */
@@ -533,10 +529,10 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                           Dt - relaxation_time);
                 pressure_relaxation.exec(dt);
 
-                /*kernel_summation.exec();
+                kernel_summation.exec();
                 left_inflow_pressure_condition.exec(dt);
                 right_inflow_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();*/
+                inflow_velocity_condition.exec();
 
                 pressure_force_on_shell.exec();
 
@@ -546,7 +542,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                 average_velocity_and_acceleration.initialize_displacement_.exec();
                 while (dt_s_sum < dt)
                 {
-                    //dt_s = 0.5 * shell_time_step_size.exec(); // why 0.5?
                     dt_s = shell_time_step_size.exec();
                     if (dt - dt_s_sum < dt_s)
                         dt_s = dt - dt_s_sum;
@@ -568,10 +563,10 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
 
-                kernel_summation.exec();
+                /*kernel_summation.exec();
                 left_inflow_pressure_condition.exec(dt);
                 right_inflow_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();
+                inflow_velocity_condition.exec();*/
             }
             interval_computing_pressure_relaxation +=
                 TickCount::now() - time_instance;
@@ -592,7 +587,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
 
             /** Update cell linked list and configuration. */
             water_block.updateCellLinkedListWithParticleSort(100);
-            //shell_update_normal.exec();
+            shell_update_normal.exec();
             shell_boundary.updateCellLinkedList();
             shell_curvature_inner.updateConfiguration();
             shell_curvature.exec();
