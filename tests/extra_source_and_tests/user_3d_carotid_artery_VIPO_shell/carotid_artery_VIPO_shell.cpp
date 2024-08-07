@@ -250,8 +250,8 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 Real DW_in = 2.9293 * 2 * scaling;
 Vec3d inlet_half = Vec3d(2.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
 Vec3d inlet_normal(-0.1034, 0.0458, -0.9935);
-Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 2.0 * dp_0;
-Vec3d inlet_buffer_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling - inlet_normal * 2.0 * dp_0;
+Vec3d inlet_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 1.5 * dp_0;
+Vec3d inlet_buffer_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling - inlet_normal * 2.5 * dp_0;
 Vec3d inlet_standard_direction(1, 0, 0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
@@ -261,8 +261,8 @@ Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle + Pi, inlet_rotati
 Real DW_out01 = 1.9416 * 2 * scaling;
 Vec3d outlet_01_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
 Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_01_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_01_normal * 2.0 * dp_0;
-Vec3d outlet_01_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_01_normal * 2.0 * dp_0;
+Vec3d outlet_01_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_01_normal * 1.5 * dp_0;
+Vec3d outlet_01_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_01_normal * 2.5 * dp_0;
 Vec3d outlet_01_standard_direction(1, 0, 0);
 RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
 Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
@@ -272,8 +272,8 @@ Rotation3d outlet_emitter_01_rotation(outlet_01_rotation_result.angle + Pi, outl
 Real DW_out02 = 1.3261 * 2 * scaling;
 Vec3d outlet_02_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
 Vec3d outlet_02_normal(-0.0399, 0.0693, 0.9972);
-Vec3d outlet_02_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_02_normal * 2.0 * dp_0;
-Vec3d outlet_02_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_02_normal * 2.0 * dp_0;
+Vec3d outlet_02_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_02_normal * 1.5 * dp_0;
+Vec3d outlet_02_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_02_normal * 2.5 * dp_0;
 Vec3d outlet_02_standard_direction(1, 0, 0);
 RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
 Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
@@ -561,11 +561,11 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 100000)
+        while (ite_p < 2000)
         {
             relaxation_step_inner.exec();
             ite_p += 1;
-            if (ite_p % 5000 == 0)
+            if (ite_p % 200 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
                 write_imported_model_to_vtp.writeToFile(ite_p);
@@ -573,7 +573,7 @@ int main(int ac, char *av[])
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
-        //shell_normal_prediction.exec();
+        shell_normal_prediction.smoothing_normal_exec();
 
         inlet_particles_detection.exec();
         shell_body.updateCellLinkedListWithParticleSort(100);
@@ -583,8 +583,6 @@ int main(int ac, char *av[])
         shell_body.updateCellLinkedListWithParticleSort(100);
         write_all_bodies_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
-
-        shell_normal_prediction.exec();
 
         return 0;
     }

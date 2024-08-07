@@ -93,6 +93,7 @@ class ShellNormalDirectionPrediction : public BaseDynamics<void>
                                             Real thickness, Real consistency_criterion = cos(Pi / 20.0));
     virtual ~ShellNormalDirectionPrediction(){};
     virtual void exec(Real dt = 0.0) override;
+    virtual void smoothing_normal_exec(Real dt = 0.0);
 
   protected:
     class NormalPrediction : public DataDelegateSimple, public LocalDynamics
