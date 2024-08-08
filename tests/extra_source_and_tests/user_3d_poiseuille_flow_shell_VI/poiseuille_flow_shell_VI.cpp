@@ -143,8 +143,8 @@ class BoundaryGeometry : public BodyPartByParticle
 
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][0] < -constrain_len_ 
-            || base_particles_.ParticlePositions()[index_i][0] > full_length - constrain_len_)
+        if (base_particles_.ParticlePositions()[index_i][1] < constrain_len_ 
+            || base_particles_.ParticlePositions()[index_i][1] > full_length - constrain_len_)
         {
             body_part_particles_.push_back(index_i);
         }
@@ -255,7 +255,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_boundary);
     /** Exert constrain on shell. */
-    BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", wall_thickness);
+    BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
     SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(water_block_inner, water_block_contact);
