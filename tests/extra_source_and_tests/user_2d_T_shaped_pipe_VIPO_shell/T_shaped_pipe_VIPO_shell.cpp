@@ -20,7 +20,7 @@ using namespace SPH;
 Real DL = 0.2;                                               /**< Reference length. */
 Real DH = 0.1;                                               /**< Reference and the height of main channel. */
 Real DL1 = 0.75 * DL;                                        /**< The length of the main channel. */
-Real resolution_ref = 0.002;                                 /**< Initial reference particle spacing. */
+Real resolution_ref = 0.005;                                 /**< Initial reference particle spacing. */
 Real BW = resolution_ref * 1.0;                                
 Real buffer_width = resolution_ref * 4.0;                                /**< Reference size of the emitter. */
 Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
@@ -29,16 +29,21 @@ Real level_set_refinement_ratio = resolution_ref / (0.1 * BW);
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
-Real Outlet_pressure = 0.1;
-Real rho0_f = 1060;                                                 /**< Reference density of fluid. */
-Real Re = 100.0;                                                      /**< Reynolds number. */
-Real U_f = 0.5;                                                      /**< Characteristic velocity. */
-Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1)));
-
-Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e8;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
+Real Outlet_pressure = 0;
+Real rho0_f = 1000.0;                                                 /**< Reference density of fluid. */
+//Real Re = 100.0;                                                      /**< Reynolds number. */
+//Real U_f = 1.0;                                                       /**< Characteristic velocity. */
+Real Re = 50.0;
+Real U_f = 0.5;
+Real mu_f = rho0_f * U_f * DH / Re;                                   /**< Dynamics viscosity. */
+Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Reference sound speed needs to consider the flow speed in the narrow channels. */
+//----------------------------------------------------------------------
+//	Material parameters of the shell
+//----------------------------------------------------------------------
+Real rho0_s = 2000;   /**< Reference density of shell. */
+Real poisson = 0.3; /**< Poisson ratio. */
+Real Ae = 9e6;     /**< Normalized Youngs Modulus. */
+Real Youngs_modulus = Ae * rho0_f * U_f * U_f;
 //----------------------------------------------------------------------
 //	define geometry of SPH bodies
 //----------------------------------------------------------------------
@@ -156,39 +161,21 @@ struct InflowVelocity
 {
     Real u_ref_, t_ref_;
     AlignedBoxShape &aligned_box_;
+    Vecd halfsize_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
         : u_ref_(U_f), t_ref_(2.0),
-            aligned_box_(boundary_condition.getAlignedBox()){}
+          aligned_box_(boundary_condition.getAlignedBox()),
+          halfsize_(aligned_box_.HalfSize()) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
-        Vecd target_velocity = Vecd::Zero();
-        
+        Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
         Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
-        target_velocity[0] = u_ave;
-        target_velocity[1] = 0.0;
-
+        target_velocity[0] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
         return target_velocity;
-    }
-};
-
-class TimeDependentAcceleration : public Gravity
-{
-    Real t_ref_, u_ref_, du_ave_dt_;
-
-  public:
-    explicit TimeDependentAcceleration(Vecd gravity_vector)
-        : Gravity(gravity_vector), t_ref_(2.0), u_ref_(0.0), du_ave_dt_(0) {}
-
-    virtual Vecd InducedAcceleration(const Vecd &position) override
-    {
-        Real run_time_ = GlobalStaticVariables::physical_time_;
-        du_ave_dt_ = 0.5 * u_ref_ * (Pi / t_ref_) * sin(Pi * run_time_ / t_ref_);
-
-        return run_time_ < t_ref_ ? Vecd(du_ave_dt_, 0.0) : global_acceleration_;
     }
 };
 
@@ -318,8 +305,6 @@ int main(int ac, char *av[])
     SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
     // fluid dynamics
-    TimeDependentAcceleration time_dependent_acceleration(Vec2d::Zero());
-    SimpleDynamics<GravityForce> apply_gravity_force(water_block, time_dependent_acceleration);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_shell_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
@@ -444,7 +429,6 @@ int main(int ac, char *av[])
         while (integration_time < Output_Time)
         {
             time_instance = TickCount::now();
-            apply_gravity_force.exec();
             Real Dt = get_fluid_advection_time_step_size.exec();
             //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
@@ -495,7 +479,6 @@ int main(int ac, char *av[])
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
-                //body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
 
