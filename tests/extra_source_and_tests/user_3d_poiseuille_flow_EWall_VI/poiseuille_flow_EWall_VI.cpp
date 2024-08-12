@@ -118,28 +118,68 @@ StdVec<Vecd> createRadialObservationPoints(
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
+//struct InflowVelocity
+//{
+//    Real u_ref_, t_ref_;
+//    AlignedBoxShape &aligned_box_;
+//    Vec3d halfsize_;
+//
+//    template <class BoundaryConditionType>
+//    InflowVelocity(BoundaryConditionType &boundary_condition)
+//        : u_ref_(U_f), t_ref_(1.0),
+//          aligned_box_(boundary_condition.getAlignedBox()),
+//          halfsize_(aligned_box_.HalfSize()) {}
+//
+//    Vec3d operator()(Vec3d &position, Vec3d &velocity)
+//    {
+//        Vec3d target_velocity = Vec3d(0, 0, 0);
+//        target_velocity[1] = SMAX(2.0 * U_f *
+//                                      (1.0 - (position[0] * position[0] + position[2] * position[2]) /
+//                                                 fluid_radius / fluid_radius),
+//                                  0.0);
+//
+//        //target_velocity[1] = 0.5;
+//        return target_velocity;
+//    }
+//};
+
 struct InflowVelocity
 {
     Real u_ref_, t_ref_;
     AlignedBoxShape &aligned_box_;
-    Vec3d halfsize_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(U_f), t_ref_(1.0),
-          aligned_box_(boundary_condition.getAlignedBox()),
-          halfsize_(aligned_box_.HalfSize()) {}
+        : u_ref_(U_f), t_ref_(2.0),
+            aligned_box_(boundary_condition.getAlignedBox()){}
 
-    Vec3d operator()(Vec3d &position, Vec3d &velocity)
+    Vecd operator()(Vecd &position, Vecd &velocity)
     {
-        Vec3d target_velocity = Vec3d(0, 0, 0);
-        target_velocity[1] = SMAX(2.0 * U_f *
-                                      (1.0 - (position[0] * position[0] + position[2] * position[2]) /
-                                                 fluid_radius / fluid_radius),
-                                  0.0);
+        Vecd target_velocity = Vecd::Zero();
+        
+        Real run_time = GlobalStaticVariables::physical_time_;
+        Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
+        target_velocity[0] = 0.0;
+        target_velocity[1] = u_ave;
 
-        //target_velocity[1] = 0.5;
         return target_velocity;
+    }
+};
+
+class TimeDependentAcceleration : public Gravity
+{
+    Real t_ref_, u_ref_, du_ave_dt_;
+
+  public:
+    explicit TimeDependentAcceleration(Vecd gravity_vector)
+        : Gravity(gravity_vector), t_ref_(2.0), u_ref_(0.0), du_ave_dt_(0) {}
+
+    virtual Vecd InducedAcceleration(const Vecd &position) override
+    {
+        Real run_time_ = GlobalStaticVariables::physical_time_;
+        du_ave_dt_ = 0.5 * u_ref_ * (Pi / t_ref_) * sin(Pi * run_time_ / t_ref_);
+
+        return run_time_ < t_ref_ ? Vecd(0.0, du_ave_dt_, 0.0) : global_acceleration_;
     }
 };
 
@@ -169,6 +209,8 @@ class BoundaryGeometry : public BodyPartByParticle
 
 int main(int ac, char *av[])
 {
+    std::cout << "U_f = " << U_f << std::endl;
+
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
@@ -280,8 +322,10 @@ int main(int ac, char *av[])
 
 
     // fluid dynamics
-    Gravity gravity(Vecd(0.0, 1.0, 0.0));
-    SimpleDynamics<GravityForce> apply_gravity_force(water_block, gravity);
+    /*Gravity gravity(Vecd(0.0, 1.0, 0.0));
+    SimpleDynamics<GravityForce> apply_gravity_force(water_block, gravity);*/
+    TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
+    SimpleDynamics<GravityForce> apply_gravity_force(water_block, time_dependent_acceleration);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(water_block_inner, water_block_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallNoRiemann> density_relaxation(water_block_inner, water_block_contact);
@@ -355,9 +399,9 @@ int main(int ac, char *av[])
         {
             /** Acceleration due to viscous force and gravity. */
             time_instance = TickCount::now();
-            //apply_gravity_force.exec();
+            apply_gravity_force.exec();
             Real Dt = get_fluid_advection_time_step_size.exec();
-            std::cout << "Dt = " << Dt << std::endl;
+            //std::cout << "Dt = " << Dt << std::endl;
             inlet_outlet_surface_particle_indicator.exec();
             update_density_by_summation.exec();
             viscous_acceleration.exec();
@@ -373,7 +417,7 @@ int main(int ac, char *av[])
             {
                 dt = SMIN(get_fluid_time_step_size.exec(),
                           Dt - relaxation_time);
-                std::cout << "dt = " << dt << std::endl;
+                //std::cout << "dt = " << dt << std::endl;
                 /** Fluid pressure relaxation */
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
@@ -399,7 +443,7 @@ int main(int ac, char *av[])
                     wall_stress_relaxation_second_half.exec(dt_s);
                     dt_s_sum += dt_s;
 
-                    body_states_recording.writeToFile();
+                    //body_states_recording.writeToFile();
                 }
                 average_velocity_and_acceleration.update_averages_.exec(dt);
 
@@ -416,6 +460,7 @@ int main(int ac, char *av[])
                           << "N=" << number_of_iterations
                           << "	Time = " << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "\n";
+                body_states_recording.writeToFile();
             }
             number_of_iterations++;
 
