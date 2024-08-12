@@ -20,7 +20,7 @@ using namespace SPH;
 Real DL = 0.2;                                               /**< Reference length. */
 Real DH = 0.1;                                               /**< Reference and the height of main channel. */
 Real DL1 = 0.75 * DL;                                        /**< The length of the main channel. */
-Real resolution_ref = 0.002;                                 /**< Initial reference particle spacing. */
+Real resolution_ref = 0.005;                                 /**< Initial reference particle spacing. */
 Real BW = resolution_ref * 4;                                /**< Reference size of the emitter. */
 Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
