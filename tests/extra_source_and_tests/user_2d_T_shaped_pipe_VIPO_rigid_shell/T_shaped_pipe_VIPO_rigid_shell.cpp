@@ -29,12 +29,12 @@ Real level_set_refinement_ratio = resolution_ref / (0.1 * BW);
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
-Real Outlet_pressure = 0.1;
-Real rho0_f = 1060;                                                 /**< Reference density of fluid. */
+Real Outlet_pressure = 0;
+Real rho0_f = 1000.0;                                                 /**< Reference density of fluid. */
 Real Re = 100.0;                                                      /**< Reynolds number. */
-Real U_f = 0.5;                                                      /**< Characteristic velocity. */
-Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real c_f =10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1)));
+Real U_f = 1.0;                                                       /**< Characteristic velocity. */
+Real mu_f = rho0_f * U_f * DH / Re;                                   /**< Dynamics viscosity. */
+Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 //----------------------------------------------------------------------
 //	define geometry of SPH bodies
 //----------------------------------------------------------------------
@@ -77,7 +77,6 @@ class WallBoundary;
 template <>
 class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerator<SurfaceParticles>
 {
-    Real DL_sponge_;
     Real resolution_ref_;
     Real wall_thickness_;
 
@@ -85,15 +84,14 @@ class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerat
     explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles,
                                Real resolution_ref, Real wall_thickness)
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
-          DL_sponge_(20 * resolution_ref),
           resolution_ref_(resolution_ref), wall_thickness_(wall_thickness){};
     void prepareGeometricData() override
     {
-        auto particle_number_mid_surface_01 = int((DL1 + DL_sponge_) / resolution_ref_);
+        auto particle_number_mid_surface_01 = int((DL1 + DL_sponge) / resolution_ref_);
         //std::cout << " particle_number_mid_surface_01 = " << particle_number_mid_surface_01 << std::endl;
         for (int i = 0; i < particle_number_mid_surface_01 - 1; i++)
         {
-            Real x = -DL_sponge_ + (Real(i) + 0.5) * resolution_ref_;
+            Real x = -DL_sponge + (Real(i) + 0.5) * resolution_ref_;
             // upper wall
             Real y1 = DH + 0.5 * resolution_ref_;
             addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_ref_);
@@ -152,21 +150,20 @@ struct InflowVelocity
 {
     Real u_ref_, t_ref_;
     AlignedBoxShape &aligned_box_;
+    Vecd halfsize_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
         : u_ref_(U_f), t_ref_(2.0),
-            aligned_box_(boundary_condition.getAlignedBox()){}
+          aligned_box_(boundary_condition.getAlignedBox()),
+          halfsize_(aligned_box_.HalfSize()) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
-        Vecd target_velocity = Vecd::Zero();
-        
+        Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
         Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
-        target_velocity[0] = u_ave;
-        target_velocity[1] = 0.0;
-
+        target_velocity[0] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
         return target_velocity;
     }
 };
