@@ -185,7 +185,7 @@ class BoundaryGeometry : public BodyPartByParticle
   private:
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][0] < -DL_sponge + buffer_width
+        if (base_particles_.ParticlePositions()[index_i][0] < 0
             || base_particles_.ParticlePositions()[index_i][1] > 2.0 * DH - buffer_width
             || base_particles_.ParticlePositions()[index_i][1] < -DH + buffer_width)
         {
@@ -390,7 +390,6 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
-                write_body_states.writeToFile();
             }
             number_of_iterations++;
 

@@ -21,7 +21,8 @@ Real DL = 0.2;                                               /**< Reference leng
 Real DH = 0.1;                                               /**< Reference and the height of main channel. */
 Real DL1 = 0.75 * DL;                                        /**< The length of the main channel. */
 Real resolution_ref = 0.005;                                 /**< Initial reference particle spacing. */
-Real BW = resolution_ref * 1.0;                                
+Real resolution_shell = 0.5 * resolution_ref;
+Real BW = resolution_shell * 1.0;                                
 Real buffer_width = resolution_ref * 4.0;                                /**< Reference size of the emitter. */
 Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
@@ -86,70 +87,68 @@ class WallBoundary;
 template <>
 class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerator<SurfaceParticles>
 {
-    Real DL_sponge_;
-    Real resolution_ref_;
-    Real wall_thickness_;
+    Real resolution_shell_;
+    Real shell_thickness_;
 
   public:
     explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles,
-                               Real resolution_ref, Real wall_thickness)
+                               Real resolution_shell, Real shell_thickness)
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
-          DL_sponge_(20 * resolution_ref),
-          resolution_ref_(resolution_ref), wall_thickness_(wall_thickness){};
+          resolution_shell_(resolution_shell), shell_thickness_(shell_thickness){};
     void prepareGeometricData() override
     {
-        auto particle_number_mid_surface_01 = int((DL1 + DL_sponge_) / resolution_ref_);
+        auto particle_number_mid_surface_01 = int((DL1 + DL_sponge) / resolution_shell_);
         //std::cout << " particle_number_mid_surface_01 = " << particle_number_mid_surface_01 << std::endl;
         for (int i = 0; i < particle_number_mid_surface_01 - 1; i++)
         {
-            Real x = -DL_sponge_ + (Real(i) + 0.5) * resolution_ref_;
+            Real x = -DL_sponge + (Real(i) + 0.5) * resolution_shell_;
             // upper wall
-            Real y1 = DH + 0.5 * resolution_ref_;
-            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_ref_);
+            Real y1 = DH + 0.5 * resolution_shell_;
+            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_shell_);
             Vec2d normal_direction_1 = Vec2d(0, 1.0);
-            addSurfaceProperties(normal_direction_1, wall_thickness_);
+            addSurfaceProperties(normal_direction_1, shell_thickness_);
             // lower wall
-            Real y2 = - 0.5 * resolution_ref_; // lower wall
-            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_ref_);
+            Real y2 = - 0.5 * resolution_shell_; // lower wall
+            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_shell_);
             Vec2d normal_direction_2 = Vec2d(0, -1.0);
-            addSurfaceProperties(normal_direction_2, wall_thickness_);
+            addSurfaceProperties(normal_direction_2, shell_thickness_);
         }
 
-        addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_ref_, DH + 0.5 * resolution_ref_), resolution_ref_);
-        addSurfaceProperties(Vec2d(-1.0, 1.0).normalized(), wall_thickness_);
-        addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_ref_, - 0.5 * resolution_ref_), resolution_ref_);
-        addSurfaceProperties(Vec2d(-1.0, -1.0).normalized(), wall_thickness_);
+        addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_shell_, DH + 0.5 * resolution_shell_), resolution_shell_);
+        addSurfaceProperties(Vec2d(-1.0, 1.0).normalized(), shell_thickness_);
+        addPositionAndVolumetricMeasure(Vecd(DL1 - 0.5 * resolution_shell_, - 0.5 * resolution_shell_), resolution_shell_);
+        addSurfaceProperties(Vec2d(-1.0, -1.0).normalized(), shell_thickness_);
 
-        auto particle_number_mid_surface_02 = int(DH / resolution_ref_);
+        auto particle_number_mid_surface_02 = int(DH / resolution_shell_);
         //std::cout << " particle_number_mid_surface_02 = " << particle_number_mid_surface_02 << std::endl;
         for (int i = 1; i < particle_number_mid_surface_02; i++)
         {
             // upper wall
-            Real y1 = DH + (Real(i) + 0.5) * resolution_ref_;
-            Real x = DL1 - 0.5 * resolution_ref_;
-            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_ref_);
+            Real y1 = DH + (Real(i) + 0.5) * resolution_shell_;
+            Real x = DL1 - 0.5 * resolution_shell_;
+            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_shell_);
             Vec2d normal_direction = Vec2d(-1.0, 0);
-            addSurfaceProperties(normal_direction, wall_thickness_);
+            addSurfaceProperties(normal_direction, shell_thickness_);
             // lower wall
-            Real y2 =  -(Real(i) + 0.5) * resolution_ref_;
-            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_ref_);
-            addSurfaceProperties(normal_direction, wall_thickness_);
+            Real y2 =  -(Real(i) + 0.5) * resolution_shell_;
+            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_shell_);
+            addSurfaceProperties(normal_direction, shell_thickness_);
         }
 
-        auto particle_number_mid_surface_03 = int(1.5 * DH / resolution_ref_);
+        auto particle_number_mid_surface_03 = int(1.5 * DH / resolution_shell_);
         //std::cout << " particle_number_mid_surface_03 = " << particle_number_mid_surface_03 << std::endl;
         for (int i = 0; i < particle_number_mid_surface_03; i++)
         {
-            Real y1 = 0.5 * DH + (Real(i) + 0.5) * resolution_ref_;
+            Real y1 = 0.5 * DH + (Real(i) + 0.5) * resolution_shell_;
             // upper wall
-            Real x = DL + 0.5 * resolution_ref_;
-            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_ref_);
+            Real x = DL + 0.5 * resolution_shell_;
+            addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_shell_);
             Vec2d normal_direction = Vec2d(1.0, 0);
-            addSurfaceProperties(normal_direction, wall_thickness_);
+            addSurfaceProperties(normal_direction, shell_thickness_);
             // lower wall
-            Real y2 = 0.5 * DH - (Real(i) + 0.5) * resolution_ref_;
-            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_ref_);
-            addSurfaceProperties(normal_direction, wall_thickness_);
+            Real y2 = 0.5 * DH - (Real(i) + 0.5) * resolution_shell_;
+            addPositionAndVolumetricMeasure(Vecd(x, y2), resolution_shell_);
+            addSurfaceProperties(normal_direction, shell_thickness_);
         }
     }
 };
@@ -233,7 +232,7 @@ class BoundaryGeometry : public BodyPartByParticle
   private:
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][0] < -DL_sponge + buffer_width
+        if (base_particles_.ParticlePositions()[index_i][0] < 0
             || base_particles_.ParticlePositions()[index_i][1] > 2.0 * DH - buffer_width
             || base_particles_.ParticlePositions()[index_i][1] < -DH + buffer_width)
         {
@@ -263,10 +262,10 @@ int main(int ac, char *av[])
     water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
 
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
-    shell_body.defineAdaptation<SPHAdaptation>(1.15, 2.0);
+    shell_body.defineAdaptation<SPHAdaptation>(1.15, resolution_ref / resolution_shell);
     shell_body.defineBodyLevelSetShape(level_set_refinement_ratio)->writeLevelSet(sph_system);
     shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
-    shell_body.generateParticles<SurfaceParticles, WallBoundary>(resolution_ref, BW);
+    shell_body.generateParticles<SurfaceParticles, WallBoundary>(resolution_shell, BW);
 
     ObserverBody velocity_observer(sph_system, "VelocityObserver");
     velocity_observer.generateParticles<ObserverParticles>(observer_location);
@@ -471,8 +470,6 @@ int main(int ac, char *av[])
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;
-
-                    //body_states_recording.writeToFile();
                 }
                 average_velocity_and_acceleration.update_averages_.exec(dt);
 
@@ -487,7 +484,6 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
-                body_states_recording.writeToFile();
             }
             number_of_iterations++;
 
