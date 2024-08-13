@@ -21,7 +21,7 @@ Real DL = 0.2;                                               /**< Reference leng
 Real DH = 0.1;                                               /**< Reference and the height of main channel. */
 Real DL1 = 0.75 * DL;                                        /**< The length of the main channel. */
 Real resolution_ref = 0.005;                                 /**< Initial reference particle spacing. */
-Real resolution_shell = 0.5 * resolution_ref;
+Real resolution_shell = resolution_ref;
 Real BW = resolution_shell * 1.0;                                
 Real buffer_width = resolution_ref * 4.0;                                /**< Reference size of the emitter. */
 Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
@@ -32,19 +32,16 @@ Real level_set_refinement_ratio = resolution_ref / (0.1 * BW);
 //----------------------------------------------------------------------
 Real Outlet_pressure = 0;
 Real rho0_f = 1000.0;                                                 /**< Reference density of fluid. */
-//Real Re = 100.0;                                                      /**< Reynolds number. */
-//Real U_f = 1.0;                                                       /**< Characteristic velocity. */
-Real Re = 50.0;
-Real U_f = 0.5;
+Real Re = 100.0;                                                      /**< Reynolds number. */
+Real U_f = 1.0;                                                       /**< Characteristic velocity. */
 Real mu_f = rho0_f * U_f * DH / Re;                                   /**< Dynamics viscosity. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 //----------------------------------------------------------------------
 //	Material parameters of the shell
 //----------------------------------------------------------------------
-Real rho0_s = 2000;   /**< Reference density of shell. */
-Real poisson = 0.3; /**< Poisson ratio. */
-Real Ae = 9e6;     /**< Normalized Youngs Modulus. */
-Real Youngs_modulus = Ae * rho0_f * U_f * U_f;
+Real rho0_s = 1120;           /** Normalized density. */
+Real Youngs_modulus = 1.08e8; /** Normalized Youngs Modulus. */
+Real poisson = 0.49;          /** Poisson ratio. */
 //----------------------------------------------------------------------
 //	define geometry of SPH bodies
 //----------------------------------------------------------------------
@@ -232,7 +229,7 @@ class BoundaryGeometry : public BodyPartByParticle
   private:
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][0] < 0
+        if (base_particles_.ParticlePositions()[index_i][0] < -DL_sponge + buffer_width
             || base_particles_.ParticlePositions()[index_i][1] > 2.0 * DH - buffer_width
             || base_particles_.ParticlePositions()[index_i][1] < -DH + buffer_width)
         {

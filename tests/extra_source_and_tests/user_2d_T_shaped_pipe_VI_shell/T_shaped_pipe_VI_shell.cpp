@@ -14,7 +14,7 @@ Real DL = 5.0;                        /**< Reference length. */
 Real DH = 3.0;                        /**< Reference and the height of main channel. */
 Real DL1 = 0.7 * DL;                  /**< The length of the main channel. */
 Real resolution_ref = 0.15;           /**< Initial reference particle spacing. */
-Real resolution_shell = 0.5 * resolution_ref;
+Real resolution_shell = resolution_ref;
 Real BW = resolution_ref * 4.0;
 Real buffer_width = resolution_ref * 4.0;
 Real thickness = resolution_shell * 1.0; 
@@ -25,21 +25,17 @@ Real level_set_refinement_ratio = resolution_ref / (0.1 * thickness);
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1.0; /**< Reference density of fluid. */
-//Real U_f = 1.0;    /**< Characteristic velocity. */
-Real U_f = 0.1;    /**< Characteristic velocity. */
+Real U_f = 1.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1)));
-//Real Re = 100.0;                    /**< Reynolds number. */
-Real Re = 50.0;                    /**< Reynolds number. */
+Real Re = 100.0;                    /**< Reynolds number. */
 Real mu_f = rho0_f * U_f * DH / Re; /**< Dynamics viscosity. */
 //----------------------------------------------------------------------
 //	Material parameters of the shell
 //----------------------------------------------------------------------
-Real rho0_s = 2.0;   /**< Reference density of shell. */
-Real poisson = 0.3; /**< Poisson ratio. */
-//Real Ae = 7.8e3;     /**< Normalized Youngs Modulus. */
-Real Ae = 7e6;     /**< Normalized Youngs Modulus. */
-Real Youngs_modulus = Ae * rho0_f * U_f * U_f;
+Real rho0_s = 1.2;           /** Normalized density. */
+Real Youngs_modulus = 1.0e4; /** Normalized Youngs Modulus. */
+Real poisson = 0.3;          /** Poisson ratio. */
 //----------------------------------------------------------------------
 //	define geometry of SPH bodies
 //----------------------------------------------------------------------
@@ -95,7 +91,7 @@ class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerat
         //std::cout << " particle_number_mid_surface_01 = " << particle_number_mid_surface_01 << std::endl;
         for (int i = 0; i < particle_number_mid_surface_01 - 1; i++)
         {
-            Real x = -DL_sponge - BW + (Real(i) + 1.0) * resolution_shell_;  // to ensure that the X-coordinate is consistent with the inner wall of T-pipe wall case
+            Real x = -DL_sponge - BW + (Real(i) + 0.5) * resolution_shell_;
             // upper wall
             Real y1 = DH + 0.5 * resolution_shell_;
             addPositionAndVolumetricMeasure(Vecd(x, y1), resolution_shell_);
@@ -185,7 +181,7 @@ class BoundaryGeometry : public BodyPartByParticle
   private:
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][0] < 0
+        if (base_particles_.ParticlePositions()[index_i][0] < -DL_sponge + buffer_width
             || base_particles_.ParticlePositions()[index_i][1] > 2.0 * DH - buffer_width
             || base_particles_.ParticlePositions()[index_i][1] < -DH + buffer_width)
         {
@@ -300,6 +296,7 @@ int main(int ac, char *av[])
     write_body_states.addToWrite<int>(water_block, "Indicator"); // output for debug
     write_body_states.addToWrite<Real>(water_block, "Density");
     write_body_states.addToWrite<Vecd>(shell_body, "NormalDirection");
+    write_body_states.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
     write_body_states.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     write_body_states.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
     //----------------------------------------------------------------------
