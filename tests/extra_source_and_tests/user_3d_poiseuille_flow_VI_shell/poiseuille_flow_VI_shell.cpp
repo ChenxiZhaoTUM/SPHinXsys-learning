@@ -119,12 +119,10 @@ struct InflowVelocity
     Vec3d operator()(Vec3d &position, Vec3d &velocity)
     {
         Vec3d target_velocity = Vec3d(0, 0, 0);
-        /*target_velocity[1] = SMAX(2.0 * U_f *
+        target_velocity[1] = SMAX(2.0 * U_f *
                                       (1.0 - (position[0] * position[0] + position[2] * position[2]) /
                                                  fluid_radius / fluid_radius),
-                                  0.0);*/
-
-        target_velocity[1] = 0.5;
+                                  0.0);
         return target_velocity;
     }
 };
@@ -260,8 +258,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
     SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
-    Gravity gravity(Vecd(0.0, 1.0, 0.0));
-    SimpleDynamics<GravityForce> apply_gravity_force(water_block, gravity);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(water_block_inner, water_block_contact);
 
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
@@ -344,12 +340,12 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
         {
             /** Acceleration due to viscous force and gravity. */
             time_instance = TickCount::now();
-            apply_gravity_force.exec();
             Real Dt = get_fluid_advection_time_step_size.exec();
             inlet_outlet_surface_particle_indicator.exec();
             update_density_by_summation.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
+
             /** FSI for viscous force. */
             viscous_force_on_shell.exec();
 
@@ -363,8 +359,10 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                           Dt - relaxation_time);
                 /** Fluid pressure relaxation */
                 pressure_relaxation.exec(dt);
+
                 /** FSI for pressure force. */
                 pressure_force_on_shell.exec();
+
                 /** Fluid density relaxation */
                 density_relaxation.exec(dt);
 
@@ -377,15 +375,10 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                         dt_s = dt - dt_s_sum;
                     shell_stress_relaxation_first.exec(dt_s);
 
-                    //constrain_rotation.exec(dt_s);
-					//constrain_mass_center.exec(dt_s);
-
                     constrain_holder.exec(dt_s);
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;
-
-                    body_states_recording.writeToFile();
                 }
                 average_velocity_and_acceleration.update_averages_.exec(dt);
 
@@ -398,10 +391,9 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                 TickCount::now() - time_instance;
             if (number_of_iterations % screen_output_interval == 0)
             {
-                std::cout << std::fixed << std::setprecision(9)
-                          << "N=" << number_of_iterations
-                          << "	Time = " << GlobalStaticVariables::physical_time_
-                          << "	Dt = " << Dt << "	dt = " << dt << "\n";
+                std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
+                          << GlobalStaticVariables::physical_time_
+                          << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
             }
             number_of_iterations++;
 
