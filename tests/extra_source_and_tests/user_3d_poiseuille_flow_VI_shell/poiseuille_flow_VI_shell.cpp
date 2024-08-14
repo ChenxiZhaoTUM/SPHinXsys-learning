@@ -20,14 +20,17 @@ const Real full_length = 10 * fluid_radius;
 const Real rho0_f = 1050.0; /**< Reference density of fluid. */
 const Real mu_f = 3.6e-3;   /**< Viscosity. */
 const Real Re = 100;
+//----------------------------------------------------------------------
+//	Material parameters of the shell
+//----------------------------------------------------------------------
+Real rho0_s = 1120;           /** Normalized density. */
+Real Youngs_modulus = 1.08e8; /** Normalized Youngs Modulus. */
+Real poisson = 0.49;          /** Poisson ratio. */
+
 /**< Characteristic velocity. Average velocity */
 const Real U_f = Re * mu_f / rho0_f / diameter;
 const Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 const Real c_f = 10.0 * U_max; /**< Reference sound speed. */
-
-Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e7;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
 
 namespace SPH
 {
@@ -139,12 +142,11 @@ class BoundaryGeometry : public BodyPartByParticle
     virtual ~BoundaryGeometry(){};
 
   private:
-      Real constrain_len_;
+    Real constrain_len_;
 
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][1] < constrain_len_ 
-            || base_particles_.ParticlePositions()[index_i][1] > full_length - constrain_len_)
+        if (base_particles_.ParticlePositions()[index_i][1] < constrain_len_ || base_particles_.ParticlePositions()[index_i][1] > full_length - constrain_len_)
         {
             body_part_particles_.push_back(index_i);
         }
@@ -161,7 +163,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //	Geometry parameters for shell.
     //----------------------------------------------------------------------
     const int number_of_particles = 10;
-    const Real inflow_length = resolution_ref * 10.0; // Inflow region
+    const Real inflow_length = resolution_ref * 4.0; // Inflow region
     const Real wall_thickness = resolution_ref * 4.0;
     const int SimTK_resolution = 20;
     const Vec3d translation_fluid(0., full_length * 0.5, 0.);
@@ -209,7 +211,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
 
     SolidBody shell_boundary(system, makeShared<DefaultShape>("Shell"));
     shell_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_shell);
-    //shell_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
     shell_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, wall_thickness, shell_thickness);
 
@@ -228,7 +229,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     ShellInnerRelationWithContactKernel shell_curvature_inner(shell_boundary, water_block);
     // shell normal should point from fluid to shell
     // normal corrector set to false if shell normal is already pointing from fluid to shell
-    ContactRelationFromShellToFluid water_block_contact(water_block, {&shell_boundary}, {false});
+    ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_boundary}, {false});
     ContactRelationFromFluidToShell shell_water_contact(shell_boundary, {&water_block}, {false});
     ContactRelation observer_contact_axial(observer_axial, {&water_block});
     ContactRelation observer_contact_radial(observer_radial, {&water_block});
@@ -236,8 +237,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     // Combined relations built from basic relations
     // which is only used for update configuration.
     //----------------------------------------------------------------------
-    ComplexRelation water_block_complex(water_block_inner, water_block_contact);
-
+    ComplexRelation water_block_complex(water_block_inner, water_shell_contact);
     //----------------------------------------------------------------------
     // Define the numerical methods used in the simulation.
     // Note that there may be data dependence on the sequence of constructions.
@@ -254,26 +254,27 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_boundary);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_boundary);
+ 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
     SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
-    InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(water_block_inner, water_block_contact);
 
-    Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
-    Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallNoRiemann> density_relaxation(water_block_inner, water_block_contact);
-    InteractionWithUpdate<fluid_dynamics::DensitySummationFreeStreamComplex> update_density_by_summation(water_block_inner, water_block_contact);
-    InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_block_contact);
-    InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_block_contact);
-
-    ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_max);
+    // fluid dynamics
+    InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
+    Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
+    Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallNoRiemann> density_relaxation(water_block_inner, water_shell_contact);
+    ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
+    InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_shell_contact);
+    InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_shell_contact);
+    InteractionWithUpdate<fluid_dynamics::DensitySummationFreeStreamComplex> update_density_by_summation(water_block_inner, water_shell_contact);
     //----------------------------------------------------------------------
     //	Boundary conditions. Inflow & Outflow in Y-direction
     //----------------------------------------------------------------------
     BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, inlet_particle_buffer);
-    BodyAlignedBoxByCell emitter_buffer(water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Vec3d(emitter_buffer_translation)), emitter_buffer_halfsize));
+    BodyAlignedBoxByCell emitter_buffer(water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> emitter_buffer_inflow_condition(emitter_buffer);
     BodyAlignedBoxByCell disposer(water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Vec3d(disposer_translation)), disposer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_outflow_deletion(disposer);
@@ -289,10 +290,11 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     BodyStatesRecordingToVtp body_states_recording(system);
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
-    body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
-    body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
+    body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<Vecd>(shell_boundary, "NormalDirection");
     body_states_recording.addToWrite<Vecd>(shell_boundary, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
+    body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_radial("Velocity", observer_contact_radial);
     //----------------------------------------------------------------------
@@ -303,6 +305,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     system.initializeSystemConfigurations();
     shell_corrected_configuration.exec();
     shell_curvature.exec();
+    constrain_holder.exec();
     water_block_complex.updateConfiguration();
     shell_water_contact.updateConfiguration();
     //----------------------------------------------------------------------
@@ -313,7 +316,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     Real end_time = 2.0;               /**< End time. */
     Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-    Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
+    Real dt_s = 0.0;                   /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -323,12 +326,10 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -341,7 +342,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
             /** Acceleration due to viscous force and gravity. */
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
-            inlet_outlet_surface_particle_indicator.exec();
+            boundary_indicator.exec();
             update_density_by_summation.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
@@ -357,13 +358,12 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
             {
                 dt = SMIN(get_fluid_time_step_size.exec(),
                           Dt - relaxation_time);
-                /** Fluid pressure relaxation */
                 pressure_relaxation.exec(dt);
 
                 /** FSI for pressure force. */
                 pressure_force_on_shell.exec();
 
-                /** Fluid density relaxation */
+                //emitter_buffer_inflow_condition.exec();
                 density_relaxation.exec(dt);
 
                 Real dt_s_sum = 0.0;
@@ -379,6 +379,8 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;
+
+                    body_states_recording.writeToFile();
                 }
                 average_velocity_and_acceleration.update_averages_.exec(dt);
 
@@ -443,7 +445,8 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //	Gtest starts from here.
     //----------------------------------------------------------------------
     /* Define analytical solution of the inflow velocity.*/
-    std::function<Vec3d(Vec3d)> inflow_velocity = [&](Vec3d pos) {
+    std::function<Vec3d(Vec3d)> inflow_velocity = [&](Vec3d pos)
+    {
         return Vec3d(0.0,
                      2.0 * U_f * (1.0 - (pos[0] * pos[0] + pos[2] * pos[2]) / (diameter * 0.5) / (diameter * 0.5)),
                      0.0);
@@ -469,8 +472,8 @@ TEST(poiseuille_flow, 10_particles)
 { // for CI
     const int number_of_particles = 10;
     const Real resolution_ref = diameter / number_of_particles;
-    const Real resolution_shell = 0.5 * resolution_ref;
-    const Real shell_thickness = 0.5 * resolution_shell;
+    const Real resolution_shell = resolution_ref;
+    const Real shell_thickness = resolution_shell;
     poiseuille_flow(resolution_ref, resolution_shell, shell_thickness);
 }
 
@@ -478,8 +481,8 @@ TEST(DISABLED_poiseuille_flow, 20_particles)
 { // for CI
     const int number_of_particles = 20;
     const Real resolution_ref = diameter / number_of_particles;
-    const Real resolution_shell = 0.5 * resolution_ref;
-    const Real shell_thickness = 0.5 * resolution_shell;
+    const Real resolution_shell = resolution_ref;
+    const Real shell_thickness = resolution_shell;
     poiseuille_flow(resolution_ref, resolution_shell, shell_thickness);
 }
 //----------------------------------------------------------------------

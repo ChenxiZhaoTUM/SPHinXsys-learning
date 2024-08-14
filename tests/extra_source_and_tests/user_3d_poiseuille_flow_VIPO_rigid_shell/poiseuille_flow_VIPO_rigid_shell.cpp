@@ -128,8 +128,7 @@ struct InflowVelocity
     }
 };
 
-Real Inlet_pressure = 0.2;
-Real Outlet_pressure = 0.1;
+Real Outlet_pressure = 0;
 
 struct LeftInflowPressure
 {
