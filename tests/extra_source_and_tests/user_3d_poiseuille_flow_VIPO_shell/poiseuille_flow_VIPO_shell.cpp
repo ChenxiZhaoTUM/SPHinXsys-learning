@@ -132,7 +132,7 @@ struct InflowVelocity
     }
 };
 
-Real Outlet_pressure = 0.1;
+Real Outlet_pressure = 0;
 
 struct LeftInflowPressure
 {
@@ -180,122 +180,6 @@ class BoundaryGeometry : public BodyPartByParticle
             body_part_particles_.push_back(index_i);
         }
     };
-};
-
-//----------------------------------------------------------------------
-//	Define constrain class for tank translation and rotation.
-//----------------------------------------------------------------------
-class QuantityMomentOfMomentum : public QuantitySummation<Vecd>
-{
-protected:
-	StdLargeVec<Real>& mass_;
-	StdLargeVec<Vecd>& pos_;
-	Vecd mass_center_;
-
-public:
-	explicit QuantityMomentOfMomentum(SPHBody& sph_body, Vecd mass_center)
-		: QuantitySummation<Vecd>(sph_body, "Velocity"),
-		mass_center_(mass_center), 
-        mass_(*particles_->getVariableDataByName<Real>("Mass")), 
-        pos_(*particles_->getVariableDataByName<Vecd>("Position"))
-	{
-		this->quantity_name_ = "Moment of Momentum";
-	};
-	virtual ~QuantityMomentOfMomentum() {};
-
-	Vecd reduce(size_t index_i, Real dt = 0.0)
-	{
-		return (pos_[index_i] - mass_center_).cross(this->variable_[index_i]) * mass_[index_i];
-	};
-};
-
-class QuantityMomentOfInertia : public QuantitySummation<Real>
-{
-protected:
-	StdLargeVec<Vecd>& pos_;
-	Vecd mass_center_;
-	Real p_1_;
-	Real p_2_;
-
-public:
-	explicit QuantityMomentOfInertia(SPHBody& sph_body, Vecd mass_center, Real position_1, Real position_2)
-		: QuantitySummation<Real>(sph_body, "Mass"),
-		pos_(*particles_->getVariableDataByName<Vecd>("Position")), 
-        mass_center_(mass_center), p_1_(position_1), p_2_(position_2)
-	{
-		this->quantity_name_ = "Moment of Inertia";
-	};
-	virtual ~QuantityMomentOfInertia() {};
-
-	Real reduce(size_t index_i, Real dt = 0.0)
-	{
-		if (p_1_ == p_2_)
-		{
-			return  ((pos_[index_i] - mass_center_).norm() * (pos_[index_i] - mass_center_).norm()
-				- (pos_[index_i][p_1_] - mass_center_[p_1_]) * (pos_[index_i][p_2_] - mass_center_[p_2_]))
-                * this->variable_[index_i];
-		}
-		else
-		{
-			return -(pos_[index_i][p_1_] - mass_center_[p_1_]) * (pos_[index_i][p_2_] - mass_center_[p_2_])
-                * this->variable_[index_i];
-		}
-	};
-};
-
-class QuantityMassPosition : public QuantitySummation<Vecd>
-{
-protected:
-	StdLargeVec<Real>& mass_;
-
-
-public:
-	explicit QuantityMassPosition(SPHBody& sph_body)
-		: QuantitySummation<Vecd>(sph_body, "Position"),
-		mass_(*particles_->getVariableDataByName<Real>("Mass"))
-	{
-		this->quantity_name_ = "Mass*Position";
-	};
-	virtual ~QuantityMassPosition() {};
-
-	Vecd reduce(size_t index_i, Real dt = 0.0)
-	{
-		return this->variable_[index_i] * mass_[index_i];
-	};
-};
-
-class Constrain3DSolidBodyRotation : public LocalDynamics, public DataDelegateSimple
-{
-private:
-	Vecd mass_center_;
-	Matd moment_of_inertia_;
-	Vecd angular_velocity_;
-	Vecd linear_velocity_;
-	ReduceDynamics<QuantityMomentOfMomentum> compute_total_moment_of_momentum_;
-	StdLargeVec<Vecd>& vel_;
-	StdLargeVec<Vecd>& pos_;
-
-protected:
-	virtual void setupDynamics(Real dt = 0.0) override
-	{
-		angular_velocity_ = moment_of_inertia_.inverse() * compute_total_moment_of_momentum_.exec(dt);
-	}
-
-public:
-	explicit Constrain3DSolidBodyRotation(SPHBody& sph_body, Vecd mass_center, Matd inertia_tensor)
-		: LocalDynamics(sph_body), DataDelegateSimple(sph_body),
-		vel_(*particles_->getVariableDataByName<Vecd>("Velocity")), 
-        pos_(*particles_->getVariableDataByName<Vecd>("Position")), 
-        compute_total_moment_of_momentum_(sph_body, mass_center),
-		mass_center_(mass_center), moment_of_inertia_(inertia_tensor) {}
-
-	virtual ~Constrain3DSolidBodyRotation() {};
-
-	void update(size_t index_i, Real dt = 0.0)
-	{
-		linear_velocity_ = angular_velocity_.cross((pos_[index_i] - mass_center_));
-		vel_[index_i] -= linear_velocity_;
-	}
 };
 } // namespace SPH
 
@@ -400,22 +284,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_shell* 4);
     SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
-	SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_boundary);
-	ReduceDynamics<QuantitySummation<Real>> compute_total_mass_(shell_boundary, "Mass");
-	ReduceDynamics<QuantityMassPosition> compute_mass_position_(shell_boundary);
-	Vecd mass_center = compute_mass_position_.exec() / compute_total_mass_.exec();
-	Matd moment_of_inertia = Matd::Zero();
-	for (int i = 0; i != Dimensions; ++i)
-	{
-		for (int j = 0; j != Dimensions; ++j)
-		{
-			ReduceDynamics<QuantityMomentOfInertia> compute_moment_of_inertia(shell_boundary, mass_center, i, j);
-			moment_of_inertia(i, j) = compute_moment_of_inertia.exec();
-		}
-	}
-	SimpleDynamics<Constrain3DSolidBodyRotation> constrain_rotation(shell_boundary, mass_center, moment_of_inertia);
-
-
     // fluid dynamics
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_block_contact);
@@ -440,7 +308,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition(right_emitter);
-    SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_disposer);
+    SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
     
 
     // FSI
@@ -473,7 +341,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     shell_curvature.exec();
     water_block_complex.updateConfiguration();
     shell_water_contact.updateConfiguration();
-
     boundary_indicator.exec();
     left_emitter_inflow_injection.tag_buffer_particles.exec();
     right_emitter_inflow_injection.tag_buffer_particles.exec();
@@ -534,6 +401,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                 right_inflow_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
 
+                /** FSI for pressure force. */
                 pressure_force_on_shell.exec();
 
                 density_relaxation.exec(dt);
@@ -547,15 +415,12 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                         dt_s = dt - dt_s_sum;
                     shell_stress_relaxation_first.exec(dt_s);
 
-                    //constrain_rotation.exec(dt_s);
-					//constrain_mass_center.exec(dt_s);
-
                     constrain_holder.exec(dt_s);
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;
 
-                    body_states_recording.writeToFile();
+                    
                 }
                 average_velocity_and_acceleration.update_averages_.exec(dt);
 
@@ -567,6 +432,8 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                 left_inflow_pressure_condition.exec(dt);
                 right_inflow_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();*/
+
+                //body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation +=
                 TickCount::now() - time_instance;
@@ -575,7 +442,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
-                //body_states_recording.writeToFile();
             }
             number_of_iterations++;
             time_instance = TickCount::now();
