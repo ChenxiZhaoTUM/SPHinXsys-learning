@@ -395,7 +395,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Setup computing and initial conditions.
     //----------------------------------------------------------------------
-     size_t number_of_iterations = sph_system.RestartStep();
+    size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
     Real end_time = 30.0;                /**< End time. */
