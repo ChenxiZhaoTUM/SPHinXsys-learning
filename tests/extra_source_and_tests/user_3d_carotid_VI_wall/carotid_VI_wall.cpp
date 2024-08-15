@@ -287,14 +287,19 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
-    Real end_time = 100.0;
-    Real output_interval = end_time / 200.0; /**< Time stamps for output of body states. */
-    Real dt = 0.0;                           /**< Default acoustic time step sizes. */
+    int observation_sample_interval = screen_output_interval * 2;
+    Real end_time = 2.5;   /**< End time. */
+    Real Output_Time = 0.1; /**< Time stamps for output of body states. */
+    Real dt = 0.0;          /**< Default acoustic time step sizes. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
     TickCount t1 = TickCount::now();
     TimeInterval interval;
+    TimeInterval interval_computing_time_step;
+    TimeInterval interval_computing_pressure_relaxation;
+    TimeInterval interval_updating_configuration;
+    TickCount time_instance;
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
@@ -306,16 +311,19 @@ int main(int ac, char *av[])
     {
         Real integration_time = 0.0;
         /** Integrate time (loop) until the next output time. */
-        while (integration_time < output_interval)
+        while (integration_time < Output_Time)
         {
+            time_instance = TickCount::now();
             apply_initial_force.exec();
+
             Real Dt = get_fluid_advection_time_step_size.exec();
             inlet_outlet_surface_particle_indicator.exec();
             update_density_by_summation.exec();
             viscous_force.exec();
             transport_velocity_correction.exec();
+            interval_computing_time_step += TickCount::now() - time_instance;
 
-            /** Dynamics including pressure relaxation. */
+            time_instance = TickCount::now();
             Real relaxation_time = 0.0;
             while (relaxation_time < Dt)
             {
@@ -330,6 +338,8 @@ int main(int ac, char *av[])
                 GlobalStaticVariables::physical_time_ += dt;
             }
 
+            interval_computing_pressure_relaxation += TickCount::now() - time_instance;
+
             if (number_of_iterations % screen_output_interval == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
@@ -339,6 +349,8 @@ int main(int ac, char *av[])
             }
             number_of_iterations++;
 
+            time_instance = TickCount::now();
+
             /** inflow injection*/
             emitter_inflow_injection.exec();
             disposer_up_outflow_deletion.exec();
@@ -347,8 +359,8 @@ int main(int ac, char *av[])
             /** Update cell linked list and configuration. */
             water_block.updateCellLinkedListWithParticleSort(100);
             water_block_complex.updateConfiguration();
+            interval_updating_configuration += TickCount::now() - time_instance;
         }
-
         TickCount t2 = TickCount::now();
         write_body_states.writeToFile();
         TickCount t3 = TickCount::now();
@@ -360,6 +372,12 @@ int main(int ac, char *av[])
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds()
               << " seconds." << std::endl;
+    std::cout << std::fixed << std::setprecision(9) << "interval_computing_time_step ="
+              << interval_computing_time_step.seconds() << "\n";
+    std::cout << std::fixed << std::setprecision(9) << "interval_computing_pressure_relaxation = "
+              << interval_computing_pressure_relaxation.seconds() << "\n";
+    std::cout << std::fixed << std::setprecision(9) << "interval_updating_configuration = "
+              << interval_updating_configuration.seconds() << "\n";
 
     return 0;
 }
