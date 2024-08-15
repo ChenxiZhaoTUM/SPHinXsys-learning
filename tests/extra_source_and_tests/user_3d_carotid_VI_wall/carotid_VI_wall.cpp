@@ -1,8 +1,6 @@
 /**
- * @file 	T_shaped_pipe.cpp
- * @brief 	This is the benchmark test of multi-inlet and multi-outlet.
- * @details We consider a flow with one inlet and two outlets in a T-shaped pipe in 2D.
- * @author 	Xiangyu Hu, Shuoguo Zhang
+ * @file 	carotid_VI_wall.cpp
+ * @brief 	Carotid artery with solid wall, imposed solely velocity inlet condition.
  */
 
 #include "sphinxsys.h"
@@ -69,20 +67,20 @@ RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 //outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Real DW_01 = 1.9416 * 2 * length_scale;
-Vecd outlet_01_buffer_half = Vecd(2.0 * dp_0, 2.4 * length_scale, 2.4 * length_scale);
-Vecd outlet_01_normal(-0.3160, -0.0009, 0.9488);
-Vecd outlet_01_disposer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_01_normal * 2.0 * length_scale;
-RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, standard_direction);
-Rotation3d outlet_01_disposer_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
+Real DW_up = 1.9416 * 2 * length_scale;
+Vecd outlet_up_buffer_half = Vecd(2.0 * dp_0, 2.4 * length_scale, 2.4 * length_scale);
+Vecd outlet_up_normal(-0.3160, -0.0009, 0.9488);
+Vecd outlet_up_disposer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_up_normal * 2.0 * length_scale;
+RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
+Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
 
-//outlet2 R=1.2760, (9.0465, 1.02552, 18.6363), (-0.0417, 0.0701, 0.9967)
-Real DW_02 = 1.2760 * 2 * length_scale;
-Vecd outlet_02_buffer_half = Vecd(2.0 * dp_0, 1.5 * length_scale, 1.5 * length_scale);
-Vecd outlet_02_normal(-0.0417, 0.0701, 0.9967);
-Vecd outlet_02_disposer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_02_normal * 2.0 * length_scale;
-RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, standard_direction);
-Rotation3d outlet_02_disposer_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
+//outlet2 R=1.2760, (9.0465, 1.down552, 18.6363), (-0.0417, 0.0701, 0.9967)
+Real DW_down = 1.2760 * 2 * length_scale;
+Vecd outlet_down_buffer_half = Vecd(2.0 * dp_0, 1.5 * length_scale, 1.5 * length_scale);
+Vecd outlet_down_normal(-0.0417, 0.0701, 0.9967);
+Vecd outlet_down_disposer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_down_normal * 2.0 * length_scale;
+RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
+Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
 
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
@@ -90,7 +88,7 @@ Rotation3d outlet_02_disposer_rotation(outlet_02_rotation_result.angle, outlet_0
 Real rho0_f = 1.0; /**< Reference density of fluid. */
 Real U_f = 1.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_01 + DW_02));
+Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_up + DW_down));
 Real Re = 100.0;                    /**< Reynolds number. */
 Real mu_f = rho0_f * U_f * DW_in / Re; /**< Dynamics viscosity. */
 //----------------------------------------------------------------------
@@ -263,11 +261,11 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_condition(inlet_flow_buffer);
    
     BodyAlignedBoxByCell disposer_up(
-        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_disposer_rotation), Vec3d(outlet_01_disposer_translation)), outlet_01_buffer_half));
+        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_disposer_rotation), Vec3d(outlet_up_disposer_translation)), outlet_up_buffer_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_up_outflow_deletion(disposer_up);
 
     BodyAlignedBoxByCell disposer_down(
-        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_disposer_rotation), Vec3d(outlet_02_disposer_translation)), outlet_02_buffer_half));
+        water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_disposer_rotation), Vec3d(outlet_down_disposer_translation)), outlet_down_buffer_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_down_outflow_deletion(disposer_down);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
@@ -323,6 +321,7 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt - relaxation_time);
+
                 pressure_relaxation.exec(dt);
                 inflow_condition.exec();
                 density_relaxation.exec(dt);
