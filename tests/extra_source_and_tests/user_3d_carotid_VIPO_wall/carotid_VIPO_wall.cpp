@@ -69,7 +69,7 @@ Vecd standard_direction(1, 0, 0);
 Real DW_in = 2.9293 * 2 * length_scale;
 Vecd inlet_buffer_half = Vecd(2.0 * dp_0, 3.2 * length_scale, 3.2 * length_scale);
 Vecd inlet_normal(0.1034, -0.0458, 0.9935);
-Vecd inlet_buffer_translation = Vecd(1.5611, 5.8559, -30.8885) * length_scale + inlet_normal * 2.0 * length_scale;
+Vecd inlet_buffer_translation = Vecd(1.5611, 5.8559, -30.8885) * length_scale + inlet_normal * 1.5 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
@@ -78,7 +78,7 @@ Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotat
 Real DW_up = 1.9416 * 2 * length_scale;
 Vecd outlet_up_buffer_half = Vecd(2.0 * dp_0, 2.4 * length_scale, 2.4 * length_scale);
 Vecd outlet_up_normal(-0.3160, -0.0009, 0.9488);
-Vecd outlet_up_buffer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_up_normal * 2.0 * length_scale;
+Vecd outlet_up_buffer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_up_normal * 1.5 * dp_0;
 RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
 Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
 Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
@@ -87,7 +87,7 @@ Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outl
 Real DW_down = 1.2760 * 2 * length_scale;
 Vecd outlet_down_buffer_half = Vecd(2.0 * dp_0, 1.5 * length_scale, 1.5 * length_scale);
 Vecd outlet_down_normal(-0.0417, 0.0701, 0.9967);
-Vecd outlet_down_buffer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_down_normal * 2.0 * length_scale;
+Vecd outlet_down_buffer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_down_normal * 1.5 * dp_0;
 RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
 Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
 Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, outlet_down_rotation_result.axis);
@@ -314,8 +314,8 @@ int main(int ac, char *av[])
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_wall_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_01(right_up_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_02(right_down_emitter);
+    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_up_inflow_pressure_condition(right_up_emitter);
+    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_down_inflow_pressure_condition(right_down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
@@ -389,8 +389,8 @@ int main(int ac, char *av[])
 
                 kernel_summation.exec();
                 left_inflow_pressure_condition.exec(dt);
-                right_inflow_pressure_condition_01.exec(dt);
-                right_inflow_pressure_condition_02.exec(dt);
+                right_up_inflow_pressure_condition.exec(dt);
+                right_down_inflow_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
 
                 density_relaxation.exec(dt);
