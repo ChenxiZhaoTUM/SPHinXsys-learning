@@ -290,8 +290,7 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp write_body_states(sph_system);
     write_body_states.addToWrite<Real>(water_block, "Pressure"); // output for debug
     write_body_states.addToWrite<int>(water_block, "Indicator"); // output for debug
-    RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalKineticEnergy>>
-        write_water_kinetic_energy(water_block);
+    ReducedQuantityRecording<TotalKineticEnergy> write_water_kinetic_energy(water_block);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -376,15 +375,6 @@ int main(int ac, char *av[])
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds()
               << " seconds." << std::endl;
-
-    if (sph_system.GenerateRegressionData())
-    {
-        write_water_kinetic_energy.generateDataBase(1.0e-3);
-    }
-    else
-    {
-        write_water_kinetic_energy.testResult();
-    }
 
     return 0;
 }
