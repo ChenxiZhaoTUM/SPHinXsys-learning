@@ -1,8 +1,6 @@
 /**
- * @file 	T_shaped_pipe.cpp
- * @brief 	This is the benchmark test of multi-inlet and multi-outlet.
- * @details We consider a flow with one inlet and two outlets in a T-shaped pipe in 2D.
- * @author 	Xiangyu Hu, Shuoguo Zhang
+ * @file 	carotid_VIPO_wall.cpp
+ * @brief 	Carotid artery with solid wall, imposed velocity inlet and pressure outlet condition.
  */
 
 #include "sphinxsys.h"
@@ -24,11 +22,10 @@ std::string full_path_to_wall_file = "./input/carotid_wall_geo.stl";
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
 Real length_scale = pow(10, -3);
-//Real length_scale = 1.0;
 Vec3d domain_lower_bound(-7.0 * length_scale, -4.0 * length_scale, -35.0 * length_scale);
 Vec3d domain_upper_bound(20.0 * length_scale, 12.0 * length_scale, 30.0 * length_scale);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real resolution_ref = 0.15 * length_scale;
+Real dp_0 = 0.15 * length_scale;
 //----------------------------------------------------------------------
 //	Buffer location.
 //----------------------------------------------------------------------
@@ -66,45 +63,42 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
     return {axis, angle};
 }
 
+Vecd standard_direction(1, 0, 0);
+
 // inlet R=2.9293, (1.5611, 5.8559, -30.8885), (-0.1034, 0.0458, -0.9935)
 Real DW_in = 2.9293 * 2 * length_scale;
-Vec3d inlet_half = Vec3d(0.2, 3.2, 3.2) * length_scale;
-Vec3d inlet_translation = Vec3d(1.5921, 5.8422, -30.5904) * length_scale;
-Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
-Vec3d inlet_standard_direction(1, 0, 0);
-RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_standard_direction);
-Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
+Vecd inlet_buffer_half = Vecd(2.0 * dp_0, 3.2 * length_scale, 3.2 * length_scale);
+Vecd inlet_normal(0.1034, -0.0458, 0.9935);
+Vecd inlet_buffer_translation = Vecd(1.5611, 5.8559, -30.8885) * length_scale + inlet_normal * 2.0 * length_scale;
+RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
+Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
 
 //outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Real DW_01 = 1.9416 * 2 * length_scale;
-Vec3d outlet_01_half = Vec3d(0.2, 2.4, 2.4) * length_scale;
-Vec3d outlet_01_translation = Vec3d(-2.6027, -0.4327, 21.5009) * length_scale;
-Vec3d outlet_01_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_01_standard_direction(1, 0, 0);
-RotationResult outlet_01_rotation_result = RotationCalculator(outlet_01_normal, outlet_01_standard_direction);
-Rotation3d outlet_01_rotation(outlet_01_rotation_result.angle, outlet_01_rotation_result.axis);
-Rotation3d outlet_emitter_01_rotation(outlet_01_rotation_result.angle + Pi, outlet_01_rotation_result.axis);
+Real DW_up = 1.9416 * 2 * length_scale;
+Vecd outlet_up_buffer_half = Vecd(2.0 * dp_0, 2.4 * length_scale, 2.4 * length_scale);
+Vecd outlet_up_normal(-0.3160, -0.0009, 0.9488);
+Vecd outlet_up_buffer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_up_normal * 2.0 * length_scale;
+RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
+Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
+Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
 
-//outlet2 R=1.2760, (9.0465, 1.02552, 18.6363), (-0.0417, 0.0701, 0.9967)
-Real DW_02 = 1.2760 * 2 * length_scale;
-Vec3d outlet_02_half = Vec3d(0.2, 1.5, 1.5) * length_scale;
-Vec3d outlet_02_translation = Vec3d(9.0590, 1.0045, 18.3373) * length_scale;
-Vec3d outlet_02_normal(-0.0417, 0.0701, 0.9967);
-Vec3d outlet_02_standard_direction(1, 0, 0);
-RotationResult outlet_02_rotation_result = RotationCalculator(outlet_02_normal, outlet_02_standard_direction);
-Rotation3d outlet_02_rotation(outlet_02_rotation_result.angle, outlet_02_rotation_result.axis);
-Rotation3d outlet_emitter_02_rotation(outlet_02_rotation_result.angle + Pi, outlet_02_rotation_result.axis);
-
+//outlet2 R=1.2760, (9.0465, 1.down552, 18.6363), (-0.0417, 0.0701, 0.9967)
+Real DW_down = 1.2760 * 2 * length_scale;
+Vecd outlet_down_buffer_half = Vecd(2.0 * dp_0, 1.5 * length_scale, 1.5 * length_scale);
+Vecd outlet_down_normal(-0.0417, 0.0701, 0.9967);
+Vecd outlet_down_buffer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_down_normal * 2.0 * length_scale;
+RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
+Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
+Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, outlet_down_rotation_result.axis);
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
 Real U_f = 0.5;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_01 + DW_02));
+Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_up + DW_down));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
-//Real Outlet_pressure = 1.33 * pow(10, 4);
 Real Outlet_pressure = 0;
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
@@ -129,7 +123,6 @@ class WallBoundary : public ComplexShape
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
-
 struct InflowVelocity
 {
     Real u_ref_, t_ref_, interval_;
@@ -206,9 +199,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
-    SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
+    SPHSystem sph_system(system_domain_bounds, dp_0);
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
@@ -217,10 +210,7 @@ int main(int ac, char *av[])
     water_block.defineBodyLevelSetShape()->cleanLevelSet();
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
-    //water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
-    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-    ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
-    : water_block.generateParticles<BaseParticles, Lattice>();
+    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineAdaptationRatios(1.15, 2.0);
@@ -236,27 +226,19 @@ int main(int ac, char *av[])
     if (sph_system.RunParticleRelaxation())
     {
         InnerRelation wall_inner(wall_boundary);
-        InnerRelation blood_inner(water_block);
         using namespace relax_dynamics;
         SimpleDynamics<RandomizeParticlePosition> random_particles(wall_boundary);
-        SimpleDynamics<RandomizeParticlePosition> random_blood_particles(water_block);
         RelaxationStepInner relaxation_step_inner(wall_inner);
-        RelaxationStepInner relaxation_step_inner_blood(blood_inner);
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_wall_state_to_vtp(wall_boundary);
-        BodyStatesRecordingToVtp write_blood_state_to_vtp(water_block);
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files(wall_boundary);
-        ReloadParticleIO write_blood_particle_reload_files(water_block);
         //----------------------------------------------------------------------
         //	Physics relaxation starts here.
         //----------------------------------------------------------------------
         random_particles.exec(0.25);
-        random_blood_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
-        relaxation_step_inner_blood.SurfaceBounding().exec();
         write_wall_state_to_vtp.writeToFile(0.0);
-        write_blood_state_to_vtp.writeToFile(0.0);
         //----------------------------------------------------------------------
         // From here the time stepping begins.
         //----------------------------------------------------------------------
@@ -269,16 +251,13 @@ int main(int ac, char *av[])
             if (ite % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite << "\n";
-                //write_wall_state_to_vtp.writeToFile(ite);
-                //write_blood_state_to_vtp.writeToFile(ite);
+                write_wall_state_to_vtp.writeToFile(ite);
             }
         }
 
         std::cout << "The physics relaxation process of wall particles finish !" << std::endl;
         write_wall_state_to_vtp.writeToFile(ite);
-        write_blood_state_to_vtp.writeToFile(ite);
         write_particle_reload_files.writeToFile(0);
-        write_blood_particle_reload_files.writeToFile(0);
 
         return 0;
     }
@@ -318,26 +297,25 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
 
-
     // add emitter and disposer
-    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));
+    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_buffer_half));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell right_emitter_01(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
-    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_emitter_inflow_injection_01(right_emitter_01, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell right_emitter_02(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
-    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_emitter_inflow_injection_02(right_emitter_02, in_outlet_particle_buffer);
+    BodyAlignedBoxByCell right_up_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_buffer_translation)), outlet_up_buffer_half));
+    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_up_emitter_inflow_injection(right_up_emitter, in_outlet_particle_buffer);
+    BodyAlignedBoxByCell right_down_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_buffer_translation)), outlet_down_buffer_half));
+    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_down_emitter_inflow_injection(right_down_emitter, in_outlet_particle_buffer);
 
-    BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation),Vec3d(inlet_translation)), inlet_half));
+    BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation),Vec3d(inlet_buffer_translation)), inlet_buffer_half));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
-    BodyAlignedBoxByCell right_disposer_01(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_01_rotation), Vec3d(outlet_01_translation)), outlet_01_half));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion_01(right_disposer_01);
-    BodyAlignedBoxByCell right_disposer_02(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_02_rotation), Vec3d(outlet_02_translation)), outlet_02_half));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion_02(right_disposer_02);
+    BodyAlignedBoxByCell right_up_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_disposer_rotation), Vec3d(outlet_up_buffer_translation)), outlet_up_buffer_half));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_up_disposer_outflow_deletion(right_up_disposer);
+    BodyAlignedBoxByCell right_down_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_disposer_rotation), Vec3d(outlet_down_buffer_translation)), outlet_down_buffer_half));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_down_disposer_outflow_deletion(right_down_disposer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_wall_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_01(right_emitter_01);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_02(right_emitter_02);
+    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_01(right_up_emitter);
+    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition_02(right_down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
@@ -357,8 +335,8 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     boundary_indicator.exec();
     left_emitter_inflow_injection.tag_buffer_particles.exec();
-    right_emitter_inflow_injection_01.tag_buffer_particles.exec();
-    right_emitter_inflow_injection_02.tag_buffer_particles.exec();
+    right_up_emitter_inflow_injection.tag_buffer_particles.exec();
+    right_down_emitter_inflow_injection.tag_buffer_particles.exec();
     wall_boundary_normal_direction.exec();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
@@ -435,11 +413,11 @@ int main(int ac, char *av[])
             time_instance = TickCount::now();
 
             left_emitter_inflow_injection.injection.exec();
-            right_emitter_inflow_injection_01.injection.exec();
-            right_emitter_inflow_injection_02.injection.exec();
+            right_up_emitter_inflow_injection.injection.exec();
+            right_down_emitter_inflow_injection.injection.exec();
             left_disposer_outflow_deletion.exec();
-            right_disposer_outflow_deletion_01.exec();
-            right_disposer_outflow_deletion_02.exec();
+            right_up_disposer_outflow_deletion.exec();
+            right_down_disposer_outflow_deletion.exec();
 
             water_block.updateCellLinkedListWithParticleSort(100);
             water_block_complex.updateConfiguration();
@@ -447,8 +425,8 @@ int main(int ac, char *av[])
 
             boundary_indicator.exec();
             left_emitter_inflow_injection.tag_buffer_particles.exec();
-            right_emitter_inflow_injection_01.tag_buffer_particles.exec();
-            right_emitter_inflow_injection_02.tag_buffer_particles.exec();
+            right_up_emitter_inflow_injection.tag_buffer_particles.exec();
+            right_down_emitter_inflow_injection.tag_buffer_particles.exec();
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
