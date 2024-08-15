@@ -1,8 +1,6 @@
 /**
- * @file 	T_shaped_pipe.cpp
- * @brief 	This is the benchmark test of multi-inlet and multi-outlet.
- * @details We consider a flow with one inlet and two outlets in a T-shaped pipe in 2D.
- * @author 	Xiangyu Hu, Shuoguo Zhang
+ * @file 	carotid_VIPO_rigid_shell.cpp
+ * @brief 	Carotid artery with rigid shell, imposed velocity inlet and pressure outlet condition.
  */
 
 #include "sphinxsys.h"
