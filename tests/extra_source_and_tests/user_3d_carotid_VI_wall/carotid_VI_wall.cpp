@@ -85,12 +85,11 @@ Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outl
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
-Real rho0_f = 1.0; /**< Reference density of fluid. */
-Real U_f = 1.0;    /**< Characteristic velocity. */
+Real rho0_f = 1060; /**< Reference density of fluid. */
+Real U_f = 0.5;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_up + DW_down));
-Real Re = 100.0;                    /**< Reynolds number. */
-Real mu_f = rho0_f * U_f * DW_in / Re; /**< Dynamics viscosity. */
+Real mu_f = 0.00355; /**< Dynamics viscosity. */
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -157,8 +156,8 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
