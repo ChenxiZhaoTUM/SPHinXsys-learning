@@ -418,9 +418,7 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                     constrain_holder.exec(dt_s);
 
                     shell_stress_relaxation_second.exec(dt_s);
-                    dt_s_sum += dt_s;
-
-                    
+                    dt_s_sum += dt_s;  
                 }
                 average_velocity_and_acceleration.update_averages_.exec(dt);
 
