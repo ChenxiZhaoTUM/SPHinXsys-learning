@@ -62,7 +62,7 @@ Vecd standard_direction(1, 0, 0);
 Real DW_in = 2.9293 * 2 * length_scale;
 Vecd inlet_buffer_half = Vecd(2.0 * dp_0, 3.2 * length_scale, 3.2 * length_scale);
 Vecd inlet_normal(0.1034, -0.0458, 0.9935);
-Vecd inlet_emitter_translation = Vecd(1.5611, 5.8559, -30.8885) * length_scale + inlet_normal * 1.5 * dp_0;
+Vecd inlet_emitter_translation = Vecd(1.5611, 5.8559, -30.8885) * length_scale + inlet_normal * 2.0 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
@@ -70,7 +70,7 @@ Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_re
 Real DW_up = 1.9416 * 2 * length_scale;
 Vecd outlet_up_buffer_half = Vecd(2.0 * dp_0, 2.4 * length_scale, 2.4 * length_scale);
 Vecd outlet_up_normal(-0.3160, -0.0009, 0.9488);
-Vecd outlet_up_disposer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_up_normal * 1.5 * dp_0;
+Vecd outlet_up_disposer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_up_normal * 2.0 * dp_0;
 RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
 Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
 
@@ -78,7 +78,7 @@ Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_u
 Real DW_down = 1.2760 * 2 * length_scale;
 Vecd outlet_down_buffer_half = Vecd(2.0 * dp_0, 1.5 * length_scale, 1.5 * length_scale);
 Vecd outlet_down_normal(-0.0417, 0.0701, 0.9967);
-Vecd outlet_down_disposer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_down_normal * 1.5 * dp_0;
+Vecd outlet_down_disposer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_down_normal * 2.0 * dp_0;
 RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
 Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
 
@@ -90,6 +90,7 @@ Real U_f = 0.5;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_up + DW_down));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
+// Re = 875;
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -166,7 +167,10 @@ int main(int ac, char *av[])
     water_block.defineBodyLevelSetShape()->cleanLevelSet();
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> inlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(inlet_particle_buffer);
+    //water_block.generateParticlesWithReserve<BaseParticles, Lattice>(inlet_particle_buffer);
+    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+    ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(inlet_particle_buffer, water_block.getName())
+    : water_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineAdaptationRatios(1.15, 2.0);
@@ -175,6 +179,21 @@ int main(int ac, char *av[])
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? wall_boundary.generateParticles<BaseParticles, Reload>(wall_boundary.getName())
         : wall_boundary.generateParticles<BaseParticles, Lattice>();
+
+    // for buffer location test
+    /*RealBody buffer_body_in(
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_emitter_translation)), inlet_buffer_half, "BufferBodyIn"));
+    buffer_body_in.generateParticles<BaseParticles, Lattice>();
+    RealBody buffer_body_out_up(
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_disposer_rotation), Vec3d(outlet_up_disposer_translation)), outlet_up_buffer_half, "BufferBodyOut01"));
+    buffer_body_out_up.generateParticles<BaseParticles, Lattice>();
+    RealBody buffer_body_out_down(
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_disposer_rotation), Vec3d(outlet_down_disposer_translation)), outlet_down_buffer_half, "BufferBodyOut02"));
+    buffer_body_out_down.generateParticles<BaseParticles, Lattice>();
+
+    BodyStatesRecordingToVtp body_states_recording_test(sph_system);
+    body_states_recording_test.writeToFile();
+    return 0;*/
     //----------------------------------------------------------------------
     //	SPH Particle relaxation section
     //----------------------------------------------------------------------
@@ -182,19 +201,24 @@ int main(int ac, char *av[])
     if (sph_system.RunParticleRelaxation())
     {
         InnerRelation wall_inner(wall_boundary);
+        InnerRelation blood_inner(water_block);
         using namespace relax_dynamics;
         SimpleDynamics<RandomizeParticlePosition> random_particles(wall_boundary);
+        SimpleDynamics<RandomizeParticlePosition> random_blood_particles(water_block);
         RelaxationStepInner relaxation_step_inner(wall_inner);
+        RelaxationStepInner relaxation_step_inner_blood(blood_inner);
         /** Write the body state to Vtp file. */
-        BodyStatesRecordingToVtp write_wall_state_to_vtp(wall_boundary);
+        BodyStatesRecordingToVtp write_state_to_vtp(sph_system);
         /** Write the particle reload files. */
-        ReloadParticleIO write_particle_reload_files(wall_boundary);
+        ReloadParticleIO write_particle_reload_files({ &wall_boundary, &water_block });
         //----------------------------------------------------------------------
         //	Physics relaxation starts here.
         //----------------------------------------------------------------------
         random_particles.exec(0.25);
+        random_blood_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
-        write_wall_state_to_vtp.writeToFile(0.0);
+        relaxation_step_inner_blood.SurfaceBounding().exec();
+        write_state_to_vtp.writeToFile(0.0);
         //----------------------------------------------------------------------
         // From here the time stepping begins.
         //----------------------------------------------------------------------
@@ -203,16 +227,17 @@ int main(int ac, char *av[])
         while (ite < relax_step)
         {
             relaxation_step_inner.exec();
+            relaxation_step_inner_blood.exec();
             ite++;
             if (ite % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite << "\n";
-                write_wall_state_to_vtp.writeToFile(ite);
+                //write_state_to_vtp.writeToFile(ite);
             }
         }
 
         std::cout << "The physics relaxation process of wall particles finish !" << std::endl;
-        write_wall_state_to_vtp.writeToFile(ite);
+        write_state_to_vtp.writeToFile(ite);
         write_particle_reload_files.writeToFile(0);
 
         return 0;
