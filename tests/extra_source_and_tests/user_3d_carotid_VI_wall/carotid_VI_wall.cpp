@@ -116,35 +116,43 @@ class WallBoundary : public ComplexShape
 //----------------------------------------------------------------------
 struct InflowVelocity
 {
-    Real u_ref_, t_ref_;
+    Real u_ref_, t_ref_, interval_;
+    AlignedBoxShape &aligned_box_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(U_f), t_ref_(2.0) {}
+        : u_ref_(0.1), t_ref_(0.218), interval_(0.5),
+        aligned_box_(boundary_condition.getAlignedBox()){}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
-        target_velocity[0] = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
+        int n = static_cast<int>(run_time / interval_);
+        Real t_in_cycle = run_time - n * interval_;
+
+        target_velocity[0] = t_in_cycle < t_ref_ ? 0.5 * sin(4 * Pi * (run_time + 0.0160236)) : u_ref_;
         return target_velocity;
     }
 };
 
 class TimeDependentAcceleration : public Gravity
 {
-    Real t_ref_, u_ref_, du_ave_dt_;
+    Real t_ref_, du_ave_dt_, interval_;
 
   public:
     explicit TimeDependentAcceleration(Vecd gravity_vector)
-        : Gravity(gravity_vector), t_ref_(2.0), u_ref_(U_f), du_ave_dt_(0) {}
+        : Gravity(gravity_vector), t_ref_(0.218), du_ave_dt_(0), interval_(0.5) {}
 
     virtual Vecd InducedAcceleration(const Vecd &position) override
     {
-        Real run_time_ = GlobalStaticVariables::physical_time_;
-        du_ave_dt_ = 0.5 * u_ref_ * (Pi / t_ref_) * sin(Pi * run_time_ / t_ref_);
+        Real run_time = GlobalStaticVariables::physical_time_;
+        int n = static_cast<int>(run_time / interval_);
+        Real t_in_cycle = run_time - n * interval_;
 
-        return run_time_ < t_ref_ ? Vecd(du_ave_dt_, 0.0, 0.0) : global_acceleration_;
+        du_ave_dt_ = 0.5 * 4 * Pi * cos(4 * Pi * run_time);
+
+        return t_in_cycle < t_ref_ ? Vecd(du_ave_dt_, 0.0, 0.0) : global_acceleration_;
     }
 };
 
@@ -264,6 +272,7 @@ int main(int ac, char *av[])
     // initial acceleration
     TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
     SimpleDynamics<GravityForce> apply_initial_force(water_block, time_dependent_acceleration);
+    
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(water_block_inner, water_wall_contact);
 
@@ -362,7 +371,6 @@ int main(int ac, char *av[])
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
             }
-
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
 
             if (number_of_iterations % screen_output_interval == 0)
