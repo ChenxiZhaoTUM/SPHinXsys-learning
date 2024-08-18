@@ -314,7 +314,7 @@ int main(int ac, char *av[])
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
     Real end_time = 2.5;   /**< End time. */
-    Real Output_Time = 0.1; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 250; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
