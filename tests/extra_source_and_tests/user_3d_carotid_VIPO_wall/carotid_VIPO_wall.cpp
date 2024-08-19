@@ -69,7 +69,7 @@ Vecd standard_direction(1, 0, 0);
 Real DW_in = 2.9293 * 2 * length_scale;
 Vecd inlet_buffer_half = Vecd(2.0 * dp_0, 3.2 * length_scale, 3.2 * length_scale);
 Vecd inlet_normal(0.1034, -0.0458, 0.9935);
-Vecd inlet_buffer_translation = Vecd(1.5611, 5.8559, -30.8885) * length_scale + inlet_normal * 1.5 * dp_0;
+Vecd inlet_buffer_translation = Vecd(1.5611, 5.8559, -30.8885) * length_scale + inlet_normal * 2.0 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
@@ -78,7 +78,7 @@ Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotat
 Real DW_up = 1.9416 * 2 * length_scale;
 Vecd outlet_up_buffer_half = Vecd(2.0 * dp_0, 2.4 * length_scale, 2.4 * length_scale);
 Vecd outlet_up_normal(-0.3160, -0.0009, 0.9488);
-Vecd outlet_up_buffer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_up_normal * 1.5 * dp_0;
+Vecd outlet_up_buffer_translation = Vecd(-2.6975, -0.4330, 21.7855) * length_scale - outlet_up_normal * 2.0 * dp_0;
 RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
 Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
 Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
@@ -87,7 +87,7 @@ Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outl
 Real DW_down = 1.2760 * 2 * length_scale;
 Vecd outlet_down_buffer_half = Vecd(2.0 * dp_0, 1.5 * length_scale, 1.5 * length_scale);
 Vecd outlet_down_normal(-0.0417, 0.0701, 0.9967);
-Vecd outlet_down_buffer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_down_normal * 1.5 * dp_0;
+Vecd outlet_down_buffer_translation = Vecd(9.0465, 1.02552, 18.6363) * length_scale - outlet_down_normal * 2.0 * dp_0;
 RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
 Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
 Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, outlet_down_rotation_result.axis);
@@ -96,10 +96,12 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
 Real U_f = 0.5;    /**< Characteristic velocity. */
+Real U_max = 2 * U_f;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_up + DW_down));
+Real c_f = 10.0 * U_max * SMAX(Real(1), DW_in / (DW_up + DW_down));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real Outlet_pressure = 0;
+//Real Outlet_pressure = 0;  // for comparison with solely velocity inlet bc
+Real Outlet_pressure = 1.33e4;
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -200,8 +202,8 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
@@ -210,7 +212,10 @@ int main(int ac, char *av[])
     water_block.defineBodyLevelSetShape()->cleanLevelSet();
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
+    //water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
+    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+    ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
+    : water_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineAdaptationRatios(1.15, 2.0);
@@ -226,19 +231,24 @@ int main(int ac, char *av[])
     if (sph_system.RunParticleRelaxation())
     {
         InnerRelation wall_inner(wall_boundary);
+        InnerRelation blood_inner(water_block);
         using namespace relax_dynamics;
         SimpleDynamics<RandomizeParticlePosition> random_particles(wall_boundary);
+        SimpleDynamics<RandomizeParticlePosition> random_blood_particles(water_block);
         RelaxationStepInner relaxation_step_inner(wall_inner);
+        RelaxationStepInner relaxation_step_inner_blood(blood_inner);
         /** Write the body state to Vtp file. */
-        BodyStatesRecordingToVtp write_wall_state_to_vtp(wall_boundary);
+        BodyStatesRecordingToVtp write_state_to_vtp(sph_system);
         /** Write the particle reload files. */
-        ReloadParticleIO write_particle_reload_files(wall_boundary);
+        ReloadParticleIO write_particle_reload_files({ &wall_boundary, &water_block });
         //----------------------------------------------------------------------
         //	Physics relaxation starts here.
         //----------------------------------------------------------------------
         random_particles.exec(0.25);
+        random_blood_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
-        write_wall_state_to_vtp.writeToFile(0.0);
+        relaxation_step_inner_blood.SurfaceBounding().exec();
+        write_state_to_vtp.writeToFile(0.0);
         //----------------------------------------------------------------------
         // From here the time stepping begins.
         //----------------------------------------------------------------------
@@ -247,16 +257,17 @@ int main(int ac, char *av[])
         while (ite < relax_step)
         {
             relaxation_step_inner.exec();
+            relaxation_step_inner_blood.exec();
             ite++;
             if (ite % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite << "\n";
-                write_wall_state_to_vtp.writeToFile(ite);
+                //write_state_to_vtp.writeToFile(ite);
             }
         }
 
         std::cout << "The physics relaxation process of wall particles finish !" << std::endl;
-        write_wall_state_to_vtp.writeToFile(ite);
+        write_state_to_vtp.writeToFile(ite);
         write_particle_reload_files.writeToFile(0);
 
         return 0;
@@ -345,7 +356,7 @@ int main(int ac, char *av[])
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
     Real end_time = 2.5;   /**< End time. */
-    Real Output_Time = 0.1; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 250; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
@@ -376,8 +387,8 @@ int main(int ac, char *av[])
             update_fluid_density.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
-            interval_computing_time_step += TickCount::now() - time_instance;
 
+            interval_computing_time_step += TickCount::now() - time_instance;
             time_instance = TickCount::now();
             Real relaxation_time = 0.0;
             while (relaxation_time < Dt)
@@ -407,6 +418,8 @@ int main(int ac, char *av[])
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "\n";
                 write_water_kinetic_energy.writeToFile(number_of_iterations);
+
+                body_states_recording.writeToFile();
             }
             number_of_iterations++;
 
