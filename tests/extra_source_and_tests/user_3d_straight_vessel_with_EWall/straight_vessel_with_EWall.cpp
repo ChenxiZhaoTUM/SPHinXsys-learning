@@ -16,8 +16,8 @@ using namespace SPH;
 Real scale = 1.0;
 Real diameter = 0.02 * scale;
 Real fluid_radius = 0.5 * diameter;
-Real full_length = 0.1;
-Real wall_thickness = 0.002;
+Real full_length = 0.1 * scale;
+Real wall_thickness = 0.002 * scale;
 Real resolution_wall_ref = wall_thickness / 4;
 Real resolution_ref = resolution_wall_ref * 2;
 Real buffer_width = resolution_ref * 4;
@@ -33,8 +33,8 @@ Vec3d right_bidirectional_translation(full_length - buffer_width / 2, 0., 0.);
 //----------------------------------------------------------------------
 //	Domain bounds of the system.
 //----------------------------------------------------------------------
-BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter),
-                                 Vec3d(full_length, 0.5 * diameter, 0.5 * diameter));
+BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter - wall_thickness, -0.5 * diameter - wall_thickness),
+                                 Vec3d(full_length, 0.5 * diameter + wall_thickness, 0.5 * diameter + wall_thickness));
 //----------------------------------------------------------------------
 //  Define body shapes
 //----------------------------------------------------------------------
@@ -63,6 +63,7 @@ class WallBoundary : public ComplexShape
                                             translation_fluid);
     }
 };
+
 //----------------------------------------------------------------------
 //	Material parameters.
 //----------------------------------------------------------------------
@@ -134,14 +135,14 @@ class BoundaryGeometry : public BodyPartByParticle
 
 int main(int ac, char *av[])
 {
-    std::cout << "U_f = " << U_f << std::endl;
+    //std::cout << "U_f = " << U_f << std::endl;
 
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(false);        // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(true);        // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment(); // handle command line arguments
 #endif
@@ -154,8 +155,9 @@ int main(int ac, char *av[])
     water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
-    wall_boundary.defineBodyLevelSetShape()->writeLevelSet(sph_system);
-    // wall_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
+    wall_boundary.defineAdaptationRatios(1.15, 2.0);
+    //wall_boundary.defineBodyLevelSetShape()->writeLevelSet(sph_system);
+    //wall_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
     wall_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? wall_boundary.generateParticles<BaseParticles, Reload>(wall_boundary.getName())
@@ -286,7 +288,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "NormalDirection");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "PressureForceFromFluid");
-    ObservedQuantityRecording<Vec3d> write_wall_displacement("Displacement", observer_contact);
+    ObservedQuantityRecording<Vec3d> write_wall_displacement("Position", observer_contact);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -297,14 +299,16 @@ int main(int ac, char *av[])
     left_emitter_inflow_injection.tag_buffer_particles.exec();
     right_emitter_inflow_injection.tag_buffer_particles.exec();
     wall_boundary_normal_direction.exec();
+    wall_corrected_configuration.exec();
+    water_block_complex.updateConfiguration();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 10.0;   /**< End time. */
-    Real Output_Time = 0.1; /**< Time stamps for output of body states. */
+    Real end_time = 0.01;   /**< End time. */
+    Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0;        /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
@@ -398,7 +402,11 @@ int main(int ac, char *av[])
             right_disposer_outflow_deletion.exec();
 
             water_block.updateCellLinkedList();
+            wall_update_normal.exec();
+            wall_boundary.updateCellLinkedList();
             water_block_complex.updateConfiguration();
+            wall_water_contact.updateConfiguration();
+            observer_contact.updateConfiguration();
             interval_updating_configuration += TickCount::now() - time_instance;
             
             boundary_indicator.exec();
@@ -407,7 +415,6 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
-        observer_contact.updateConfiguration();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }

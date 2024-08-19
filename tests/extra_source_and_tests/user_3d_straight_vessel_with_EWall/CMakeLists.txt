@@ -18,5 +18,4 @@ add_test(NAME ${PROJECT_NAME}
     COMMAND ${PROJECT_NAME}
     WORKING_DIRECTORY ${EXECUTABLE_OUTPUT_PATH})
 
-gtest_discover_tests(${PROJECT_NAME} WORKING_DIRECTORY ${EXECUTABLE_OUTPUT_PATH})
 target_link_libraries(${PROJECT_NAME} extra_sources_3d)
