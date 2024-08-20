@@ -34,12 +34,13 @@ Real c_f = 10.0 * U_f;
 Real rho0_s = 1000;           /** Normalized density. */
 Real Youngs_modulus = 1.0e6; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
+Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * DL;
 //----------------------------------------------------------------------
 //	parameters of buffers
 //----------------------------------------------------------------------
-Vecd bidirectional_buffer_halfsize = Vecd(2.5 * resolution_ref, 0.7 * diameter, 0.7 * diameter);
-Vecd left_bidirectional_translation(2.5 * resolution_ref, 0.0, 0.0);
-Vecd right_bidirectional_translation(DL - 2.5 * resolution_ref, 0.0, 0.0);
+Vecd bidirectional_buffer_halfsize = Vecd(2.0 * resolution_ref, 0.7 * diameter, 0.7 * diameter);
+Vecd left_bidirectional_translation(2.0 * resolution_ref, 0.0, 0.0);
+Vecd right_bidirectional_translation(DL - 2.0 * resolution_ref, 0.0, 0.0);
 //----------------------------------------------------------------------
 //  Define body shapes
 //----------------------------------------------------------------------
@@ -81,9 +82,10 @@ struct LeftInflowPressure
 
     Real operator()(Real &p_)
     {
+        Real run_time = GlobalStaticVariables::physical_time_;
         /*constant pressure*/
         Real pressure = Inlet_pressure;
-        return pressure;
+        return run_time < 0.02 ? 0.0 : pressure;
     }
 };
 
@@ -241,6 +243,9 @@ int main(int ac, char *av[])
     Dynamics1Level<solid_dynamics::Integration2ndHalf> wall_stress_relaxation_second_half(wall_boundary_inner);
     ReduceDynamics<solid_dynamics::AcousticTimeStepSize> wall_computing_time_step_size(wall_boundary);
     SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> wall_update_normal(wall_boundary);
+    // add solid dampinng
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
+        wall_position_damping(0.5, wall_boundary_inner, "Velocity", physical_viscosity);
     /** Exert constrain on wall. */
     BoundaryGeometry boundary_geometry(wall_boundary, "BoundaryGeometry", resolution_ref * 4);
     //SimpleDynamics<FixedInAxisDirection> constrain_holder(boundary_geometry, Vecd(0.0, 1.0, 1.0));
@@ -255,7 +260,9 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_block_contact);
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
-
+    // add fluid dampinng
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vecd, FixedDampingRate>>> implicit_viscous_damping(
+        0.2, ConstructorArgs(water_block_inner, "Velocity", mu_f), ConstructorArgs(water_block_contact, "Velocity", mu_f));
     // Boundary conditions
     AlignedBoxShape left_disposer_shape(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vecd(left_bidirectional_translation)), bidirectional_buffer_halfsize);
     BodyAlignedBoxByCell left_disposer(water_block, left_disposer_shape);
@@ -282,6 +289,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_wall(wall_water_contact);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_wall(wall_water_contact);
     solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(wall_boundary);
+
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //----------------------------------------------------------------------
@@ -311,8 +319,8 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 0.1;   /**< End time. */
-    Real Output_Time = end_time/100; /**< Time stamps for output of body states. */
+    Real end_time = 0.12;   /**< End time. */
+    Real Output_Time = end_time/120; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0;        /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
@@ -352,6 +360,11 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
+                if (GlobalStaticVariables::physical_time_ < 0.02)
+                {
+                    implicit_viscous_damping.exec(dt);
+                }
+
                 pressure_relaxation.exec(dt);
                 
                 kernel_summation.exec();
@@ -374,6 +387,11 @@ int main(int ac, char *av[])
                     wall_stress_relaxation_first_half.exec(dt_s);
 
                     constrain_holder.exec(dt_s);
+                    if (GlobalStaticVariables::physical_time_ < 0.02)
+					{
+						wall_position_damping.exec(dt_s);
+						constrain_holder.exec();
+					}
 
                     wall_stress_relaxation_second_half.exec(dt_s);
                     dt_s_sum += dt_s;
