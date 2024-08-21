@@ -95,8 +95,8 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 0.5;    /**< Characteristic velocity. */
-Real U_max = 2 * U_f;    /**< Characteristic velocity. */
+Real U_f = 1.0;    /**< Characteristic velocity. */
+Real U_max = 20 * U_f;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_max * SMAX(Real(1), DW_in / (DW_up + DW_down));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
@@ -166,7 +166,6 @@ class TimeDependentAcceleration : public Gravity
         return t_in_cycle < t_ref_ ? Vecd(du_ave_dt_, 0.0, 0.0) : global_acceleration_;
     }
 };
-
 //----------------------------------------------------------------------
 //	Pressure boundary definition.
 //----------------------------------------------------------------------
@@ -292,8 +291,8 @@ int main(int ac, char *av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     // initial acceleration
-    TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
-    SimpleDynamics<GravityForce> apply_initial_force(water_block, time_dependent_acceleration);
+    /*TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
+    SimpleDynamics<GravityForce> apply_initial_force(water_block, time_dependent_acceleration);*/
 
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_wall_contact);
@@ -381,7 +380,7 @@ int main(int ac, char *av[])
         while (integration_time < Output_Time)
         {
             time_instance = TickCount::now();
-            apply_initial_force.exec();
+            //apply_initial_force.exec();
             Real Dt = get_fluid_advection_time_step_size.exec();
             //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
