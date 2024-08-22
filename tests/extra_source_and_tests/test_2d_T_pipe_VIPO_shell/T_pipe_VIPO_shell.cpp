@@ -1,8 +1,8 @@
 /**
- * @file 	T_shaped_pipe.cpp
- * @brief 	This is the benchmark test of multi-inlet and multi-outlet.
- * @details We consider a flow with one inlet and two outlets in a T-shaped pipe in 2D.
- * @author 	Xiangyu Hu, Shuoguo Zhang
+ * @file 	T_pipe_VIPO_shell.cpp
+ * @brief 	This is a test of fluid shell interaction in a T-shaped pipe.
+ * @details The flow with velocity inlet and pressure outlet boundary condition in a T-shaped pipe in 2D is considered.
+ * @author 	Chenxi Zhao, Weiyi Kong, Xiangyu Hu
  */
 
 #include "sphinxsys.h"
@@ -28,7 +28,7 @@ Real DL_sponge = resolution_ref * 20;                        /**< Reference size
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
 Real level_set_refinement_ratio = resolution_ref / (0.1 * BW);
 //----------------------------------------------------------------------
-//	Global parameters on the fluid properties
+//	Global parameters on the fluid properties.
 //----------------------------------------------------------------------
 Real Outlet_pressure = 0;
 Real rho0_f = 1000.0;                                                 /**< Reference density of fluid. */
@@ -37,13 +37,13 @@ Real U_f = 1.0;                                                       /**< Chara
 Real mu_f = rho0_f * U_f * DH / Re;                                   /**< Dynamics viscosity. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 //----------------------------------------------------------------------
-//	Material parameters of the shell
+//	Material parameters of the shell.
 //----------------------------------------------------------------------
 Real rho0_s = 1120;           /** Normalized density. */
 Real Youngs_modulus = 1.08e8; /** Normalized Youngs Modulus. */
 Real poisson = 0.49;          /** Poisson ratio. */
 //----------------------------------------------------------------------
-//	define geometry of SPH bodies
+//	Define geometry of SPH bodies.
 //----------------------------------------------------------------------
 /** the water block in T shape polygon. */
 std::vector<Vecd> water_block_shape{
@@ -78,8 +78,9 @@ class ShellShape : public MultiPolygonShape
         multi_polygon_.addAPolygon(inner_wall_shape, ShapeBooleanOps::sub);
     }
 };
-
-/** Particle generator and constraint boundary for shell baffle. */
+//----------------------------------------------------------------------
+//	Particle generator of shell boundary.
+//----------------------------------------------------------------------
 class WallBoundary;
 template <>
 class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerator<SurfaceParticles>
@@ -149,9 +150,8 @@ class ParticleGenerator<SurfaceParticles, WallBoundary> : public ParticleGenerat
         }
     }
 };
-
 //----------------------------------------------------------------------
-//	Inflow velocity
+//	Inflow velocity.
 //----------------------------------------------------------------------
 struct InflowVelocity
 {
@@ -174,10 +174,9 @@ struct InflowVelocity
         return target_velocity;
     }
 };
-
-/**
- * @brief 	Pressure boundary definition.
- */
+//----------------------------------------------------------------------
+//	Pressure boundary condition.
+//----------------------------------------------------------------------
 struct LeftInflowPressure
 {
     template <class BoundaryConditionType>
@@ -214,7 +213,9 @@ struct DownOutflowPressure
         return pressure;
     }
 };
-
+//----------------------------------------------------------------------
+//	Constrain region of shell body.
+//----------------------------------------------------------------------
 class BoundaryGeometry : public BodyPartByParticle
 {
   public:
@@ -247,11 +248,12 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     BoundingBox system_domain_bounds(Vec2d(-DL_sponge - BW, -DH - BW), Vec2d(DL + BW, 2.0 * DH + BW));
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
+    sph_system.setGenerateRegressionData(false);
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment(); // handle command line arguments
 #endif
     //----------------------------------------------------------------------
-    //	Creating body, materials and particles.cd
+    //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
@@ -279,6 +281,7 @@ int main(int ac, char *av[])
     ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_body}, {false});
     ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
     ShellInnerRelationWithContactKernel shell_curvature_inner(shell_body, water_block);
+    ContactRelation velocity_observer_contact(velocity_observer, {&water_block});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.
@@ -288,19 +291,20 @@ int main(int ac, char *av[])
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
-    // shell dynamics
+    // Shell dynamics.
+    //----------------------------------------------------------------------
     InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
     Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
     Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
     ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
-
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
     SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
-
-    // fluid dynamics
+    //----------------------------------------------------------------------
+    // Fluid dynamics.
+    //----------------------------------------------------------------------
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_shell_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
@@ -310,34 +314,25 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_shell_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_shell_contact);
 
-    //----------------------------------------------------------------------
-    // Left buffer
-    //----------------------------------------------------------------------
+    // left buffer
     Vec2d left_buffer_halfsize = Vec2d(0.5 * buffer_width, 0.5 * DH);
     Vec2d left_buffer_translation = Vec2d(-DL_sponge, 0.0) + left_buffer_halfsize;
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_buffer_translation)), left_buffer_halfsize));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
-
     BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(left_buffer_translation)), left_buffer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
-    //----------------------------------------------------------------------
-    // Up buffer
-    //----------------------------------------------------------------------
+    // up buffer
     Vec2d up_buffer_halfsize = Vec2d(0.5 * buffer_width, 0.75);
     Vec2d up_buffer_translation = Vec2d(0.5 * (DL + DL1), 2.0 * DH - 0.5 * buffer_width);
     BodyAlignedBoxByCell up_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(-0.5 * Pi), Vec2d(up_buffer_translation)), up_buffer_halfsize));
     fluid_dynamics::BidirectionalBuffer<UpOutflowPressure> right_up_emitter_inflow_injection(up_emitter, in_outlet_particle_buffer);
-
     BodyAlignedBoxByCell up_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(0.5 * Pi), Vec2d(up_buffer_translation)), up_buffer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_up_disposer_outflow_deletion(up_disposer);
-    //----------------------------------------------------------------------
-    // Down buffer
-    //----------------------------------------------------------------------
+    // down buffer
     Vec2d down_buffer_halfsize = Vec2d(0.5 * buffer_width, 0.75);
     Vec2d down_buffer_translation = Vec2d(0.5 * (DL + DL1), -DH + 0.5 * buffer_width);
     BodyAlignedBoxByCell down_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(0.5 * Pi), Vec2d(down_buffer_translation)), down_buffer_halfsize));
     fluid_dynamics::BidirectionalBuffer<DownOutflowPressure> right_down_emitter_inflow_injection(down_emitter, in_outlet_particle_buffer);
-
     BodyAlignedBoxByCell down_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(-0.5 * Pi), Vec2d(down_buffer_translation)), down_buffer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_down_disposer_outflow_deletion(down_disposer);
 
@@ -346,24 +341,12 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::PressureCondition<UpOutflowPressure>> up_inflow_pressure_condition(up_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<DownOutflowPressure>> down_inflow_pressure_condition(down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
-
-
-    // FSI
+    //----------------------------------------------------------------------
+    // FSI.
+    //----------------------------------------------------------------------
     InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
     solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
-
-
-    /*RealBody buffer_body_in(
-        sph_system, makeShared<AlignedBoxShape>(xAxis,Transform(Vec2d(left_bidirectional_translation)), left_bidirectional_halfsize, "BufferBodyIn"));
-    buffer_body_in.generateParticles<BaseParticles, Lattice>();
-    RealBody buffer_body_out01(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(right_up_emitter_rotation), Vec2d(right_up_bidirectional_translation)), right_up_bidirectional_halfsize, "BufferBodyOut01"));
-    buffer_body_out01.generateParticles<BaseParticles, Lattice>();
-    RealBody buffer_body_out02(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(right_down_disposer_rotation), Vec2d(right_down_bidirectional_translation)), right_down_bidirectional_halfsize, "BufferBodyOut02"));
-    buffer_body_out02.generateParticles<BaseParticles, Lattice>();*/
-
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -377,6 +360,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
+   RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>> write_centerline_velocity("Velocity", velocity_observer_contact);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -426,9 +410,7 @@ int main(int ac, char *av[])
         {
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
-            //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
-
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
             /** FSI for viscous force. */
@@ -440,12 +422,12 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
-                //std::cout << "dt = " << dt << std::endl;
 
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
                 pressure_force_on_shell.exec();
 
+                // boundary condition implementation
                 kernel_summation.exec();
                 left_inflow_pressure_condition.exec(dt);
                 up_inflow_pressure_condition.exec(dt);
@@ -481,6 +463,7 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
+                write_centerline_velocity.writeToFile(number_of_iterations);
             }
             number_of_iterations++;
 
@@ -525,6 +508,15 @@ int main(int ac, char *av[])
               << interval_computing_pressure_relaxation.seconds() << "\n";
     std::cout << std::fixed << std::setprecision(9) << "interval_updating_configuration = "
               << interval_updating_configuration.seconds() << "\n";
+
+    if (sph_system.GenerateRegressionData())
+    {
+        write_centerline_velocity.generateDataBase(1.0e-3);
+    }
+    else
+    {
+        write_centerline_velocity.testResult();
+    }
 
     return 0;
 }
