@@ -68,22 +68,20 @@ class PressureCondition : public BaseFlowBoundaryCondition
     StdLargeVec<Vecd> &kernel_sum_;
 };
 
-class WindkesselCondition : public BaseFlowBoundaryCondition
+class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
 {
   public:
-    /** default parameter indicates prescribe pressure */
-    explicit WindkesselCondition(BodyAlignedBoxByCell &aligned_box_part, Real R1, Real R2, Real C, Real radius)
-        : BaseFlowBoundaryCondition(aligned_box_part),
+    explicit RCRPressure(BodyAlignedBoxByCell& aligned_box_part, Real R1, Real R2, Real C, Real radius)
+        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+          DataDelegateSimple(aligned_box_part.getSPHBody()),
           aligned_box_(aligned_box_part.getAlignedBoxShape()),
           alignment_axis_(aligned_box_.AlignmentAxis()),
           transform_(aligned_box_.getTransform()),
-          kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")),
           R1_(R1), R2_(R2), C_(C), outlet_radius_(radius),
-          p_target_(*particles_->registerSingleVariable<Real>("TargetPressure")),
+          vel_(*particles_->getVariableDataByName<Vecd>("Velocity")),
           Q_(*particles_->registerSingleVariable<Real>("FlowRate")),
           Q_pre_(*particles_->registerSingleVariable<Real>("PreViousFlowRate")) {};
-    virtual ~WindkesselCondition(){};
-    AlignedBoxShape &getAlignedBox() { return aligned_box_; };
+    virtual ~RCRPressure(){};
 
     void computeFlowRate()
     {
@@ -99,40 +97,66 @@ class WindkesselCondition : public BaseFlowBoundaryCondition
         Q_ = vel_normal_val * Pi * pow(outlet_radius_, 2);
     }
 
+    void setTimeStep(Real dt) { dt_ = dt; }
+
+    void updatePreviousTargetP() { Q_pre_ = Q_; }
+
+    
     Real operator()(Real p_current)
     {
-        // update p_target_
-        Real dp_dt = - p_target_ / (C_ * R2_) + (R1 + R2) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt;
-        Real p_star = p_target_ + dp_dt * dt;
-        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt;
-        p_target_ += 0.5 * dt * (dp_dt + dp_dt_star);
-        return p_target_;
+        Real dp_dt = - p_current / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
+        Real p_star = p_current + dp_dt * dt_;
+        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
+        Real p_next = p_current + 0.5 * dt_ * (dp_dt + dp_dt_star);
+
+        return p_next;
     }
+
+  protected:
+    StdLargeVec<Vecd> &vel_;
+    AlignedBoxShape &aligned_box_;
+    const int alignment_axis_;
+    Transform &transform_;
+
+    // parameters about Wendkessel model
+    Real R1_, R2_, C_;
+    Real outlet_radius_;
+    Real Q_, Q_pre_;
+    Real dt_;
+};
+
+template <typename TargetPressure>
+class WindkesselCondition : public BaseFlowBoundaryCondition
+{
+  public:
+    /** default parameter indicates prescribe pressure */
+    explicit WindkesselCondition(BodyAlignedBoxByCell &aligned_box_part, Real R1, Real R2, Real C, Real radius)
+        : BaseFlowBoundaryCondition(aligned_box_part),
+          aligned_box_(aligned_box_part.getAlignedBoxShape()),
+          alignment_axis_(aligned_box_.AlignmentAxis()),
+          transform_(aligned_box_.getTransform()),
+          target_pressure_(TargetPressure(aligned_box_part, R1, R2, C, radius)),
+          kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")){};
+    virtual ~WindkesselCondition(){};
+    AlignedBoxShape &getAlignedBox() { return aligned_box_; };
+
+    TargetPressure getTargetPressure() { return target_pressure_; }
 
     void update(size_t index_i, Real dt = 0.0)
     {
-        vel_[index_i] += 2.0 * kernel_sum_[index_i] * this->(p_[index_i]) / rho_[index_i] * dt;
+        vel_[index_i] += 2.0 * kernel_sum_[index_i] * target_pressure_(p_[index_i]) / rho_[index_i] * dt;
+
         Vecd frame_velocity = Vecd::Zero();
         frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
         vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
     };
 
-    void updatePreviousTargetP()
-    {
-        Q_pre_ = Q_;
-    }
-
   protected:
     AlignedBoxShape &aligned_box_;
     const int alignment_axis_;
     Transform &transform_;
+    TargetPressure target_pressure_;
     StdLargeVec<Vecd> &kernel_sum_;
-
-    // parameters about Wendkessel model
-    Real R1_, R2_, C_;
-    Real outlet_radius_;
-    Real p_target_;
-    Real Q_, Q_pre_;
 };
 } // namespace fluid_dynamics
 } // namespace SPH

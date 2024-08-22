@@ -49,18 +49,11 @@ struct LeftInflowPressure
     }
 };
 
-struct RightInflowPressure
-{
-    template <class BoundaryConditionType>
-    RightInflowPressure(BoundaryConditionType &boundary_condition) {}
+Real R1 = 1.21e7;
+Real R2 = 1.212e8;
+Real C = 1.5e-10;
+Real radius = DH / 2;
 
-    Real operator()(Real &p_)
-    {
-        /*constant pressure*/
-        Real pressure = Outlet_pressure;
-        return pressure;
-    }
-};
 //----------------------------------------------------------------------
 //	inflow velocity definition.
 //----------------------------------------------------------------------
@@ -192,11 +185,11 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_bidirectional_translation)), bidirectional_buffer_halfsize));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(right_bidirectional_translation)), bidirectional_buffer_halfsize));
-    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer);
+    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressure> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer, R1, R2, C, radius);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition(right_emitter);
+    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressure>> right_inflow_pressure_condition(right_emitter, R1, R2, C, radius);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_disposer);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
@@ -260,15 +253,26 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
+
+                right_inflow_pressure_condition.getTargetPressure().computeFlowRate();
+                right_inflow_pressure_condition.getTargetPressure().setTimeStep(dt);
+
                 pressure_relaxation.exec(dt);
                 kernel_summation.exec();
+
                 left_inflow_pressure_condition.exec(dt);
                 right_inflow_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
+
                 density_relaxation.exec(dt);
+
+                right_inflow_pressure_condition.getTargetPressure().updatePreviousTargetP();
+
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
+
+                body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
             if (number_of_iterations % screen_output_interval == 0)
