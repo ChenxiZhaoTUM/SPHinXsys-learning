@@ -95,13 +95,14 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 0.5;    /**< Characteristic velocity. */
+Real U_f = 1.0;    /**< Characteristic velocity. */
 Real U_max = 2 * U_f;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_max * SMAX(Real(1), DW_in / (DW_up + DW_down));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
-//Real Outlet_pressure = 0;  // for comparison with solely velocity inlet bc
-Real Outlet_pressure = 1.33e4;
+Real Outlet_pressure = 0;  // for comparison with solely velocity inlet bc
+//Real Outlet_pressure = 1.33e4;
+Real Inlet_pressure_at_beginning = 1.5e4;
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -138,7 +139,7 @@ struct InflowVelocity
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
-        Real run_time = GlobalStaticVariables::physical_time_;
+        Real run_time = GlobalStaticVariables::physical_time_ - 0.1;
         int n = static_cast<int>(run_time / interval_);
         Real t_in_cycle = run_time - n * interval_;
 
@@ -157,7 +158,7 @@ class TimeDependentAcceleration : public Gravity
 
     virtual Vecd InducedAcceleration(const Vecd &position) override
     {
-        Real run_time = GlobalStaticVariables::physical_time_;
+        Real run_time = GlobalStaticVariables::physical_time_ - 0.1;
         int n = static_cast<int>(run_time / interval_);
         Real t_in_cycle = run_time - n * interval_;
 
@@ -180,6 +181,20 @@ struct LeftInflowPressure
     }
 };
 
+
+struct LeftInflowPressureAtBeginning
+{
+    template <class BoundaryConditionType>
+    LeftInflowPressureAtBeginning(BoundaryConditionType &boundary_condition) {}
+
+    Real operator()(Real &p_)
+    {
+        /*constant pressure*/
+        Real pressure = Inlet_pressure_at_beginning;
+        return pressure;
+    }
+};
+
 struct RightInflowPressure
 {
     template <class BoundaryConditionType>
@@ -187,11 +202,9 @@ struct RightInflowPressure
 
     Real operator()(Real &p_)
     {
-        Real run_time = GlobalStaticVariables::physical_time_;
-
         /*constant pressure*/
         Real pressure = Outlet_pressure;
-        return run_time < 0.5 ? 0 : pressure;
+        return pressure;
     }
 };
 //-----------------------------------------------------------------------------------------------------------
@@ -293,12 +306,12 @@ int main(int ac, char *av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     // initial acceleration
-    TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
-    SimpleDynamics<GravityForce> apply_initial_force(water_block, time_dependent_acceleration);
+    /*TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
+    SimpleDynamics<GravityForce> apply_initial_force(water_block, time_dependent_acceleration);*/
 
-    //Real gravity_g = 2 * 0.05 * mu_f * U_f / rho0_f / pow(DW_in, 2);
-    //Gravity gravity(Vecd(0.0, 0.0, gravity_g));
-    //SimpleDynamics<GravityForce> constant_gravity(water_block, gravity);
+    Real gravity_g = 2 * 0.05 * mu_f * U_f / rho0_f / pow(DW_in, 2);
+    Gravity gravity(Vecd(0.0, 0.0, gravity_g));
+    SimpleDynamics<GravityForce> constant_gravity(water_block, gravity);
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_wall_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_wall_contact);
@@ -315,6 +328,8 @@ int main(int ac, char *av[])
     // add emitter and disposer
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_buffer_half));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
+    // at the beginning, inlet uses pressure bc
+    fluid_dynamics::BidirectionalBuffer<LeftInflowPressureAtBeginning> left_emitter_inflow_injection_at_beginning(left_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_up_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_buffer_translation)), outlet_up_buffer_half));
     fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_up_emitter_inflow_injection(right_up_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_down_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_buffer_translation)), outlet_down_buffer_half));
@@ -329,6 +344,7 @@ int main(int ac, char *av[])
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_wall_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
+    SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressureAtBeginning>> left_inflow_pressure_condition_at_beginning(left_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_up_inflow_pressure_condition(right_up_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_down_inflow_pressure_condition(right_down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
@@ -349,7 +365,7 @@ int main(int ac, char *av[])
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
     boundary_indicator.exec();
-    left_emitter_inflow_injection.tag_buffer_particles.exec();
+    left_emitter_inflow_injection_at_beginning.tag_buffer_particles.exec();
     right_up_emitter_inflow_injection.tag_buffer_particles.exec();
     right_down_emitter_inflow_injection.tag_buffer_particles.exec();
     wall_boundary_normal_direction.exec();
@@ -385,8 +401,8 @@ int main(int ac, char *av[])
         while (integration_time < Output_Time)
         {
             time_instance = TickCount::now();
-            apply_initial_force.exec();
-            //constant_gravity.exec();
+            //apply_initial_force.exec();
+            constant_gravity.exec();
             Real Dt = get_fluid_advection_time_step_size.exec();
             //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
@@ -405,8 +421,13 @@ int main(int ac, char *av[])
 
                 right_up_inflow_pressure_condition.exec(dt);
                 right_down_inflow_pressure_condition.exec(dt);
-                left_inflow_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();
+                if (GlobalStaticVariables::physical_time_ >= 0.1)
+                {
+                    left_inflow_pressure_condition.exec(dt);
+                    inflow_velocity_condition.exec();
+                }
+                else
+                    left_inflow_pressure_condition_at_beginning.exec(dt);
 
                 density_relaxation.exec(dt);
 
@@ -428,7 +449,10 @@ int main(int ac, char *av[])
             number_of_iterations++;
 
             time_instance = TickCount::now();
-            left_emitter_inflow_injection.injection.exec();
+            if (GlobalStaticVariables::physical_time_ >= 0.1)
+                left_emitter_inflow_injection.injection.exec();
+            else
+                left_emitter_inflow_injection_at_beginning.injection.exec();
             right_up_emitter_inflow_injection.injection.exec();
             right_down_emitter_inflow_injection.injection.exec();
             left_disposer_outflow_deletion.exec();
@@ -440,7 +464,10 @@ int main(int ac, char *av[])
             interval_updating_configuration += TickCount::now() - time_instance;
 
             boundary_indicator.exec();
-            left_emitter_inflow_injection.tag_buffer_particles.exec();
+            if (GlobalStaticVariables::physical_time_ >= 0.1)
+                left_emitter_inflow_injection.tag_buffer_particles.exec();
+            else
+                left_emitter_inflow_injection_at_beginning.tag_buffer_particles.exec();
             right_up_emitter_inflow_injection.tag_buffer_particles.exec();
             right_down_emitter_inflow_injection.tag_buffer_particles.exec();
         }
