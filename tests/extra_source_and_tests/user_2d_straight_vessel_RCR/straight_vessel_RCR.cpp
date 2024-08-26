@@ -70,11 +70,13 @@ struct InflowVelocity
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
-        Real run_time = GlobalStaticVariables::physical_time_;
-        int n = static_cast<int>(run_time / t_ref_);
-        Real t_in_cycle = run_time - n * t_ref_;
+        //Real run_time = GlobalStaticVariables::physical_time_;
+        //int n = static_cast<int>(run_time / t_ref_);
+        //Real t_in_cycle = run_time - n * t_ref_;
 
-        target_velocity[0] = (- 610 * pow(t_in_cycle, 2) + 610 * t_in_cycle - 45) * 1.0e-2;
+        //target_velocity[0] = (- 610 * pow(t_in_cycle, 2) + 610 * t_in_cycle - 45) * 1.0e-2;
+
+        target_velocity[0] = 1.0;
         return target_velocity;
     }
 };
@@ -256,19 +258,17 @@ int main(int ac, char *av[])
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
 
-                compute_flow_rate.exec();
-                right_inflow_pressure_condition.getTargetPressure().setTimeStep(dt);
-
                 pressure_relaxation.exec(dt);
                 kernel_summation.exec();
-
                 left_inflow_pressure_condition.exec(dt);
+
+                compute_flow_rate.exec();
+                right_inflow_pressure_condition.getTargetPressure()->setTimeStep(dt);
                 right_inflow_pressure_condition.exec(dt);
+                right_inflow_pressure_condition.getTargetPressure()->updatePreviousFlowRate();
+
                 inflow_velocity_condition.exec();
-
                 density_relaxation.exec(dt);
-
-                right_inflow_pressure_condition.getTargetPressure().updatePreviousTargetP();
 
                 relaxation_time += dt;
                 integration_time += dt;

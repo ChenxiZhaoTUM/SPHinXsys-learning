@@ -58,6 +58,7 @@ class PressureCondition : public BaseFlowBoundaryCondition
         Vecd frame_velocity = Vecd::Zero();
         frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
         vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
+        //std::cout << "vel_[index_i] =  " << vel_[index_i] << std::endl;
     };
 
   protected:
@@ -87,7 +88,7 @@ class TotalVelocityNormVal
           alignment_axis_(aligned_box_.AlignmentAxis()),
           transform_(aligned_box_.getTransform())
       {
-          std::cout << "TotalVelocityNormVal constructor!" << std::endl;
+          // std::cout << "TotalVelocityNormVal constructor!" << std::endl;
       };
 
     virtual ~TotalVelocityNormVal(){};
@@ -96,7 +97,9 @@ class TotalVelocityNormVal
     {
         Vecd frame_velocity = Vecd::Zero();
         frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
-        return frame_velocity[alignment_axis_];
+        //std::cout << "vel_[index_i] =  " << vel_[index_i] << std::endl;
+        //std::cout << "frame_velocity[alignment_axis_] =  " << frame_velocity[alignment_axis_] << std::endl;
+        return -frame_velocity[alignment_axis_];
     }
 };
 
@@ -112,8 +115,13 @@ class AverageFlowRate : public ReduceSumType
 
     virtual Real outputResult(Real reduced_value) override
     {
+        //std::cout << "ReduceSumType::outputResult(reduced_value) =  " << ReduceSumType::outputResult(reduced_value) << std::endl;
+
         Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
         Q_ = average_velocity_norm * Pi * pow(outlet_radius_, 2);
+
+        std::cout << "Q_ = " << Q_ << std::endl;
+
         return Q_;
     }
 
@@ -128,36 +136,36 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
     explicit RCRPressure(BodyAlignedBoxByCell& aligned_box_part, Real R1, Real R2, Real C)
         : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
           DataDelegateSimple(aligned_box_part.getSPHBody()),
-          aligned_box_(aligned_box_part.getAlignedBoxShape()),
-          alignment_axis_(aligned_box_.AlignmentAxis()),
-          transform_(aligned_box_.getTransform()),
-          vel_(*particles_->getVariableDataByName<Vecd>("Velocity")),
           R1_(R1), R2_(R2), C_(C), dt_(0.0),
           Q_(*particles_->getSingleVariableByName<Real>("FlowRate")),
           Q_pre_(*particles_->registerSingleVariable<Real>("PreViousFlowRate")) {};
     virtual ~RCRPressure(){};
 
-    void setTimeStep(Real dt) { dt_ = dt; }
+    void setTimeStep(Real dt) 
+    {  
+        dt_ = dt;
+        //std::cout << "Now time is setting: dt_ = " << dt_ << std::endl;
+    }
 
-    void updatePreviousTargetP() { Q_pre_ = Q_; }
+    void updatePreviousFlowRate() 
+    { 
+        Q_pre_ = Q_;
+        std::cout << "Now Q_pre_ is updated: Q_pre_ = " << Q_pre_ << std::endl;
+    }
 
     
     Real operator()(Real p_current)
     {
+        std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
         Real dp_dt = - p_current / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
         Real p_star = p_current + dp_dt * dt_;
         Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
         Real p_next = p_current + 0.5 * dt_ * (dp_dt + dp_dt_star);
-
+        //std::cout << "p_next = " << p_next << std::endl;
         return p_next;
     }
 
   protected:
-    AlignedBoxShape &aligned_box_;
-    const int alignment_axis_;
-    Transform &transform_;
-    StdLargeVec<Vecd> &vel_;
-
     // parameters about Windkessel model
     Real R1_, R2_, C_;
     Real dt_;
@@ -179,7 +187,7 @@ class WindkesselCondition : public BaseFlowBoundaryCondition
     virtual ~WindkesselCondition(){};
     AlignedBoxShape &getAlignedBox() { return aligned_box_; };
 
-    TargetPressure getTargetPressure() { return target_pressure_; }
+    TargetPressure *getTargetPressure() { return &target_pressure_; }
 
     void update(size_t index_i, Real dt = 0.0)
     {
