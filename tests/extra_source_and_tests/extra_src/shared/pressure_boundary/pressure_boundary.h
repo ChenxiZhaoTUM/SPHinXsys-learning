@@ -68,34 +68,74 @@ class PressureCondition : public BaseFlowBoundaryCondition
     StdLargeVec<Vecd> &kernel_sum_;
 };
 
+class TotalVelocityNormVal
+    : public BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>,
+      public DataDelegateSimple
+{
+  protected:
+    StdLargeVec<Vecd> &vel_;
+    AlignedBoxShape &aligned_box_;
+    const int alignment_axis_;
+    Transform &transform_;
+
+  public:
+      explicit TotalVelocityNormVal(BodyAlignedBoxByCell& aligned_box_part)
+          : BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>(aligned_box_part),
+          DataDelegateSimple(aligned_box_part.getSPHBody()),
+          vel_(*particles_->getVariableDataByName<Vecd>("Velocity")),
+          aligned_box_(aligned_box_part.getAlignedBoxShape()),
+          alignment_axis_(aligned_box_.AlignmentAxis()),
+          transform_(aligned_box_.getTransform())
+      {
+          std::cout << "TotalVelocityNormVal constructor!" << std::endl;
+      };
+
+    virtual ~TotalVelocityNormVal(){};
+
+    Real reduce(size_t index_i, Real dt = 0.0)
+    {
+        Vecd frame_velocity = Vecd::Zero();
+        frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
+        return frame_velocity[alignment_axis_];
+    }
+};
+
+template <class ReduceSumType>
+class AverageFlowRate : public ReduceSumType
+{
+  public:
+    explicit AverageFlowRate(BodyAlignedBoxByCell& aligned_box_part, Real outlet_radius)
+          : ReduceSumType(aligned_box_part),
+            Q_(*this->particles_->registerSingleVariable<Real>("FlowRate")),
+            outlet_radius_(outlet_radius) {};
+    virtual ~AverageFlowRate(){};
+
+    virtual Real outputResult(Real reduced_value) override
+    {
+        Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
+        Q_ = average_velocity_norm * Pi * pow(outlet_radius_, 2);
+        return Q_;
+    }
+
+  private:
+    Real Q_;
+    Real outlet_radius_;
+};
+
 class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
 {
   public:
-    explicit RCRPressure(BodyAlignedBoxByCell& aligned_box_part, Real R1, Real R2, Real C, Real radius)
+    explicit RCRPressure(BodyAlignedBoxByCell& aligned_box_part, Real R1, Real R2, Real C)
         : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
           DataDelegateSimple(aligned_box_part.getSPHBody()),
           aligned_box_(aligned_box_part.getAlignedBoxShape()),
           alignment_axis_(aligned_box_.AlignmentAxis()),
           transform_(aligned_box_.getTransform()),
-          R1_(R1), R2_(R2), C_(C), outlet_radius_(radius),
           vel_(*particles_->getVariableDataByName<Vecd>("Velocity")),
-          Q_(*particles_->registerSingleVariable<Real>("FlowRate")),
+          R1_(R1), R2_(R2), C_(C), dt_(0.0),
+          Q_(*particles_->getSingleVariableByName<Real>("FlowRate")),
           Q_pre_(*particles_->registerSingleVariable<Real>("PreViousFlowRate")) {};
     virtual ~RCRPressure(){};
-
-    void computeFlowRate()
-    {
-        Real vel_normal_sum = 0.0;
-        for (size_t n = 0; n != vel_.size(); ++n)
-        {
-            Vecd frame_velocity = Vecd::Zero();
-            frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[n])[alignment_axis_];
-            vel_normal_sum += frame_velocity[alignment_axis_];
-            //not sure
-        }
-        Real vel_normal_val = vel_normal_sum / vel_.size();
-        Q_ = vel_normal_val * Pi * pow(outlet_radius_, 2);
-    }
 
     void setTimeStep(Real dt) { dt_ = dt; }
 
@@ -113,16 +153,15 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
     }
 
   protected:
-    StdLargeVec<Vecd> &vel_;
     AlignedBoxShape &aligned_box_;
     const int alignment_axis_;
     Transform &transform_;
+    StdLargeVec<Vecd> &vel_;
 
-    // parameters about Wendkessel model
+    // parameters about Windkessel model
     Real R1_, R2_, C_;
-    Real outlet_radius_;
-    Real Q_, Q_pre_;
     Real dt_;
+    Real &Q_, Q_pre_;
 };
 
 template <typename TargetPressure>
@@ -130,12 +169,12 @@ class WindkesselCondition : public BaseFlowBoundaryCondition
 {
   public:
     /** default parameter indicates prescribe pressure */
-    explicit WindkesselCondition(BodyAlignedBoxByCell &aligned_box_part, Real R1, Real R2, Real C, Real radius)
+    explicit WindkesselCondition(BodyAlignedBoxByCell &aligned_box_part, Real R1, Real R2, Real C)
         : BaseFlowBoundaryCondition(aligned_box_part),
           aligned_box_(aligned_box_part.getAlignedBoxShape()),
           alignment_axis_(aligned_box_.AlignmentAxis()),
           transform_(aligned_box_.getTransform()),
-          target_pressure_(TargetPressure(aligned_box_part, R1, R2, C, radius)),
+          target_pressure_(TargetPressure(aligned_box_part, R1, R2, C)),
           kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")){};
     virtual ~WindkesselCondition(){};
     AlignedBoxShape &getAlignedBox() { return aligned_box_; };
