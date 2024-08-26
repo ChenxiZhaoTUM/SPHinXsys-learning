@@ -119,14 +119,12 @@ class AverageFlowRate : public ReduceSumType
 
         Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
         Q_ = average_velocity_norm * Pi * pow(outlet_radius_, 2);
-
-        std::cout << "Q_ = " << Q_ << std::endl;
-
+        //std::cout << "Q_ = " << Q_ << std::endl;
         return Q_;
     }
 
   private:
-    Real Q_;
+    Real &Q_;
     Real outlet_radius_;
 };
 
@@ -150,13 +148,14 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
     void updatePreviousFlowRate() 
     { 
         Q_pre_ = Q_;
-        std::cout << "Now Q_pre_ is updated: Q_pre_ = " << Q_pre_ << std::endl;
+        //std::cout << "Now Q_pre_ is updated: Q_pre_ = " << Q_pre_ << std::endl;
     }
 
     
     Real operator()(Real p_current)
     {
-        std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
+        //std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
+        //std::cout << "dt_ for p_next calculation is dt_ = " << dt_ << std::endl;
         Real dp_dt = - p_current / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
         Real p_star = p_current + dp_dt * dt_;
         Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
@@ -169,7 +168,7 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
     // parameters about Windkessel model
     Real R1_, R2_, C_;
     Real dt_;
-    Real &Q_, Q_pre_;
+    Real &Q_, &Q_pre_;
 };
 
 template <typename TargetPressure>
