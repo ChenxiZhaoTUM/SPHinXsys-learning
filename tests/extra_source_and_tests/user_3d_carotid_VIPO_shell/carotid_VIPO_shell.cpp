@@ -24,8 +24,8 @@ Real scaling = pow(10, -3);
 Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
 Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.15 * scaling;
-Real thickness = 1.0 * dp_0;
+Real dp_0 = 0.2 * scaling;
+Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/ 
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -54,7 +54,7 @@ public:
     explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
         //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(-thickness, full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(-shell_resolution/2, full_path_to_file, translation, scaling);
     }
 };
 
@@ -250,8 +250,8 @@ Vecd standard_direction(1, 0, 0);
 Real DW_in = 2.9293 * 2 * scaling;
 Vec3d inlet_half = Vec3d(2.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
 Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
-Vec3d inlet_cut_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling - inlet_normal * 1.5 * dp_0;
-Vec3d inlet_buffer_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 1.5 * dp_0;
+Vec3d inlet_cut_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d inlet_buffer_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 2.0 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
@@ -260,8 +260,8 @@ Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotat
 Real DW_out_up = 1.9416 * 2 * scaling;
 Vec3d outlet_up_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
 Vec3d outlet_up_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_up_cut_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_up_normal * 1.5 * dp_0;
-Vec3d outlet_up_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_up_normal * 1.5 * dp_0;
+Vec3d outlet_up_cut_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_up_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_up_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_up_normal * 2.0 * dp_0;
 RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
 Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
 Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
@@ -270,8 +270,8 @@ Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outl
 Real DW_out_down = 1.3261 * 2 * scaling;
 Vec3d outlet_down_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
 Vec3d outlet_down_normal(-0.0399, 0.0693, 0.9972);
-Vec3d outlet_down_cut_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_down_normal * 1.5 * dp_0;
-Vec3d outlet_down_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_down_normal * 1.5 * dp_0;
+Vec3d outlet_down_cut_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_down_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_down_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_down_normal * 2.0 * dp_0;
 RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
 Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
 Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, outlet_down_rotation_result.axis);
@@ -283,7 +283,7 @@ Real U_f = 0.5;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_out_up + DW_out_down));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real Outlet_pressure = 1.33 * pow(10, 4);
+Real Outlet_pressure = 0;
 
 Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
@@ -330,7 +330,7 @@ class TimeDependentAcceleration : public Gravity
 
         du_ave_dt_ = 0.5 * 4 * Pi * cos(4 * Pi * run_time);
 
-        return t_in_cycle < t_ref_ ? Vecd(du_ave_dt_, 0.0, 0.0) : global_acceleration_;
+        return t_in_cycle < t_ref_ ? Vecd(0.0, 0.0, du_ave_dt_) : global_acceleration_;
     }
 };
 
@@ -404,19 +404,30 @@ int main(int ac, char *av[])
     ShellShape body_from_mesh("BodyFromMesh");
     TriangleMeshShapeSTL* mesh_shape = body_from_mesh.getMeshShape();
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
-    shell_body.defineAdaptation<SPHAdaptation>(1.15, 1.0);
+    shell_body.defineAdaptation<SPHAdaptation>(1.15, dp_0/shell_resolution);
     shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     shell_body.defineMaterial<Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
         : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
+
+    FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
+    water_block.defineBodyLevelSetShape()->cleanLevelSet();
+    water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
+    ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
+    //water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
+    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+    ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
+    : water_block.generateParticles<BaseParticles, Lattice>();
     //----------------------------------------------------------------------
     //	SPH Particle relaxation section
     //----------------------------------------------------------------------
     /** check whether run particle relaxation for body fitted particle distribution. */
     if (sph_system.RunParticleRelaxation())
     {
-        InnerRelation imported_model_inner(shell_body);
+        InnerRelation shell_inner(shell_body);
+        InnerRelation blood_inner(water_block);
+
         BodyAlignedBoxByCell inlet_detection_box(shell_body,
                                              makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half));
         BodyAlignedBoxByCell outlet01_detection_box(shell_body,
@@ -439,10 +450,11 @@ int main(int ac, char *av[])
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
         using namespace relax_dynamics;
-        //SimpleDynamics<RandomizeParticlePosition> random_imported_model_particles(shell_body);
         /** A  Physics relaxation step. */
-        SurfaceRelaxationStep relaxation_step_inner(imported_model_inner);
-        ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness);
+        SurfaceRelaxationStep relaxation_step_inner(shell_inner);
+        ShellNormalDirectionPrediction shell_normal_prediction(shell_inner, shell_resolution * 1.0);
+
+        RelaxationStepInner relaxation_step_inner_blood(blood_inner);
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
@@ -450,19 +462,20 @@ int main(int ac, char *av[])
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);
 
         /** Write the body state to Vtp file. */
-        BodyStatesRecordingToVtp write_imported_model_to_vtp({shell_body});
-        write_imported_model_to_vtp.addToWrite<Vecd>(shell_body, "NormalDirection");
+        BodyStatesRecordingToVtp write_shell_to_vtp({shell_body});
+        write_shell_to_vtp.addToWrite<Vecd>(shell_body, "NormalDirection");
+        BodyStatesRecordingToVtp write_blood_to_vtp({water_block});
         BodyStatesRecordingToVtp write_all_bodies_to_vtp({sph_system});
         /** Write the particle reload files. */
-        ReloadParticleIO write_particle_reload_files(shell_body);
+        ReloadParticleIO write_particle_reload_files({ &shell_body, &water_block });
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
-        //random_imported_model_particles.exec(0.25);
         relaxation_step_inner.getOnSurfaceBounding().exec();
-        write_imported_model_to_vtp.writeToFile(0.0);
+        relaxation_step_inner_blood.SurfaceBounding().exec();
+        write_shell_to_vtp.writeToFile(0.0);
+        write_blood_to_vtp.writeToFile(0.0);
         shell_body.updateCellLinkedList();
-        // write_cell_linked_list.writeToFile(0.0);
         //----------------------------------------------------------------------
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
@@ -470,11 +483,13 @@ int main(int ac, char *av[])
         while (ite_p < 2000)
         {
             relaxation_step_inner.exec();
+            relaxation_step_inner_blood.exec();
             ite_p += 1;
-            if (ite_p % 200 == 0)
+            if (ite_p % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
-                write_imported_model_to_vtp.writeToFile(ite_p);
+                write_shell_to_vtp.writeToFile(ite_p);
+                write_blood_to_vtp.writeToFile(ite_p);
             }
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
@@ -501,12 +516,6 @@ int main(int ac, char *av[])
     //  At last, we define the complex relaxations by combining previous defined
     //  inner and contact relations.
     //----------------------------------------------------------------------
-    FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
-    water_block.defineBodyLevelSetShape()->cleanLevelSet();
-    water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
-    ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
-
     InnerRelation water_block_inner(water_block);
     InnerRelation shell_inner(shell_body);
     ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_body}, {false});
@@ -637,7 +646,6 @@ int main(int ac, char *av[])
             Real Dt = get_fluid_advection_time_step_size.exec();
             //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
-
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
             /** FSI for viscous force. */
