@@ -406,7 +406,7 @@ int main(int ac, char *av[])
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
     shell_body.defineAdaptation<SPHAdaptation>(1.15, dp_0/shell_resolution);
     shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
-    shell_body.defineMaterial<Solid>();
+    shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
         : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
