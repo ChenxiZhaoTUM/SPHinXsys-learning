@@ -107,10 +107,10 @@ template <class ReduceSumType>
 class AverageFlowRate : public ReduceSumType
 {
   public:
-    explicit AverageFlowRate(BodyAlignedBoxByCell& aligned_box_part, Real outlet_radius)
+    explicit AverageFlowRate(BodyAlignedBoxByCell& aligned_box_part, Real outlet_area)
           : ReduceSumType(aligned_box_part),
             Q_(*this->particles_->registerSingleVariable<Real>("FlowRate")),
-            outlet_radius_(outlet_radius) {};
+            outlet_area_(outlet_area) {};
     virtual ~AverageFlowRate(){};
 
     virtual Real outputResult(Real reduced_value) override
@@ -118,14 +118,14 @@ class AverageFlowRate : public ReduceSumType
         //std::cout << "ReduceSumType::outputResult(reduced_value) =  " << ReduceSumType::outputResult(reduced_value) << std::endl;
 
         Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
-        Q_ = average_velocity_norm * Pi * pow(outlet_radius_, 2);
+        Q_ = average_velocity_norm * outlet_area_;
         //std::cout << "Q_ = " << Q_ << std::endl;
         return Q_;
     }
 
   private:
     Real &Q_;
-    Real outlet_radius_;
+    Real outlet_area_;
 };
 
 class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
@@ -151,16 +151,16 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
         //std::cout << "Now Q_pre_ is updated: Q_pre_ = " << Q_pre_ << std::endl;
     }
 
-    
-    Real operator()(Real p_current)
+    Real operator()(Real &p_current)
     {
         //std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
+        //std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
         //std::cout << "dt_ for p_next calculation is dt_ = " << dt_ << std::endl;
         Real dp_dt = - p_current / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
         Real p_star = p_current + dp_dt * dt_;
         Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
         Real p_next = p_current + 0.5 * dt_ * (dp_dt + dp_dt_star);
-        //std::cout << "p_next = " << p_next << std::endl;
+        std::cout << "p_next = " << p_next << std::endl;
         return p_next;
     }
 
