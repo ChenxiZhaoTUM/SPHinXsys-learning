@@ -395,8 +395,8 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
@@ -615,7 +615,7 @@ int main(int ac, char *av[])
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
     Real end_time = 2.5;   /**< End time. */
-    Real Output_Time = 0.1; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time/250; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
@@ -644,7 +644,6 @@ int main(int ac, char *av[])
             apply_initial_force.exec();
 
             Real Dt = get_fluid_advection_time_step_size.exec();
-            //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
@@ -657,7 +656,6 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
-                //std::cout << "dt = " << dt << std::endl;
 
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
