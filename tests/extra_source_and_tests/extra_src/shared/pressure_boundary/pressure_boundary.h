@@ -97,7 +97,7 @@ class TotalVelocityNormVal
     {
         Vecd frame_velocity = Vecd::Zero();
         frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
-        //std::cout << "vel_[index_i] =  " << vel_[index_i] << std::endl;
+        //std::cout << "frame_velocity =  " << frame_velocity << std::endl;
         //std::cout << "frame_velocity[alignment_axis_] =  " << frame_velocity[alignment_axis_] << std::endl;
         return -frame_velocity[alignment_axis_];
     }
@@ -136,8 +136,20 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
           DataDelegateSimple(aligned_box_part.getSPHBody()),
           R1_(R1), R2_(R2), C_(C), dt_(0.0),
           Q_(*particles_->getSingleVariableByName<Real>("FlowRate")),
-          Q_pre_(*particles_->registerSingleVariable<Real>("PreViousFlowRate")) {};
+          Q_pre_(*particles_->registerSingleVariable<Real>("PreViousFlowRate")),
+          p_outlet_(*particles_->registerSingleVariable<Real>("OutletPressure")),
+          p_outlet_next_(*particles_->registerSingleVariable<Real>("NextOutletPressure")),
+          initial_q_pre_set_(false) {};
     virtual ~RCRPressure(){};
+
+    void setInitialQPre()
+    {
+        if (!initial_q_pre_set_) // Check if it has been executed before
+        {
+            Q_pre_ = Q_;
+            initial_q_pre_set_ = true; // Set to true after the first execution
+        }
+    }
 
     void setTimeStep(Real dt) 
     {  
@@ -147,21 +159,25 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
 
     void updatePreviousFlowRate() 
     { 
+        //std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
+        /*std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
+        std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;*/
         Q_pre_ = Q_;
+        p_outlet_ = p_outlet_next_;
         //std::cout << "Now Q_pre_ is updated: Q_pre_ = " << Q_pre_ << std::endl;
     }
 
     Real operator()(Real &p_current)
     {
-        //std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
-        //std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
-        //std::cout << "dt_ for p_next calculation is dt_ = " << dt_ << std::endl;
-        Real dp_dt = - p_current / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
-        Real p_star = p_current + dp_dt * dt_;
+        /*std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
+        std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
+        std::cout << "dt_ for p_next calculation is dt_ = " << dt_ << std::endl;*/
+        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
+        Real p_star = p_outlet_ + dp_dt * dt_;
         Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
-        Real p_next = p_current + 0.5 * dt_ * (dp_dt + dp_dt_star);
-        std::cout << "p_next = " << p_next << std::endl;
-        return p_next;
+        p_outlet_next_ = p_outlet_ + 0.5 * dt_ * (dp_dt + dp_dt_star);
+        //std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
+        return p_outlet_next_;
     }
 
   protected:
@@ -169,6 +185,8 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
     Real R1_, R2_, C_;
     Real dt_;
     Real &Q_, &Q_pre_;
+    Real &p_outlet_, &p_outlet_next_;
+    bool initial_q_pre_set_;;
 };
 
 template <typename TargetPressure>

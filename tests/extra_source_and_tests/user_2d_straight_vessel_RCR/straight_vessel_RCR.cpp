@@ -24,11 +24,12 @@ BoundingBox system_domain_bounds(Vec2d(0, -BW), Vec2d(DL, DH + BW));
 //----------------------------------------------------------------------
 //	Material parameters.
 //----------------------------------------------------------------------
-Real Outlet_pressure = 6e3;
 Real rho0_f = 1060.0;
-Real mu_f = 4.0e-3;
+
 Real U_f = 1.0;
 Real c_f = 10.0 * U_f;
+Real Re = 100;
+Real mu_f = rho0_f * U_f * DH / Re;
 //----------------------------------------------------------------------
 //	Geometric shapes used in this case.
 //----------------------------------------------------------------------
@@ -57,30 +58,51 @@ Real radius = DH / 2;
 //----------------------------------------------------------------------
 //	inflow velocity definition.
 //----------------------------------------------------------------------
+//struct InflowVelocity
+//{
+//    Real t_ref_;
+//    AlignedBoxShape &aligned_box_;
+//
+//    template <class BoundaryConditionType>
+//    InflowVelocity(BoundaryConditionType &boundary_condition)
+//        : t_ref_(1.0),
+//          aligned_box_(boundary_condition.getAlignedBox()) {}
+//
+//    Vecd operator()(Vecd &position, Vecd &velocity)
+//    {
+//        Vecd target_velocity = velocity;
+//        /*Real run_time = GlobalStaticVariables::physical_time_;
+//        int n = static_cast<int>(run_time / t_ref_);
+//        Real t_in_cycle = run_time - n * t_ref_;
+//
+//        target_velocity[0] = (- 610 * pow(t_in_cycle, 2) + 610 * t_in_cycle - 45) * 1.0e-2;*/
+//
+//        target_velocity[0] = 1.0;
+//        return target_velocity;
+//    }
+//};
+
 struct InflowVelocity
 {
-    Real t_ref_;
+    Real u_ref_, t_ref_;
     AlignedBoxShape &aligned_box_;
+    Vecd halfsize_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : t_ref_(1.0),
-          aligned_box_(boundary_condition.getAlignedBox()) {}
+        : u_ref_(U_f), t_ref_(2.0),
+          aligned_box_(boundary_condition.getAlignedBox()),
+          halfsize_(aligned_box_.HalfSize()) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
-        //Real run_time = GlobalStaticVariables::physical_time_;
-        //int n = static_cast<int>(run_time / t_ref_);
-        //Real t_in_cycle = run_time - n * t_ref_;
-
-        //target_velocity[0] = (- 610 * pow(t_in_cycle, 2) + 610 * t_in_cycle - 45) * 1.0e-2;
-
-        target_velocity[0] = 1.0;
+        Real run_time = GlobalStaticVariables::physical_time_;
+        Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
+        target_velocity[0] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
         return target_velocity;
     }
 };
-
 //----------------------------------------------------------------------
 //	Fluid body definition.
 //----------------------------------------------------------------------
@@ -180,7 +202,6 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
 
-
     BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(left_bidirectional_translation)), bidirectional_buffer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
     BodyAlignedBoxByCell right_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(right_bidirectional_translation)), bidirectional_buffer_halfsize));
@@ -188,13 +209,13 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_bidirectional_translation)), bidirectional_buffer_halfsize));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(right_bidirectional_translation)), bidirectional_buffer_halfsize));
-    ReduceDynamics<fluid_dynamics::AverageFlowRate<fluid_dynamics::TotalVelocityNormVal>> compute_flow_rate(right_emitter, 2 * radius);
+    ReduceDynamics<fluid_dynamics::AverageFlowRate<fluid_dynamics::TotalVelocityNormVal>> compute_flow_rate(right_emitter, DH);
     fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressure> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer, R1, R2, C);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
     SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressure>> right_inflow_pressure_condition(right_emitter, R1, R2, C);
-    SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_disposer);
+    SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -263,10 +284,11 @@ int main(int ac, char *av[])
                 left_inflow_pressure_condition.exec(dt);
 
                 compute_flow_rate.exec();
+                right_inflow_pressure_condition.getTargetPressure()->setInitialQPre();
                 right_inflow_pressure_condition.getTargetPressure()->setTimeStep(dt);
                 right_inflow_pressure_condition.exec(dt);
                 right_inflow_pressure_condition.getTargetPressure()->updatePreviousFlowRate();
-
+                             
                 inflow_velocity_condition.exec();
                 density_relaxation.exec(dt);
 
