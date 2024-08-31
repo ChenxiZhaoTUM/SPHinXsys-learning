@@ -303,15 +303,17 @@ int main(int ac, char *av[])
                 kernel_summation.exec();
                 left_inflow_pressure_condition.exec(dt);
 
+
+                compute_flow_rate.exec();
+                right_inflow_pressure_condition.getTargetPressure()->accumulateFlow(dt);
+
                 // Accumulate time for 3 * Dt timer
                 accumulated_time_for_3Dt += dt;
-
                 // Check if accumulated time reaches or exceeds 3 * Dt
                 if (accumulated_time_for_3Dt >= 3 * Dt)
                 {
-                    compute_flow_rate.exec();
+                    
                     right_inflow_pressure_condition.getTargetPressure()->setInitialQPre();
-                    right_inflow_pressure_condition.getTargetPressure()->setTimeStep(accumulated_time_for_3Dt);
                     right_inflow_pressure_condition.getTargetPressure()->updateNextPressure();
 
                     // Reset the accumulated timer
@@ -319,15 +321,14 @@ int main(int ac, char *av[])
                 }
 
                 right_inflow_pressure_condition.exec(dt);
-                             
+
+
                 inflow_velocity_condition.exec();
                 density_relaxation.exec(dt);
 
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
-
-                body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
             if (number_of_iterations % screen_output_interval == 0)

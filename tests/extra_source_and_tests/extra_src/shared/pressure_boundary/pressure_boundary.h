@@ -1,4 +1,4 @@
-/* ------------------------------------------------------------------------- *
+﻿/* ------------------------------------------------------------------------- *
  *                                SPHinXsys                                  *
  * ------------------------------------------------------------------------- *
  * SPHinXsys (pronunciation: s'finksis) is an acronym from Smoothed Particle *
@@ -118,7 +118,7 @@ class AverageFlowRate : public ReduceSumType
 
         Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
         Q_ = average_velocity_norm * outlet_area_;
-        std::cout << "Q_ = " << Q_ << std::endl;
+        //std::cout << "Q_ = " << Q_ << std::endl;  /* instantaneous flow rate */
         return Q_;
     }
 
@@ -133,12 +133,13 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
     explicit RCRPressure(BodyAlignedBoxByCell& aligned_box_part, Real R1, Real R2, Real C)
         : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
           DataDelegateSimple(aligned_box_part.getSPHBody()),
-          R1_(R1), R2_(R2), C_(C), dt_(0.0),
+          R1_(R1), R2_(R2), C_(C),
           Q_(*particles_->getSingleVariableByName<Real>("FlowRate")),
           Q_pre_(*particles_->registerSingleVariable<Real>("PreViousFlowRate")),
           p_outlet_(*particles_->registerSingleVariable<Real>("OutletPressure")),
           p_outlet_next_(*particles_->registerSingleVariable<Real>("NextOutletPressure")),
-          initial_q_pre_set_(false) {};
+          initial_q_pre_set_(false),
+          accumulated_flow_(0.0), accumulated_time_(0.0) {};
     virtual ~RCRPressure(){};
 
     void setInitialQPre()
@@ -150,24 +151,31 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
         }
     }
 
-    void setTimeStep(Real dt) 
-    {  
-        dt_ = dt;
-        //std::cout << "Now time is setting: dt_ = " << dt_ << std::endl;
+    void accumulateFlow(Real dt)
+    {
+        accumulated_flow_ += Q_ * dt;
+        accumulated_time_ += dt;
+    }
+
+    void resetAccumulation()
+    {
+        accumulated_flow_ = 0.0;
+        accumulated_time_ = 0.0;
     }
 
     void updateNextPressure()
     {
-        std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
-        std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
-        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (dt_ + TinyReal);
-        Real p_star = p_outlet_ + dp_dt * dt_;
-        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (dt_ + TinyReal);
-        p_outlet_next_ = p_outlet_ + 0.5 * dt_ * (dp_dt + dp_dt_star);
+        //std::cout << "accumulated_flow_ for p_next calculation is accumulated_flow_ = " << accumulated_flow_ << std::endl;
+        //std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
+        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * accumulated_flow_ / (C_ * R2_) + R1_ * (accumulated_flow_ - Q_pre_) / (accumulated_time_ + TinyReal);
+        Real p_star = p_outlet_ + dp_dt * accumulated_time_;
+        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * accumulated_flow_ / (C_ * R2_) + R1_ * (accumulated_flow_ - Q_pre_) / (accumulated_time_ + TinyReal);
+        p_outlet_next_ = p_outlet_ + 0.5 * accumulated_time_ * (dp_dt + dp_dt_star);
 
-        Q_pre_ = Q_;
+        Q_pre_ = accumulated_flow_;
         p_outlet_ = p_outlet_next_;
         //std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
+        resetAccumulation();
     }
 
     Real operator()(Real &p_current)
@@ -178,10 +186,10 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
   protected:
     // parameters about Windkessel model
     Real R1_, R2_, C_;
-    Real dt_;
     Real &Q_, &Q_pre_;
     Real &p_outlet_, &p_outlet_next_;
-    bool initial_q_pre_set_;;
+    bool initial_q_pre_set_;
+    Real accumulated_flow_, accumulated_time_;
 };
 
 template <typename TargetPressure>
