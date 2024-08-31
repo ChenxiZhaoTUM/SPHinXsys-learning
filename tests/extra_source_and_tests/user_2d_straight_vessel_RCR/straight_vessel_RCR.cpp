@@ -97,12 +97,28 @@ struct InflowVelocity
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
-        Real run_time = GlobalStaticVariables::physical_time_;
-        Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
-        target_velocity[0] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
+        //Real run_time = GlobalStaticVariables::physical_time_;
+        //Real u_ave = run_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * run_time / t_ref_)) : u_ref_;
+        //target_velocity[0] = 1.5 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / halfsize_[1] / halfsize_[1]);
+
+        target_velocity[0] = 1.0;
         return target_velocity;
     }
 };
+
+//class InitialVelocity
+//    : public fluid_dynamics::FluidInitialCondition
+//{
+//  public:
+//    InitialVelocity(SPHBody &sph_body)
+//        : fluid_dynamics::FluidInitialCondition(sph_body){};
+//
+//    void update(size_t index_i, Real dt)
+//    {
+//        /** initial velocity profile */
+//        vel_[index_i][0] = 0.5;
+//    }
+//};
 //----------------------------------------------------------------------
 //	Fluid body definition.
 //----------------------------------------------------------------------
@@ -190,6 +206,8 @@ int main(int ac, char *av[])
     // Finally, the auxillary models such as time step estimator, initial condition,
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
+    //SimpleDynamics<InitialVelocity> initial_condition(water_block);
+
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_block_contact);
@@ -231,6 +249,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
+    //initial_condition.exec();
     boundary_indicator.exec();
     left_emitter_inflow_injection.tag_buffer_particles.exec();
     right_emitter_inflow_injection.tag_buffer_particles.exec();
@@ -253,6 +272,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
+    Real accumulated_time_for_3Dt = 0.0; // Add a timer for 3 * Dt
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
@@ -283,11 +303,22 @@ int main(int ac, char *av[])
                 kernel_summation.exec();
                 left_inflow_pressure_condition.exec(dt);
 
-                compute_flow_rate.exec();
-                right_inflow_pressure_condition.getTargetPressure()->setInitialQPre();
-                right_inflow_pressure_condition.getTargetPressure()->setTimeStep(dt);
+                // Accumulate time for 3 * Dt timer
+                accumulated_time_for_3Dt += dt;
+
+                // Check if accumulated time reaches or exceeds 3 * Dt
+                if (accumulated_time_for_3Dt >= 3 * Dt)
+                {
+                    compute_flow_rate.exec();
+                    right_inflow_pressure_condition.getTargetPressure()->setInitialQPre();
+                    right_inflow_pressure_condition.getTargetPressure()->setTimeStep(accumulated_time_for_3Dt);
+                    right_inflow_pressure_condition.getTargetPressure()->updateNextPressure();
+
+                    // Reset the accumulated timer
+                    accumulated_time_for_3Dt = 0.0;
+                }
+
                 right_inflow_pressure_condition.exec(dt);
-                right_inflow_pressure_condition.getTargetPressure()->updatePreviousFlowRate();
                              
                 inflow_velocity_condition.exec();
                 density_relaxation.exec(dt);

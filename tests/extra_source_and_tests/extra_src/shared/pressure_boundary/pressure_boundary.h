@@ -58,7 +58,6 @@ class PressureCondition : public BaseFlowBoundaryCondition
         Vecd frame_velocity = Vecd::Zero();
         frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
         vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
-        //std::cout << "vel_[index_i] =  " << vel_[index_i] << std::endl;
     };
 
   protected:
@@ -119,7 +118,7 @@ class AverageFlowRate : public ReduceSumType
 
         Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
         Q_ = average_velocity_norm * outlet_area_;
-        //std::cout << "Q_ = " << Q_ << std::endl;
+        std::cout << "Q_ = " << Q_ << std::endl;
         return Q_;
     }
 
@@ -157,26 +156,22 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
         //std::cout << "Now time is setting: dt_ = " << dt_ << std::endl;
     }
 
-    void updatePreviousFlowRate() 
-    { 
-        //std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
-        /*std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
-        std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;*/
+    void updateNextPressure()
+    {
+        std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
+        std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
+        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (dt_ + TinyReal);
+        Real p_star = p_outlet_ + dp_dt * dt_;
+        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (dt_ + TinyReal);
+        p_outlet_next_ = p_outlet_ + 0.5 * dt_ * (dp_dt + dp_dt_star);
+
         Q_pre_ = Q_;
         p_outlet_ = p_outlet_next_;
-        //std::cout << "Now Q_pre_ is updated: Q_pre_ = " << Q_pre_ << std::endl;
+        //std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
     }
 
     Real operator()(Real &p_current)
     {
-        /*std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
-        std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
-        std::cout << "dt_ for p_next calculation is dt_ = " << dt_ << std::endl;*/
-        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
-        Real p_star = p_outlet_ + dp_dt * dt_;
-        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / dt_;
-        p_outlet_next_ = p_outlet_ + 0.5 * dt_ * (dp_dt + dp_dt_star);
-        //std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
         return p_outlet_next_;
     }
 
@@ -209,7 +204,7 @@ class WindkesselCondition : public BaseFlowBoundaryCondition
     void update(size_t index_i, Real dt = 0.0)
     {
         vel_[index_i] += 2.0 * kernel_sum_[index_i] * target_pressure_(p_[index_i]) / rho_[index_i] * dt;
-
+        //std::cout << "target_pressure_(p_[index_i]) = " << target_pressure_(p_[index_i]) << std::endl;
         Vecd frame_velocity = Vecd::Zero();
         frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
         vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
