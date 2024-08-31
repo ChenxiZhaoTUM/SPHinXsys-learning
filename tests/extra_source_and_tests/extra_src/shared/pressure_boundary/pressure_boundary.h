@@ -114,8 +114,6 @@ class AverageFlowRate : public ReduceSumType
 
     virtual Real outputResult(Real reduced_value) override
     {
-        //std::cout << "ReduceSumType::outputResult(reduced_value) =  " << ReduceSumType::outputResult(reduced_value) << std::endl;
-
         Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
         Q_ = average_velocity_norm * outlet_area_;
         //std::cout << "Q_ = " << Q_ << std::endl;  /* instantaneous flow rate */
@@ -174,7 +172,7 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
 
         Q_pre_ = accumulated_flow_;
         p_outlet_ = p_outlet_next_;
-        //std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
+        std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
         resetAccumulation();
     }
 
@@ -212,7 +210,6 @@ class WindkesselCondition : public BaseFlowBoundaryCondition
     void update(size_t index_i, Real dt = 0.0)
     {
         vel_[index_i] += 2.0 * kernel_sum_[index_i] * target_pressure_(p_[index_i]) / rho_[index_i] * dt;
-        //std::cout << "target_pressure_(p_[index_i]) = " << target_pressure_(p_[index_i]) << std::endl;
         Vecd frame_velocity = Vecd::Zero();
         frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
         vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
