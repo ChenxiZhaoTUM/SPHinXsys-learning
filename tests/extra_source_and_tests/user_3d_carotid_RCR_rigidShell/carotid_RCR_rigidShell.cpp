@@ -299,43 +299,56 @@ Real radius_out_down = DW_out_down / 2;
 //----------------------------------------------------------------------
 struct InflowVelocity
 {
-    Real u_ref_, t_ref_, interval_;
     AlignedBoxShape &aligned_box_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(0.1), t_ref_(0.218), interval_(0.5),
-        aligned_box_(boundary_condition.getAlignedBox()){}
+        : aligned_box_(boundary_condition.getAlignedBox()){}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
-        int n = static_cast<int>(run_time / interval_);
-        Real t_in_cycle = run_time - n * interval_;
 
-        target_velocity[0] = t_in_cycle < t_ref_ ? 0.5 * sin(4 * Pi * (run_time + 0.0160236)) : u_ref_;
+        Real a0 = 0.3782;
+        Real omega = 8.302;
+        Real a[9] = { 0, -0.1812, 0.1276, -0.08981, 0.04347, -0.05412, 0.02642, 0.008946, -0.009005 };
+        Real b[9] = { 0, -0.07725, 0.01466, 0.04295, -0.06679, 0.05679, -0.01878, 0.01869, -0.01888 };
+
+        target_velocity[0] = a0;
+        for (int n = 1; n <= 8; ++n) 
+        {
+            target_velocity[0] += a[n] * cos(n * run_time * omega) + b[n] * sin(n * run_time * omega);
+        }
+
         return target_velocity;
     }
 };
 
 class TimeDependentAcceleration : public Gravity
 {
-    Real t_ref_, du_ave_dt_, interval_;
+    Real du_ave_dt_;
 
   public:
     explicit TimeDependentAcceleration(Vecd gravity_vector)
-        : Gravity(gravity_vector), t_ref_(0.218), du_ave_dt_(0), interval_(0.5) {}
+        : Gravity(gravity_vector), du_ave_dt_(0) {}
 
     virtual Vecd InducedAcceleration(const Vecd &position) override
     {
         Real run_time = GlobalStaticVariables::physical_time_;
-        int n = static_cast<int>(run_time / interval_);
-        Real t_in_cycle = run_time - n * interval_;
 
-        du_ave_dt_ = 0.5 * 4 * Pi * cos(4 * Pi * run_time);
+        Real a0 = 0.3782;
+        Real omega = 8.302;
+        Real a[9] = { 0, -0.1812, 0.1276, -0.08981, 0.04347, -0.05412, 0.02642, 0.008946, -0.009005 };
+        Real b[9] = { 0, -0.07725, 0.01466, 0.04295, -0.06679, 0.05679, -0.01878, 0.01869, -0.01888 };
 
-        return t_in_cycle < t_ref_ ? Vecd(0.0, 0.0, du_ave_dt_) : global_acceleration_;
+        du_ave_dt_ = 0.0;
+        for (int n = 1; n <= 8; ++n) 
+        {
+            du_ave_dt_ += -a[n] * n * omega * sin(n * run_time * omega) + b[n] * n * omega * cos(n * run_time * omega);
+        }
+
+        return Vecd(0.0, 0.0, du_ave_dt_);
     }
 };
 
