@@ -238,6 +238,107 @@ class BidirectionalBufferWindkessel
     SimpleDynamics<Injection, ExecutionPolicy> injection;
 };
 
+template <typename TargetPressure, class ExecutionPolicy = ParallelPolicy>
+class BidirectionalBufferWindkesselAndComputeVol
+{
+  protected:
+    TargetPressure target_pressure_;
+
+    class TagBufferParticles : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+    {
+      public:
+        TagBufferParticles(BodyAlignedBoxByCell &aligned_box_part)
+            : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+              DataDelegateSimple(aligned_box_part.getSPHBody()),
+              pos_(*particles_->getVariableDataByName<Vecd>("Position")),
+              aligned_box_(aligned_box_part.getAlignedBoxShape()),
+              buffer_particle_indicator_(*particles_->registerSharedVariable<int>("BufferParticleIndicator"))
+        {
+            particles_->addVariableToSort<int>("BufferParticleIndicator");
+        };
+        virtual ~TagBufferParticles(){};
+
+        virtual void update(size_t index_i, Real dt = 0.0)
+        {
+            buffer_particle_indicator_[index_i] = aligned_box_.checkInBounds(pos_[index_i]) ? 1 : 0;
+        };
+
+      protected:
+        StdLargeVec<Vecd> &pos_;
+        AlignedBoxShape &aligned_box_;
+        StdLargeVec<int> &buffer_particle_indicator_;
+    };
+
+    class Injection : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+    {
+      public:
+        Injection(BodyAlignedBoxByCell &aligned_box_part, ParticleBuffer<Base> &particle_buffer,
+                  TargetPressure &target_pressure)
+            : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+              DataDelegateSimple(aligned_box_part.getSPHBody()),
+              particle_buffer_(particle_buffer),
+              aligned_box_(aligned_box_part.getAlignedBoxShape()),
+              fluid_(DynamicCast<Fluid>(this, particles_->getBaseMaterial())),
+              original_id_(particles_->ParticleOriginalIds()),
+              pos_n_(*particles_->getVariableDataByName<Vecd>("Position")),
+              rho_n_(*particles_->getVariableDataByName<Real>("Density")),
+              p_(*particles_->getVariableDataByName<Real>("Pressure")),
+              previous_surface_indicator_(*particles_->getVariableDataByName<int>("PreviousSurfaceIndicator")),
+              buffer_particle_indicator_(*particles_->getVariableDataByName<int>("BufferParticleIndicator")),
+              Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+              total_Vol_deletion_(*particles_->getSingleVariableByName<Real>("TotalVolDeletion")),
+              target_pressure_(target_pressure)
+        {
+            particle_buffer_.checkParticlesReserved();
+        };
+        virtual ~Injection(){};
+
+        void update(size_t index_i, Real dt = 0.0)
+        {
+            if (aligned_box_.checkUpperBound(pos_n_[index_i]) && buffer_particle_indicator_[index_i] == 1)
+            {
+                mutex_switch_to_real_.lock();
+                particle_buffer_.checkEnoughBuffer(*particles_);
+                particles_->createRealParticleFrom(index_i);
+                mutex_switch_to_real_.unlock();
+
+                /** Periodic bounding. */
+                pos_n_[index_i] = aligned_box_.getUpperPeriodic(pos_n_[index_i]);
+                Real sound_speed = fluid_.getSoundSpeed(rho_n_[index_i]);
+                p_[index_i] = target_pressure_(p_[index_i]);
+                rho_n_[index_i] = p_[index_i] / pow(sound_speed, 2.0) + fluid_.ReferenceDensity();
+                previous_surface_indicator_[index_i] = 1;
+
+                total_Vol_deletion_ -= Vol_[index_i];
+            }
+        }
+
+      protected:
+        std::mutex mutex_switch_to_real_;
+        ParticleBuffer<Base> &particle_buffer_;
+        AlignedBoxShape &aligned_box_;
+        Fluid &fluid_;
+        StdLargeVec<size_t> &original_id_;
+        StdLargeVec<Vecd> &pos_n_;
+        StdLargeVec<Real> &rho_n_, &p_;
+        StdLargeVec<int> &previous_surface_indicator_, &buffer_particle_indicator_;
+        StdLargeVec<Real> &Vol_;
+        Real& total_Vol_deletion_;
+
+      private:
+        TargetPressure &target_pressure_;
+    };
+
+  public:
+    BidirectionalBufferWindkesselAndComputeVol(BodyAlignedBoxByCell &aligned_box_part, ParticleBuffer<Base> &particle_buffer, Real R1, Real R2, Real C)
+        : target_pressure_(TargetPressure(aligned_box_part, R1, R2, C)), tag_buffer_particles(aligned_box_part),
+          injection(aligned_box_part, particle_buffer, target_pressure_){};
+    virtual ~BidirectionalBufferWindkesselAndComputeVol(){};
+
+    SimpleDynamics<TagBufferParticles, ExecutionPolicy> tag_buffer_particles;
+    SimpleDynamics<Injection, ExecutionPolicy> injection;
+};
+
 using NonPrescribedPressureBidirectionalBuffer = BidirectionalBuffer<NonPrescribedPressure>;
 } // namespace fluid_dynamics
 } // namespace SPH

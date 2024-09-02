@@ -108,5 +108,25 @@ void DisposerOutflowDeletion::update(size_t index_i, Real dt)
     }
     mutex_switch_to_buffer_.unlock();
 }
+//=================================================================================================//
+DisposerOutflowDeletionAndComputeVol::
+    DisposerOutflowDeletionAndComputeVol(BodyAlignedBoxByCell &aligned_box_part)
+    : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+      DataDelegateSimple(aligned_box_part.getSPHBody()),
+      pos_(*particles_->getVariableDataByName<Vecd>("Position")),
+      Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+      aligned_box_(aligned_box_part.getAlignedBoxShape()),
+      total_Vol_deletion_(*particles_->registerSingleVariable<Real>("TotalVolDeletion")) {}
+//=================================================================================================//
+void DisposerOutflowDeletionAndComputeVol::update(size_t index_i, Real dt)
+{
+    mutex_switch_to_buffer_.lock();
+    while (aligned_box_.checkUpperBound(pos_[index_i]) && index_i < particles_->TotalRealParticles())
+    {
+        particles_->switchToBufferParticle(index_i);
+        total_Vol_deletion_ += Vol_[index_i];
+    }
+    mutex_switch_to_buffer_.unlock();
+}
 } // namespace fluid_dynamics
 } // namespace SPH

@@ -179,16 +179,15 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(left_bidirectional_translation)), bidirectional_buffer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
     BodyAlignedBoxByCell right_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(right_bidirectional_translation)), bidirectional_buffer_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion(right_disposer);
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionAndComputeVol> right_disposer_outflow_deletion(right_disposer);
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_bidirectional_translation)), bidirectional_buffer_halfsize));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(right_bidirectional_translation)), bidirectional_buffer_halfsize));
-    ReduceDynamics<fluid_dynamics::AverageFlowRate<fluid_dynamics::TotalVelocityNormVal>> compute_flow_rate(right_emitter, DH);
-    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressure> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer, R1, R2, C);
+    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer, R1, R2, C);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressure>> right_inflow_pressure_condition(right_emitter, R1, R2, C);
+    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressureByDeletion>> right_inflow_pressure_condition(right_emitter, R1, R2, C);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
@@ -260,16 +259,13 @@ int main(int ac, char *av[])
 
 
                 // windkessel model implementation
-                compute_flow_rate.exec();
-                right_inflow_pressure_condition.getTargetPressure()->accumulateFlow(dt);
-
                 // Accumulate time for 3 * Dt timer
                 accumulated_time_for_3Dt += dt;
                 // Check if accumulated time reaches or exceeds 3 * Dt
                 if (accumulated_time_for_3Dt >= 3 * Dt)
                 {
-                    
                     right_inflow_pressure_condition.getTargetPressure()->setInitialQPre();
+                    right_inflow_pressure_condition.getTargetPressure()->setAccumulationTime(accumulated_time_for_3Dt);
                     right_inflow_pressure_condition.getTargetPressure()->updateNextPressure();
 
                     // Reset the accumulated timer

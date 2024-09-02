@@ -174,6 +174,12 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
         p_outlet_ = p_outlet_next_;
         std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
         resetAccumulation();
+
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + "outlet_pressure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << p_outlet_next_ <<  "\n";
+        out_file.close();
     }
 
     Real operator()(Real &p_current)
@@ -188,6 +194,76 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
     Real &p_outlet_, &p_outlet_next_;
     bool initial_q_pre_set_;
     Real accumulated_flow_, accumulated_time_;
+};
+
+class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+{
+  public:
+    explicit RCRPressureByDeletion(BodyAlignedBoxByCell& aligned_box_part, Real R1, Real R2, Real C)
+        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+          DataDelegateSimple(aligned_box_part.getSPHBody()),
+          R1_(R1), R2_(R2), C_(C),
+          Q_(*particles_->getSingleVariableByName<Real>("TotalVolDeletion")),
+          Q_pre_(*particles_->registerSingleVariable<Real>("PreViousFlowRate")),
+          p_outlet_(*particles_->registerSingleVariable<Real>("OutletPressure")),
+          p_outlet_next_(*particles_->registerSingleVariable<Real>("NextOutletPressure")),
+          initial_q_pre_set_(false),
+          accumulated_time_(0.0) {};
+    virtual ~RCRPressureByDeletion(){};
+
+    void setInitialQPre()
+    {
+        if (!initial_q_pre_set_) // Check if it has been executed before
+        {
+            Q_pre_ = Q_;
+            initial_q_pre_set_ = true; // Set to true after the first execution
+        }
+    }
+
+    void setAccumulationTime(Real dt)
+    {
+        accumulated_time_ = dt;
+    }
+
+    void resetAccumulation()
+    {
+        Q_ = 0.0;
+        accumulated_time_ = 0.0;
+    }
+
+    void updateNextPressure()
+    {
+        //std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
+        //std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
+        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
+        Real p_star = p_outlet_ + dp_dt * accumulated_time_;
+        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
+        p_outlet_next_ = p_outlet_ + 0.5 * accumulated_time_ * (dp_dt + dp_dt_star);
+
+        Q_pre_ = Q_;
+        p_outlet_ = p_outlet_next_;
+        std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
+        resetAccumulation();
+        
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + "outlet_pressure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << p_outlet_next_ <<  "\n";
+        out_file.close();
+    }
+
+    Real operator()(Real &p_current)
+    {
+        return p_outlet_next_;
+    }
+
+  protected:
+    // parameters about Windkessel model
+    Real R1_, R2_, C_;
+    Real &Q_, &Q_pre_;
+    Real &p_outlet_, &p_outlet_next_;
+    bool initial_q_pre_set_;
+    Real accumulated_time_;
 };
 
 template <typename TargetPressure>
