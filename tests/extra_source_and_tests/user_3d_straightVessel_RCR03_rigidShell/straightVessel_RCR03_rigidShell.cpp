@@ -198,12 +198,13 @@ class FlowPressureBuffer : public fluid_dynamics::BaseFlowBoundaryCondition
 class OutflowPressure : public FlowPressureBuffer
 {
   public:
-    OutflowPressure(BodyAlignedBoxByCell &aligned_box_part, DisposerOutflowDeletionWithWindkessel &outlet_windkessel,
+    OutflowPressure(BodyAlignedBoxByCell &aligned_box_part, const std::string &body_part_name, DisposerOutflowDeletionWithWindkessel &outlet_windkessel,
                     Real R1, Real R2, Real C, Real delta_t, Real average_Q, Real Q_0 = 0.0, Real Q_n = 0.0, Real p_0 = 0.0, Real p_n = 0.0,
                     Real current_flow_rate = 0.0, Real previous_flow_rate = 0.0, int count = 1)
-        : FlowPressureBuffer(aligned_box_part), flow_rate_(outlet_windkessel.flow_rate_), 
-        R1_(R1), R2_(R2), C_(C), delta_t_(delta_t), average_Q_(average_Q), Q_0_(Q_0), Q_n_(Q_n), p_0_(p_0), p_n_(p_n), 
-        current_flow_rate_(current_flow_rate), previous_flow_rate_(previous_flow_rate), count_(count){};
+        : FlowPressureBuffer(aligned_box_part), flow_rate_(outlet_windkessel.flow_rate_),
+          R1_(R1), R2_(R2), C_(C), delta_t_(delta_t), average_Q_(average_Q), Q_0_(Q_0), Q_n_(Q_n), p_0_(p_0), p_n_(p_n),
+          current_flow_rate_(current_flow_rate), previous_flow_rate_(previous_flow_rate), count_(count),
+          body_part_name_(body_part_name), write_data_(false){};
     virtual ~OutflowPressure(){};
 
     void getFlowRate()
@@ -224,14 +225,34 @@ class OutflowPressure : public FlowPressureBuffer
     {
         Q_n_ = current_flow_rate_ / delta_t_ - average_Q_;
         p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
-        //std::cout << "p_n_ = " << p_n_ << std::endl;
+        // std::cout << "p_n_ = " << p_n_ << std::endl;
+
+        write_data_ = true;
+
         return p_n_;
     }
+
+    void writeOutletPressureData()
+    {
+        if (write_data_)
+        {
+            std::string output_folder = "./output";
+            std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
+            std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+            out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ << "\n";
+            out_file.close();
+
+            write_data_ = false; // Reset the flag after writing
+        }
+    }
+
     void setupDynamics(Real dt = 0.0) override {}
 
   protected:
     Real &flow_rate_, R1_, R2_, C_, delta_t_, average_Q_, Q_0_, Q_n_, p_0_, p_n_, current_flow_rate_, previous_flow_rate_;
     int count_;
+    std::string body_part_name_;
+    bool write_data_;
 };
 
 int main(int ac, char *av[])
@@ -356,7 +377,7 @@ int main(int ac, char *av[])
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<OutflowPressure> right_inflow_pressure_condition(right_emitter, right_disposer_outflow_deletion, 
+    SimpleDynamics<OutflowPressure> right_inflow_pressure_condition(right_emitter, "out01", right_disposer_outflow_deletion, 
         R1, R2, C, 8.273e-5, 0.00975);
 
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
@@ -405,6 +426,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
+    int record_n = 0;
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
@@ -432,17 +454,24 @@ int main(int ac, char *av[])
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
 
                 pressure_relaxation.exec(dt);
-                
                 kernel_summation.exec();
-                inflow_velocity_condition.exec();
-                //left_inflow_pressure_condition.exec(dt);
+                
+                left_inflow_pressure_condition.exec(dt);
 
                 // windkessel model implementation
                 right_inflow_pressure_condition.getFlowRate();
-
                 right_inflow_pressure_condition.exec(dt);
 
+                inflow_velocity_condition.exec();
+
                 density_relaxation.exec(dt);
+
+                // After the loop, write pressure data once
+                if (GlobalStaticVariables::physical_time_ >= record_n * 0.006)
+                {
+                    right_inflow_pressure_condition.writeOutletPressureData();
+                    ++record_n;
+                }
 
                 relaxation_time += dt;
                 integration_time += dt;
