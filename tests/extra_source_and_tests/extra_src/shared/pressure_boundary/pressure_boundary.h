@@ -68,6 +68,9 @@ class PressureCondition : public BaseFlowBoundaryCondition
     StdLargeVec<Vecd> &kernel_sum_;
 };
 
+//-------------------------------------------------------------------------------
+//	Calculate flow rate by velocity times area.
+//-------------------------------------------------------------------------------
 class TotalVelocityNormVal
     : public BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>,
       public DataDelegateSimple
@@ -132,55 +135,119 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
         : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
           DataDelegateSimple(aligned_box_part.getSPHBody()),
           R1_(R1), R2_(R2), C_(C),
-          Q_(*particles_->getSingleVariableByName<Real>("FlowRate")),
-          Q_pre_(*particles_->registerSingleVariable<Real>("PreViousFlowRate")),
+          Q_transient_(*particles_->getSingleVariableByName<Real>("FlowRate")),
+          Q_ave_(8.273e-5), //temporary
           p_outlet_(*particles_->registerSingleVariable<Real>("OutletPressure")),
           p_outlet_next_(*particles_->registerSingleVariable<Real>("NextOutletPressure")),
-          initial_q_pre_set_(false),
-          accumulated_flow_(0.0), accumulated_time_(0.0) {};
+          accumulated_flow_(0.0), accumulated_time_(0.0), pre_accumulated_flow_(0.0) {};
     virtual ~RCRPressure(){};
-
-    void setInitialQPre()
-    {
-        if (!initial_q_pre_set_) // Check if it has been executed before
-        {
-            Q_pre_ = Q_;
-            initial_q_pre_set_ = true; // Set to true after the first execution
-        }
-    }
 
     void accumulateFlow(Real dt)
     {
-        accumulated_flow_ += Q_ * dt;
+        //std::cout << "Q_transient_ = " << Q_transient_ << std::endl;
+        accumulated_flow_ += Q_transient_ * dt;
         accumulated_time_ += dt;
     }
 
-    void resetAccumulation()
+    void updatePreAndResetAcc()
     {
+        pre_accumulated_flow_ = accumulated_flow_;
+        p_outlet_ = p_outlet_next_;
+        std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
+
         accumulated_flow_ = 0.0;
         accumulated_time_ = 0.0;
     }
 
-    void updateNextPressure()
+    void writeOutletP()
     {
-        //std::cout << "accumulated_flow_ for p_next calculation is accumulated_flow_ = " << accumulated_flow_ << std::endl;
-        //std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
-        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * accumulated_flow_ / (C_ * R2_) + R1_ * (accumulated_flow_ - Q_pre_) / (accumulated_time_ + TinyReal);
-        Real p_star = p_outlet_ + dp_dt * accumulated_time_;
-        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * accumulated_flow_ / (C_ * R2_) + R1_ * (accumulated_flow_ - Q_pre_) / (accumulated_time_ + TinyReal);
-        p_outlet_next_ = p_outlet_ + 0.5 * accumulated_time_ * (dp_dt + dp_dt_star);
-
-        Q_pre_ = accumulated_flow_;
-        p_outlet_ = p_outlet_next_;
-        std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
-        resetAccumulation();
-
         std::string output_folder = "./output";
         std::string filefullpath = output_folder + "/" + "outlet_pressure.dat";
         std::ofstream out_file(filefullpath.c_str(), std::ios::app);
         out_file << GlobalStaticVariables::physical_time_ << "   " << p_outlet_next_ <<  "\n";
         out_file.close();
     }
+
+    void updateNextPressure()
+    {
+        Real Q_current = accumulated_flow_ / accumulated_time_ - Q_ave_;
+        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_current / (C_ * R2_) + R1_ * (accumulated_flow_ - pre_accumulated_flow_) / (accumulated_time_ + TinyReal);
+        Real p_star = p_outlet_ + dp_dt * accumulated_time_;
+        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_current / (C_ * R2_) + R1_ * (accumulated_flow_ - pre_accumulated_flow_) / (accumulated_time_ + TinyReal);
+        p_outlet_next_ = p_outlet_ + 0.5 * accumulated_time_ * (dp_dt + dp_dt_star);
+
+
+        //p_outlet_next_ = ((Q_current * (1.0 + R1_ / R2_) + C_ * R1_ * (accumulated_flow_ - pre_accumulated_flow_) / accumulated_time_) * accumulated_time_ / C_ + p_outlet_) / (1.0 + accumulated_time_ / (C_ * R2_));
+
+        updatePreAndResetAcc();
+        writeOutletP();
+    }
+
+    /*
+    void updateNextPressureRK4()
+    {
+        // Compute dp/dt at current state (t_n, p_outlet_)
+        auto dp_dt = [&](Real p) {
+            return - p / (C_ * R2_) + (R1_ + R2_) * accumulated_flow_ / (C_ * R2_) + R1_ * (accumulated_flow_ - Q_pre_) / (accumulated_time_ + TinyReal);
+        };
+
+        // RK4 coefficients
+        Real k1 = dp_dt(p_outlet_);
+        Real k2 = dp_dt(p_outlet_ + 0.5 * accumulated_time_ * k1);
+        Real k3 = dp_dt(p_outlet_ + 0.5 * accumulated_time_ * k2);
+        Real k4 = dp_dt(p_outlet_ + accumulated_time_ * k3);
+
+        // Update p_outlet_ using RK4
+        Real dp = (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0;
+        p_outlet_next_ = p_outlet_ + dp * accumulated_time_;
+
+        updatePreAndResetAcc();
+        writeOutletP();
+    }
+
+    void updateNextPressureGeneralizedAlpha()
+    {
+        // Define parameters for the generalized-alpha method
+        Real rho_inf = 0.8; // High-frequency damping control parameter
+        Real alpha_m = (2.0 * rho_inf - 1) / (rho_inf + 1);
+        Real alpha_f = rho_inf / (rho_inf + 1);
+        Real gamma = 0.5 + alpha_m - alpha_f;
+        Real beta = 0.25 * (1.0 + alpha_m - alpha_f) * (1.0 + alpha_m - alpha_f);
+
+        // Predictor step for p and dp/dt
+        Real dp_dt_n = -p_outlet_ / (C_ * R2_) + (R1_ + R2_) * accumulated_flow_ / (C_ * R2_) + R1_ * (accumulated_flow_ - Q_pre_) / (accumulated_time_ + TinyReal);
+
+        // Predict velocity and acceleration at time n+1/2
+        Real p_pred = p_outlet_ + accumulated_time_ * dp_dt_n;
+        Real dp_dt_pred = dp_dt_n; // Start with current derivative as initial guess for predictor
+
+        // Implicit step to solve for dp/dt and p at n+1
+        Real dp_dt_n1 = dp_dt_pred;
+        Real p_n1 = p_pred;
+
+        // Use Newton-Raphson method for implicit update
+        for (int iter = 0; iter < 10; ++iter)
+        {
+            Real dp_dt_star = -p_n1 / (C_ * R2_) + (R1_ + R2_) * accumulated_flow_ / (C_ * R2_) + R1_ * (accumulated_flow_ - Q_pre_) / (accumulated_time_ + TinyReal);
+
+            // Residual and Jacobian
+            Real residual = p_n1 - p_outlet_ - accumulated_time_ * ((1 - gamma) * dp_dt_n + gamma * dp_dt_star);
+            Real jacobian = 1.0 + accumulated_time_ * gamma / (C_ * R2_);
+
+            // Newton-Raphson update
+            Real delta = -residual / jacobian;
+            p_n1 += delta;
+
+            // Convergence check
+            if (fabs(delta) < 1e-6) break;
+        }
+
+        p_outlet_next_ = p_n1;
+
+        updatePreAndResetAcc();
+        writeOutletP();
+    }
+    */
 
     Real operator()(Real &p_current)
     {
@@ -190,12 +257,16 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
   protected:
     // parameters about Windkessel model
     Real R1_, R2_, C_;
-    Real &Q_, &Q_pre_;
+    Real& Q_transient_;
+    Real Q_ave_;
     Real &p_outlet_, &p_outlet_next_;
-    bool initial_q_pre_set_;
     Real accumulated_flow_, accumulated_time_;
+    Real pre_accumulated_flow_;
 };
 
+//-------------------------------------------------------------------------------
+//	Calculate flow rate by total particle volume of injection(-) and deletion(+).
+//-------------------------------------------------------------------------------
 class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
 {
   public:
@@ -233,7 +304,7 @@ class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public D
 
     void updateNextPressure()
     {
-        //std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
+        std::cout << "Q_ for p_next calculation is Q_ = " << Q_ << std::endl;
         //std::cout << "Q_pre_ for p_next calculation is Q_pre_ = " << Q_pre_ << std::endl;
         Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
         Real p_star = p_outlet_ + dp_dt * accumulated_time_;
