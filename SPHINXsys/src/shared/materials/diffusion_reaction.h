@@ -1,25 +1,25 @@
-/* -------------------------------------------------------------------------*
- *								SPHinXsys									*
- * -------------------------------------------------------------------------*
- * SPHinXsys (pronunciation: s'finksis) is an acronym from Smoothed Particle*
- * Hydrodynamics for industrial compleX systems. It provides C++ APIs for	*
- * physical accurate simulation and aims to model coupled industrial dynamic*
- * systems including fluid, solid, multi-body dynamics and beyond with SPH	*
- * (smoothed particle hydrodynamics), a meshless computational method using	*
- * particle discretization.													*
- *																			*
- * SPHinXsys is partially funded by German Research Foundation				*
- * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,			*
- *  HU1527/12-1 and HU1527/12-4												*
- *                                                                          *
- * Portions copyright (c) 2017-2022 Technical University of Munich and		*
- * the authors' affiliations.												*
- *                                                                          *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may  *
- * not use this file except in compliance with the License. You may obtain a*
- * copy of the License at http://www.apache.org/licenses/LICENSE-2.0.       *
- *                                                                          *
- * ------------------------------------------------------------------------*/
+/* ------------------------------------------------------------------------- *
+ *                                SPHinXsys                                  *
+ * ------------------------------------------------------------------------- *
+ * SPHinXsys (pronunciation: s'finksis) is an acronym from Smoothed Particle *
+ * Hydrodynamics for industrial compleX systems. It provides C++ APIs for    *
+ * physical accurate simulation and aims to model coupled industrial dynamic *
+ * systems including fluid, solid, multi-body dynamics and beyond with SPH   *
+ * (smoothed particle hydrodynamics), a meshless computational method using  *
+ * particle discretization.                                                  *
+ *                                                                           *
+ * SPHinXsys is partially funded by German Research Foundation               *
+ * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
+ *  HU1527/12-1 and HU1527/12-4.                                             *
+ *                                                                           *
+ * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * the authors' affiliations.                                                *
+ *                                                                           *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
+ * not use this file except in compliance with the License. You may obtain a *
+ * copy of the License at http://www.apache.org/licenses/LICENSE-2.0.        *
+ *                                                                           *
+ * ------------------------------------------------------------------------- */
 /**
  * @file 	diffusion_reaction.h
  * @brief 	Describe the diffusive and reaction in which
@@ -33,264 +33,318 @@
 
 #include "base_material.h"
 
-#include <map>
 #include <functional>
+#include <map>
 using namespace std::placeholders;
 
 namespace SPH
 {
-	/**
-	 * @class BaseDiffusion
-	 * @brief diffusion property abstract base class.
-	 */
-	class BaseDiffusion : public BaseMaterial
-	{
-	public:
-		BaseDiffusion(size_t diffusion_species_index, size_t gradient_species_index)
-			: BaseMaterial(), diffusion_species_index_(diffusion_species_index),
-			  gradient_species_index_(gradient_species_index)
-		{
-			material_type_name_ = "BaseDiffusion";
-		};
-		virtual ~BaseDiffusion(){};
+/**
+ * @class BaseDiffusion
+ * @brief diffusion property abstract base class.
+ */
+class BaseDiffusion : public BaseMaterial
+{
+  public:
+    BaseDiffusion(size_t diffusion_species_index, size_t gradient_species_index)
+        : BaseMaterial(), diffusion_species_index_(diffusion_species_index),
+          gradient_species_index_(gradient_species_index)
+    {
+        material_type_name_ = "BaseDiffusion";
+    };
+    virtual ~BaseDiffusion(){};
 
-		size_t diffusion_species_index_;
-		size_t gradient_species_index_;
+    size_t diffusion_species_index_;
+    size_t gradient_species_index_;
 
-		virtual Real getReferenceDiffusivity() = 0;
-		virtual Real getDiffusionCoffWithBoundary(size_t particle_i) = 0;
-		virtual Real getInterParticleDiffusionCoff(size_t particle_i, size_t particle_j, Vecd &direction_from_j_to_i) = 0;
-	};
+    virtual Real getReferenceDiffusivity() = 0;
+    virtual Real getDiffusionCoeffWithBoundary(size_t particle_i) = 0;
+    virtual Real getInterParticleDiffusionCoeff(size_t particle_i, size_t particle_j, const Vecd &direction_from_j_to_i) = 0;
+};
 
-	/**
-	 * @class IsotropicDiffusion
-	 * @brief isotropic diffusion property.
-	 */
-	class IsotropicDiffusion : public BaseDiffusion
-	{
-	protected:
-		Real diff_cf_; /**< diffusion coefficient. */
+/**
+ * @class IsotropicDiffusion
+ * @brief isotropic diffusion property.
+ */
+class IsotropicDiffusion : public BaseDiffusion
+{
+  protected:
+    Real diff_cf_; /**< diffusion coefficient. */
 
-	public:
-		IsotropicDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
-						   Real diff_cf = 1.0)
-			: BaseDiffusion(diffusion_species_index, gradient_species_index),
-			  diff_cf_(diff_cf)
-		{
-			material_type_name_ = "IsotropicDiffusion";
-		};
-		virtual ~IsotropicDiffusion(){};
+  public:
+    IsotropicDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
+                       Real diff_cf = 1.0)
+        : BaseDiffusion(diffusion_species_index, gradient_species_index),
+          diff_cf_(diff_cf)
+    {
+        material_type_name_ = "IsotropicDiffusion";
+    };
+    virtual ~IsotropicDiffusion(){};
 
-		virtual Real getReferenceDiffusivity() override { return diff_cf_; };
-		virtual Real getDiffusionCoffWithBoundary(size_t particle_i) override { return diff_cf_; }
-		virtual Real getInterParticleDiffusionCoff(size_t particle_i, size_t particle_j, Vecd &direction_from_j_to_i) override
-		{
-			return diff_cf_;
-		};
-	};
+    virtual Real getReferenceDiffusivity() override { return diff_cf_; };
+    virtual Real getDiffusionCoeffWithBoundary(size_t particle_i) override { return diff_cf_; }
+    virtual Real getInterParticleDiffusionCoeff(size_t particle_i, size_t particle_j, const Vecd &direction_from_j_to_i) override
+    {
+        return diff_cf_;
+    };
+};
 
-	/**
-	 * @class DirectionalDiffusion
-	 * @brief Diffusion is biased along a specific direction.
-	 */
-	class DirectionalDiffusion : public IsotropicDiffusion
-	{
-	protected:
-		Vecd bias_direction_;		   /**< Reference bias direction. */
-		Real bias_diff_cf_;			   /**< The bias diffusion coefficient along the fiber direction. */
-		Matd transformed_diffusivity_; /**< The transformed diffusivity with inverse Cholesky decomposition. */
+/**
+ * @class LocalIsotropicDiffusion
+ * @brief diffusion coefficient is locally different (k is not uniformly distributed).
+ */
+class LocalIsotropicDiffusion : public IsotropicDiffusion
+{
+protected:
+    StdLargeVec<Real> local_thermal_conductivity_;
 
-		void initializeDirectionalDiffusivity(Real diff_cf, Real bias_diff_cf, Vecd bias_direction);
+public:
+    LocalIsotropicDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
+                            Real diff_cf = 1.0)
+        : IsotropicDiffusion(diffusion_species_index, gradient_species_index, diff_cf)
+    {
+        material_type_name_ = "LocalIstropicDiffusion";
+    }
+    virtual ~LocalIsotropicDiffusion() {};
 
-	public:
-		DirectionalDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
-							 Real diff_cf, Real bias_diff_cf, Vecd bias_direction)
-			: IsotropicDiffusion(diffusion_species_index, gradient_species_index, diff_cf),
-			  bias_direction_(bias_direction), bias_diff_cf_(bias_diff_cf),
-			  transformed_diffusivity_(Matd::Identity())
-		{
-			material_type_name_ = "DirectionalDiffusion";
-			initializeDirectionalDiffusivity(diff_cf, bias_diff_cf, bias_direction);
-		};
-		virtual ~DirectionalDiffusion(){};
+    virtual void initializeLocalParameters(BaseParticles* base_particles) override;
 
-		virtual Real getReferenceDiffusivity() override
-		{
-			return SMAX(diff_cf_, diff_cf_ + bias_diff_cf_);
-		};
+    virtual Real getReferenceDiffusivity() override { return diff_cf_; };
+    virtual Real getDiffusionCoeffWithBoundary(size_t particle_i) override { return local_thermal_conductivity_[particle_i]; };
+    virtual Real getInterParticleDiffusionCoeff(size_t particle_i, size_t particle_j, const Vecd& direction_from_j_to_i) override
+    {
+        return 0.5 * (local_thermal_conductivity_[particle_i] + local_thermal_conductivity_[particle_j]);
+    };
+};
 
-		virtual Real getDiffusionCoffWithBoundary(size_t particle_index_i) override
-		{
-			Vecd grad_ij = transformed_diffusivity_ * Vecd(1.0,1.0);
-			return 1.0 / grad_ij.squaredNorm();
-		};
+/**
+ * @class DirectionalDiffusion
+ * @brief Diffusion is biased along a specific direction.
+ */
+class DirectionalDiffusion : public IsotropicDiffusion
+{
+  protected:
+    Vecd bias_direction_;          /**< Reference bias direction. */
+    Real bias_diff_cf_;            /**< The bias diffusion coefficient along the fiber direction. */
+    Matd transformed_diffusivity_; /**< The transformed diffusivity with inverse Cholesky decomposition. */
 
-		virtual Real getInterParticleDiffusionCoff(size_t particle_index_i,
-												   size_t particle_index_j, Vecd &inter_particle_direction) override
-		{
-			Vecd grad_ij = transformed_diffusivity_ * inter_particle_direction;
-			return 1.0 / grad_ij.squaredNorm();
-		};
-	};
+    void initializeDirectionalDiffusivity(Real diff_cf, Real bias_diff_cf, Vecd bias_direction);
 
-	/**
-	 * @class LocalDirectionalDiffusion
-	 * @brief Diffusion is biased along a specific direction.
-	 */
-	class LocalDirectionalDiffusion : public DirectionalDiffusion
-	{
-	protected:
-		StdLargeVec<Vecd> local_bias_direction_;
-		StdLargeVec<Matd> local_transformed_diffusivity_;
-		StdLargeVec<Real> local_thermal_conductivity_;
+  public:
+    DirectionalDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
+                         Real diff_cf, Real bias_diff_cf, Vecd bias_direction)
+        : IsotropicDiffusion(diffusion_species_index, gradient_species_index, diff_cf),
+          bias_direction_(bias_direction), bias_diff_cf_(bias_diff_cf),
+          transformed_diffusivity_(Matd::Identity())
+    {
+        material_type_name_ = "DirectionalDiffusion";
+        initializeDirectionalDiffusivity(diff_cf, bias_diff_cf, bias_direction);
+    };
+    virtual ~DirectionalDiffusion(){};
 
-		void initializeFiberDirection();
-		void initializeThermalConductivity();
+    virtual Real getReferenceDiffusivity() override
+    {
+        return SMAX(diff_cf_, diff_cf_ + bias_diff_cf_);
+    };
 
-	public:
-		LocalDirectionalDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
-								  Real diff_cf, Real bias_diff_cf, Vecd bias_direction)
-			: DirectionalDiffusion(diffusion_species_index, gradient_species_index, diff_cf, bias_diff_cf, bias_direction)
-		{
-			material_type_name_ = "LocalDirectionalDiffusion";
-		};
-		virtual ~LocalDirectionalDiffusion(){};
+    virtual Real getInterParticleDiffusionCoeff(size_t particle_index_i,
+                                               size_t particle_index_j, const Vecd &inter_particle_direction) override
+    {
+        Vecd grad_ij = transformed_diffusivity_ * inter_particle_direction;
+        return 1.0 / grad_ij.squaredNorm();
+    };
+};
 
-		virtual Real getDiffusionCoffWithBoundary(size_t particle_index_i) override
-		{
-			Matd test = Matd::Ones() * local_thermal_conductivity_[particle_index_i];
-			local_transformed_diffusivity_[particle_index_i] = inverseCholeskyDecomposition(test);
-			Matd trans_diffusivity = local_transformed_diffusivity_[particle_index_i];
-			Vecd grad_ij = trans_diffusivity * Vecd(sqrt(2.0) / 2.0, sqrt(2.0) / 2.0);
-			return 1.0 / grad_ij.squaredNorm();
-		}
+/**
+ * @class LocalDirectionalDiffusion
+ * @brief Diffusion is biased along a specific direction.
+ */
+class LocalDirectionalDiffusion : public DirectionalDiffusion
+{
+  protected:
+    StdLargeVec<Vecd> local_bias_direction_;
+    StdLargeVec<Matd> local_transformed_diffusivity_;
 
-		virtual Real getInterParticleDiffusionCoff(size_t particle_index_i, size_t particle_index_j, Vecd &inter_particle_direction) override
-		{
-			Matd testi = Matd::Ones() * local_thermal_conductivity_[particle_index_i];
-			Matd testj = Matd::Ones() * local_thermal_conductivity_[particle_index_j];
-			local_transformed_diffusivity_[particle_index_i] = inverseCholeskyDecomposition(testi);
-			local_transformed_diffusivity_[particle_index_j] = inverseCholeskyDecomposition(testj);
-			Matd trans_diffusivity = getAverageValue(local_transformed_diffusivity_[particle_index_i], local_transformed_diffusivity_[particle_index_j]);
-			Vecd grad_ij = trans_diffusivity * inter_particle_direction;
-			return 1.0 / grad_ij.squaredNorm();
-		};
-		virtual void assignBaseParticles(BaseParticles *base_particles) override;
-		virtual void readFromXmlForLocalParameters(const std::string &filefullpath) override;
-	};
+  public:
+    LocalDirectionalDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
+                              Real diff_cf, Real bias_diff_cf, Vecd bias_direction)
+        : DirectionalDiffusion(diffusion_species_index, gradient_species_index, diff_cf, bias_diff_cf, bias_direction)
+    {
+        material_type_name_ = "LocalDirectionalDiffusion";
+    };
+    virtual ~LocalDirectionalDiffusion(){};
 
-	/**
-	 * @class BaseReactionModel
-	 * @brief Base class for all reaction models.
-	 */
-	template <int NUM_SPECIES>
-	class BaseReactionModel
-	{
-	public:
-		typedef std::array<Real, NUM_SPECIES> LocalSpecies;
-		typedef std::array<std::string, NUM_SPECIES> SpeciesNames;
-		typedef std::function<Real(LocalSpecies &)> ReactionFunctor;
-		IndexVector reactive_species_;
-		StdVec<ReactionFunctor> get_production_rates_;
-		StdVec<ReactionFunctor> get_loss_rates_;
+    virtual void registerReloadLocalParameters(BaseParticles *base_particles) override;
+    virtual void initializeLocalParameters(BaseParticles *base_particles) override;
 
-		explicit BaseReactionModel(SpeciesNames species_name_list)
-			:  reaction_model_("BaseReactionModel"), species_name_list_(species_name_list) 
-		{
-			for (size_t i = 0; i != species_name_list.size(); ++i)
-			{
-				species_indexes_map_.insert(make_pair(species_name_list[i], i));
-			}
-		};
-		virtual ~BaseReactionModel(){};
-		SpeciesNames getSpeciesNameList() { return species_name_list_; };
+    virtual Real getInterParticleDiffusionCoeff(size_t particle_index_i, size_t particle_index_j, const Vecd &inter_particle_direction) override
+    {
+        Matd trans_diffusivity = getAverageValue(local_transformed_diffusivity_[particle_index_i], local_transformed_diffusivity_[particle_index_j]);
+        Vecd grad_ij = trans_diffusivity * inter_particle_direction;
+        return 1.0 / grad_ij.squaredNorm();
+    };
+};
 
-	protected:
-		std::string reaction_model_;
-		SpeciesNames species_name_list_;
-		std::map<std::string, size_t> species_indexes_map_;
-	};
+/**
+ * @class BaseReactionModel
+ * @brief Base class for all reaction models.
+ */
+template <int NUM_SPECIES>
+class BaseReactionModel
+{
+  public:
+    static constexpr int NumSpecies = NUM_SPECIES;
+    typedef std::array<Real, NUM_SPECIES> LocalSpecies;
+    typedef std::array<std::string, NUM_SPECIES> SpeciesNames;
+    typedef std::function<Real(LocalSpecies &)> ReactionFunctor;
+    StdVec<ReactionFunctor> get_production_rates_;
+    StdVec<ReactionFunctor> get_loss_rates_;
 
-	/**
-	 * @class DiffusionReaction
-	 * @brief Complex material for diffusion or/and reactions.
-	 */
-	template <class BaseMaterialType = BaseMaterial, int NUM_SPECIES = 1>
-	class DiffusionReaction : public BaseMaterialType
-	{
-	private:
-		UniquePtrKeepers<BaseDiffusion> diffusion_ptr_keeper_;
+    BaseReactionModel()
+    {
+        std::cout << "\n Error: default constructor for non-empty reaction model!" << std::endl;
+        std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+        exit(1);
+    };
 
-	protected:
-		typedef std::array<std::string, NUM_SPECIES> SpeciesNames;
-		SpeciesNames species_name_list_;
-		size_t number_of_species_;
-		std::map<std::string, size_t> species_indexes_map_;
-		StdVec<BaseDiffusion *> species_diffusion_;
-		BaseReactionModel<NUM_SPECIES> *species_reaction_;
+    explicit BaseReactionModel(const SpeciesNames &species_names)
+        : species_names_(species_names)
+    {
+        if constexpr (NUM_SPECIES == 0)
+        {
+            reaction_model_ = "EmptyReactionModel";
+        }
+        else
+        {
+            reaction_model_ = "BaseReactionModel";
+            for (size_t i = 0; i != species_names.size(); ++i)
+            {
+                species_indexes_map_.insert(make_pair(species_names[i], i));
+            }
+        }
+    };
+    virtual ~BaseReactionModel(){};
+    SpeciesNames &getSpeciesNames() { return species_names_; };
 
-	public:
-		/** Constructor for material with diffusion only. */
-		template <typename... ConstructorArgs>
-		DiffusionReaction(SpeciesNames species_name_list, ConstructorArgs &&...args)
-			: BaseMaterialType(std::forward<ConstructorArgs>(args)...),
-			  species_name_list_(species_name_list),
-			  number_of_species_(species_name_list.size()),
-			  species_reaction_(nullptr)
-		{
-			BaseMaterialType::material_type_name_ = "Diffusion";
-			for (size_t i = 0; i != number_of_species_; ++i)
-			{
-				species_indexes_map_.insert(make_pair(species_name_list[i], i));
-			}
-		};
-		/** Constructor for material with diffusion and reaction. */
-		template <typename... ConstructorArgs>
-		DiffusionReaction(BaseReactionModel<NUM_SPECIES> &species_reaction,
-						  SpeciesNames species_name_list, ConstructorArgs &&...args)
-			: DiffusionReaction(species_name_list, std::forward<ConstructorArgs>(args)...)
-		{
-			species_reaction_ = &species_reaction;
-			BaseMaterialType::material_type_name_ = "DiffusionReaction";
-		};
-		virtual ~DiffusionReaction(){};
+  protected:
+    std::string reaction_model_;
+    SpeciesNames species_names_;
+    std::map<std::string, size_t> species_indexes_map_;
+};
+/** explicit specialization for empty reaction model */
+template <>
+inline BaseReactionModel<0>::BaseReactionModel() : reaction_model_("EmptyReactionModel"){};
+using NoReaction = BaseReactionModel<0>;
 
-		constexpr int NumberOfSpecies() { return NUM_SPECIES; };
-		size_t NumberOfSpeciesDiffusion() { return species_diffusion_.size(); };
-		StdVec<BaseDiffusion *> SpeciesDiffusion() { return species_diffusion_; };
-		BaseReactionModel<NUM_SPECIES> *SpeciesReaction() { return species_reaction_; };
-		std::map<std::string, size_t> SpeciesIndexMap() { return species_indexes_map_; };
-		SpeciesNames getSpeciesNameList() { return species_name_list_; };
-		void assignBaseParticles(BaseParticles *base_particles) override
-		{
-			BaseMaterialType::assignBaseParticles(base_particles);
-			for (size_t k = 0; k < species_diffusion_.size(); ++k)
-				species_diffusion_[k]->assignBaseParticles(base_particles);
-		};
-		/**
-		 * @brief Get diffusion time step size. Here, I follow the reference:
-		 * https://www.uni-muenster.de/imperia/md/content/physik_tp/lectures/ws2016-2017/num_methods_i/heat.pdf
-		 */
-		Real getDiffusionTimeStepSize(Real smoothing_length)
-		{
-			Real diff_coff_max = 0.0;
-			for (size_t k = 0; k < species_diffusion_.size(); ++k)
-				diff_coff_max = SMAX(diff_coff_max, species_diffusion_[k]->getReferenceDiffusivity());
-			return 0.5 * smoothing_length * smoothing_length / diff_coff_max / Real(Dimensions);
-		};
+/**
+ * @class DiffusionReaction
+ * @brief Complex material for diffusion or/and reactions.
+ */
+template <class BaseMaterialType = BaseMaterial, int NUM_REACTIVE_SPECIES = 0>
+class DiffusionReaction : public BaseMaterialType
+{
+  public:
+    static constexpr int NumReactiveSpecies = NUM_REACTIVE_SPECIES;
 
-		/** Initialize a diffusion material. */
-		template <class DiffusionType, typename... ConstructorArgs>
-		void initializeAnDiffusion(const std::string &diffusion_species_name,
-								   const std::string &gradient_species_name, ConstructorArgs &&...args)
-		{
-			species_diffusion_.push_back(
-				diffusion_ptr_keeper_.createPtr<DiffusionType>(
-					species_indexes_map_[diffusion_species_name],
-					species_indexes_map_[diffusion_species_name], std::forward<ConstructorArgs>(args)...));
-		};
+  private:
+    UniquePtrsKeeper<BaseDiffusion> diffusion_ptr_keeper_;
+    SharedPtrKeeper<BaseReactionModel<NUM_REACTIVE_SPECIES>> reaction_ptr_keeper_;
 
-		virtual DiffusionReaction<BaseMaterialType, NUM_SPECIES> *ThisObjectPtr() override { return this; };
-	};
-}
+  protected:
+    typedef std::array<std::string, NUM_REACTIVE_SPECIES> ReactiveSpeciesNames;
+    StdVec<std::string> all_species_names_;
+    BaseReactionModel<NUM_REACTIVE_SPECIES> &reaction_model_;
+    std::map<std::string, size_t> all_species_indexes_map_;
+    StdVec<BaseDiffusion *> all_diffusions_;
+    IndexVector reactive_species_indexes_;
+    IndexVector diffusion_species_indexes_;
+    IndexVector gradient_species_indexes_;
+
+  public:
+    /** Constructor for material with diffusion and reaction. */
+    template <typename... MaterialArgs>
+    DiffusionReaction(const StdVec<std::string> &all_species_names,
+                      SharedPtr<BaseReactionModel<NUM_REACTIVE_SPECIES>> reaction_model_ptr,
+                      MaterialArgs &&...material_args)
+        : BaseMaterialType(std::forward<MaterialArgs>(material_args)...),
+          all_species_names_(all_species_names),
+          reaction_model_(reaction_ptr_keeper_.assignRef(reaction_model_ptr))
+    {
+        BaseMaterialType::material_type_name_ =
+            NUM_REACTIVE_SPECIES == 0 ? "Diffusion" : "DiffusionReaction";
+
+        for (size_t i = 0; i != all_species_names.size(); ++i)
+        {
+            all_species_indexes_map_.insert(make_pair(all_species_names[i], i));
+        }
+
+        for (size_t i = 0; i != NUM_REACTIVE_SPECIES; ++i)
+        {
+            const ReactiveSpeciesNames &reactive_species_names = reaction_model_.getSpeciesNames();
+            size_t reactive_species_index = all_species_indexes_map_[reactive_species_names[i]];
+            if (reactive_species_index != all_species_indexes_map_.size())
+            {
+                reactive_species_indexes_.push_back(reactive_species_index);
+            }
+            else
+            {
+                std::cout << "\n Error: reactive species '" << reactive_species_names[i] << "' not defined!" << std::endl;
+                std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+                exit(1);
+            }
+        }
+    };
+    virtual ~DiffusionReaction(){};
+    StdVec<std::string> &AllSpeciesNames() { return all_species_names_; };
+    std::map<std::string, size_t> AllSpeciesIndexMap() { return all_species_indexes_map_; };
+    IndexVector &ReactiveSpeciesIndexes() { return reactive_species_indexes_; };
+    IndexVector &DiffusionSpeciesIndexes() { return diffusion_species_indexes_; };
+    IndexVector &GradientSpeciesIndexes() { return gradient_species_indexes_; };
+    StdVec<BaseDiffusion *> &AllDiffusions() { return all_diffusions_; };
+    BaseReactionModel<NUM_REACTIVE_SPECIES> &ReactionModel() { return reaction_model_; };
+
+    virtual void registerReloadLocalParameters(BaseParticles *base_particles) override
+    {
+        BaseMaterialType::registerReloadLocalParameters(base_particles);
+        for (size_t k = 0; k < all_diffusions_.size(); ++k)
+            all_diffusions_[k]->registerReloadLocalParameters(base_particles);
+    };
+
+    virtual void initializeLocalParameters(BaseParticles *base_particles) override
+    {
+        BaseMaterialType::initializeLocalParameters(base_particles);
+        for (size_t k = 0; k < all_diffusions_.size(); ++k)
+            all_diffusions_[k]->initializeLocalParameters(base_particles);
+    };
+
+    /**
+     * @brief Get diffusion time step size. Here, I follow the reference:
+     * https://www.uni-muenster.de/imperia/md/content/physik_tp/lectures/ws2016-2017/num_methods_i/heat.pdf
+     */
+    Real getDiffusionTimeStepSize(Real smoothing_length)
+    {
+        Real diff_coeff_max = 0.0;
+        for (size_t k = 0; k < all_diffusions_.size(); ++k)
+            diff_coeff_max = SMAX(diff_coeff_max, all_diffusions_[k]->getReferenceDiffusivity());
+        return 0.5 * smoothing_length * smoothing_length / diff_coeff_max / Real(Dimensions);
+    };
+
+    /** Initialize a diffusion material. */
+    template <class DiffusionType, typename... Args>
+    void initializeAnDiffusion(const std::string &diffusion_species_name,
+                               const std::string &gradient_species_name, Args &&...args)
+    {
+        size_t diffusion_species_index = all_species_indexes_map_[diffusion_species_name];
+        size_t gradient_species_index = all_species_indexes_map_[gradient_species_name];
+        diffusion_species_indexes_.push_back(diffusion_species_index);
+        gradient_species_indexes_.push_back(gradient_species_index);
+
+        all_diffusions_.push_back(
+            diffusion_ptr_keeper_.createPtr<DiffusionType>(
+                diffusion_species_index, gradient_species_index, std::forward<Args>(args)...));
+    };
+
+    virtual DiffusionReaction<BaseMaterialType, NUM_REACTIVE_SPECIES> *ThisObjectPtr() override { return this; };
+};
+} // namespace SPH
 #endif // DIFFUSION_REACTION_H
