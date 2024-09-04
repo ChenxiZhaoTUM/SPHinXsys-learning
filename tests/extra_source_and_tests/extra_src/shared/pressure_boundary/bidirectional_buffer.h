@@ -229,8 +229,8 @@ class BidirectionalBufferWindkessel
     };
 
   public:
-    BidirectionalBufferWindkessel(BodyAlignedBoxByCell &aligned_box_part, ParticleBuffer<Base> &particle_buffer, Real R1, Real R2, Real C)
-        : target_pressure_(TargetPressure(aligned_box_part, R1, R2, C)), tag_buffer_particles(aligned_box_part),
+    BidirectionalBufferWindkessel(BodyAlignedBoxByCell &aligned_box_part, ParticleBuffer<Base> &particle_buffer, Real R1, Real R2, Real C, Real Q_ave)
+        : target_pressure_(TargetPressure(aligned_box_part, R1, R2, C, Q_ave)), tag_buffer_particles(aligned_box_part),
           injection(aligned_box_part, particle_buffer, target_pressure_){};
     virtual ~BidirectionalBufferWindkessel(){};
 
@@ -330,8 +330,8 @@ class BidirectionalBufferWindkesselAndComputeVol
     };
 
   public:
-    BidirectionalBufferWindkesselAndComputeVol(BodyAlignedBoxByCell &aligned_box_part, ParticleBuffer<Base> &particle_buffer, Real R1, Real R2, Real C)
-        : target_pressure_(TargetPressure(aligned_box_part, R1, R2, C)), tag_buffer_particles(aligned_box_part),
+    BidirectionalBufferWindkesselAndComputeVol(BodyAlignedBoxByCell &aligned_box_part, ParticleBuffer<Base> &particle_buffer, Real R1, Real R2, Real C, Real Q_ave)
+        : target_pressure_(TargetPressure(aligned_box_part, R1, R2, C, Q_ave)), tag_buffer_particles(aligned_box_part),
           injection(aligned_box_part, particle_buffer, target_pressure_){};
     virtual ~BidirectionalBufferWindkesselAndComputeVol(){};
 
