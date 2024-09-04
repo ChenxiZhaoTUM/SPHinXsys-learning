@@ -163,12 +163,13 @@ class FlowPressureBuffer : public fluid_dynamics::BaseFlowBoundaryCondition
 class OutflowPressure : public FlowPressureBuffer
 {
   public:
-    OutflowPressure(BodyPartByCell &constrained_region, Vecd normal_vector, DisposerOutflowDeletionWithWindkessel &outlet_windkessel,
+    OutflowPressure(BodyPartByCell &constrained_region, const std::string &body_part_name, Vecd normal_vector, DisposerOutflowDeletionWithWindkessel &outlet_windkessel,
                     Real R1, Real R2, Real C, Real delta_t, Real average_Q, Real Q_0 = 0.0, Real Q_n = 0.0, Real p_0 = 0.0, Real p_n = 0.0,
                     Real current_flow_rate = 0.0, Real previous_flow_rate = 0.0, int count = 1)
         : FlowPressureBuffer(constrained_region, normal_vector), flow_rate_(outlet_windkessel.flow_rate_), 
         R1_(R1), R2_(R2), C_(C), delta_t_(delta_t), average_Q_(average_Q), Q_0_(Q_0), Q_n_(Q_n), p_0_(p_0), p_n_(p_n), 
-        current_flow_rate_(current_flow_rate), previous_flow_rate_(previous_flow_rate), count_(count){};
+        current_flow_rate_(current_flow_rate), previous_flow_rate_(previous_flow_rate), count_(count),
+        body_part_name_(body_part_name), write_data_(false) {};
     virtual ~OutflowPressure(){};
 
     void getFlowRate()
@@ -189,14 +190,31 @@ class OutflowPressure : public FlowPressureBuffer
     {
         Q_n_ = current_flow_rate_ / delta_t_ - average_Q_;
         p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
-
+        write_data_ = true;
         return p_n_;
     }
+
+    void writeOutletPressureData()
+    {
+        if (write_data_)
+        {
+            std::string output_folder = "./output";
+            std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
+            std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+            out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ <<  "\n";
+            out_file.close();
+            
+            write_data_ = false; // Reset the flag after writing
+        }
+    }
+
     void setupDynamics(Real dt = 0.0) override {}
 
   protected:
     Real &flow_rate_, R1_, R2_, C_, delta_t_, average_Q_, Q_0_, Q_n_, p_0_, p_n_, current_flow_rate_, previous_flow_rate_;
     int count_;
+    std::string body_part_name_;
+    bool write_data_;
 };
 
 /**
@@ -382,31 +400,31 @@ int main(int ac, char *av[])
     BodyRegionByCell outflow_pressure_region1(water_block, makeShared<TransformShape<GeometricShapeBox>>
         (Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_1)), vector_1),
         (buffer_translation_1)),buffer_halfsize_1));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition1(outflow_pressure_region1, normal_vector_1, disposer_outflow_deletion_1, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition1(outflow_pressure_region1, "Outlet01", normal_vector_1, disposer_outflow_deletion_1, 
         1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000098);
 
     BodyRegionByCell outflow_pressure_region2(water_block, makeShared<TransformShape<GeometricShapeBox>>
         (Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_2)), vector_2),
         (buffer_translation_2)),buffer_halfsize_2));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition2(outflow_pressure_region2, normal_vector_2, disposer_outflow_deletion_2, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition2(outflow_pressure_region2, "Outlet02", normal_vector_2, disposer_outflow_deletion_2, 
         1.04E8, 1.63E9, 8.74E-10, 0.006, 0.00001);
 
     BodyRegionByCell outflow_pressure_region3(water_block, makeShared<TransformShape<GeometricShapeBox>>
         (Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_3)), vector_3),
         (buffer_translation_3)),buffer_halfsize_3));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition3(outflow_pressure_region3, normal_vector_3, disposer_outflow_deletion_3, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition3(outflow_pressure_region3, "Outlet03", normal_vector_3, disposer_outflow_deletion_3, 
         1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000068);
 
     BodyRegionByCell outflow_pressure_region4(water_block, makeShared<TransformShape<GeometricShapeBox>>
         (Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_4)), vector_4),
         (buffer_translation_4)),buffer_halfsize_4));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition4(outflow_pressure_region4, normal_vector_4, disposer_outflow_deletion_4, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition4(outflow_pressure_region4, "Outlet04", normal_vector_4, disposer_outflow_deletion_4, 
         9.7E7, 1.52E9, 9.34E-10, 0.006, 0.0000118);
 
     BodyRegionByCell outflow_pressure_region5(water_block, makeShared<TransformShape<GeometricShapeBox>>
         (Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_5)), vector_5),
         (buffer_translation_5)),buffer_halfsize_5));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition5(outflow_pressure_region5, normal_vector_5, disposer_outflow_deletion_5, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition5(outflow_pressure_region5, "Outlet05", normal_vector_5, disposer_outflow_deletion_5,
         1.88E7, 2.95E8, 4.82E-9, 0.006, 0.000096);
 
     /** Computing viscous acceleration. */
@@ -453,6 +471,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
+    int record_n = 0;
 
     /** Output the start states of bodies. */
     body_states_recording.writeToFile(0);
@@ -492,6 +511,19 @@ int main(int ac, char *av[])
                 outflow_pressure_condition5.getFlowRate();
                 outflow_pressure_condition5.exec(dt);          
                 density_relaxation.exec(dt);
+
+                // After the loop, write pressure data once
+                if (GlobalStaticVariables::physical_time_ >= record_n * 0.006)
+                {
+                    outflow_pressure_condition1.writeOutletPressureData();
+                    outflow_pressure_condition2.writeOutletPressureData();
+                    outflow_pressure_condition3.writeOutletPressureData();
+                    outflow_pressure_condition4.writeOutletPressureData();
+                    outflow_pressure_condition5.writeOutletPressureData();
+
+                    ++record_n;
+                }
+
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
