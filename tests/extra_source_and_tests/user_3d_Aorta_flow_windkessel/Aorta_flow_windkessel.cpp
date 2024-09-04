@@ -406,34 +406,15 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> emitter_buffer_inflow_condition(inflow_emitter);
 
-    BodyAlignedBoxByCell outflow_pressure_region1(water_block, makeShared<AlignedBoxShape>
-        (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_1)), vector_1),
-        (buffer_translation_1)),buffer_halfsize_1));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition1(outflow_pressure_region1, "out01", disposer_outflow_deletion_1,
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition1(outflow_emitter_1, "out01", disposer_outflow_deletion_1,
         1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000098);
-
-    BodyAlignedBoxByCell outflow_pressure_region2(water_block, makeShared<AlignedBoxShape>
-        (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_2)), vector_2),
-        (buffer_translation_2)),buffer_halfsize_2));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition2(outflow_pressure_region2, "out02", disposer_outflow_deletion_2, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition2(outflow_emitter_2, "out02", disposer_outflow_deletion_2, 
         1.04E8, 1.63E9, 8.74E-10, 0.006, 0.00001);
-
-    BodyAlignedBoxByCell outflow_pressure_region3(water_block, makeShared<AlignedBoxShape>
-        (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_3)), vector_3),
-        (buffer_translation_3)),buffer_halfsize_3));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition3(outflow_pressure_region3, "out03", disposer_outflow_deletion_3, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition3(outflow_emitter_3, "out03", disposer_outflow_deletion_3, 
         1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000068);
-
-    BodyAlignedBoxByCell outflow_pressure_region4(water_block, makeShared<AlignedBoxShape>
-        (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_4)), vector_4),
-        (buffer_translation_4)),buffer_halfsize_4));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition4(outflow_pressure_region4, "out04", disposer_outflow_deletion_4, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition4(outflow_emitter_4, "out04", disposer_outflow_deletion_4, 
         9.7E7, 1.52E9, 9.34E-10, 0.006, 0.0000118);
-
-    BodyAlignedBoxByCell outflow_pressure_region5(water_block, makeShared<AlignedBoxShape>
-        (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_5)), vector_5),
-        (buffer_translation_5)),buffer_halfsize_5));
-    SimpleDynamics<OutflowPressure> outflow_pressure_condition5(outflow_pressure_region5, "out05", disposer_outflow_deletion_5, 
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition5(outflow_emitter_5, "out05", disposer_outflow_deletion_5, 
         1.88E7, 2.95E8, 4.82E-9, 0.006, 0.000096);
     /**
      * @brief Output.
@@ -445,7 +426,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "PositionDivergence");
     body_states_recording.addToWrite<Real>(water_block, "Density");
-    //body_states_recording.addToWrite<Real>(water_block, "BufferParticleIndicator");
+    body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
 
     RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
         write_centerline_velocity("Velocity", velocity_observer_contact);
@@ -508,7 +489,9 @@ int main(int ac, char *av[])
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
                 pressure_relaxation.exec(dt);
                 kernel_summation.exec();
-                emitter_buffer_inflow_condition.exec();                
+
+                emitter_buffer_inflow_condition.exec();  
+
                 outflow_pressure_condition1.getFlowRate();
                 outflow_pressure_condition1.exec(dt); 
                 outflow_pressure_condition2.getFlowRate();
@@ -518,7 +501,8 @@ int main(int ac, char *av[])
                 outflow_pressure_condition4.getFlowRate();
                 outflow_pressure_condition4.exec(dt); 
                 outflow_pressure_condition5.getFlowRate();
-                outflow_pressure_condition5.exec(dt);          
+                outflow_pressure_condition5.exec(dt);    
+
                 density_relaxation.exec(dt);
 
                 // After the loop, write pressure data once
