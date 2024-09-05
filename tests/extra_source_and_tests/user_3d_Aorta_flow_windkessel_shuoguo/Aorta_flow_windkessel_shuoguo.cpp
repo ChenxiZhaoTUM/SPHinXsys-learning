@@ -122,7 +122,7 @@ class DisposerOutflowDeletionWithWindkessel: public fluid_dynamics::DisposerOutf
 {
   public:
     DisposerOutflowDeletionWithWindkessel(BodyAlignedBoxByCell &aligned_box_part) : 
-        DisposerOutflowDeletion(aligned_box_part), flow_rate_(0.0), Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")){};
+        DisposerOutflowDeletion(aligned_box_part), flow_rate_(*particles_->registerSingleVariable<Real>("TotalVolDeletion")), Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")){};
     virtual ~DisposerOutflowDeletionWithWindkessel(){};
 
     void update(size_t index_i, Real dt = 0.0)
@@ -183,13 +183,15 @@ class OutflowPressure : public FlowPressureBuffer
     {
         Real run_time = GlobalStaticVariables::physical_time_;
 
-        if (int(run_time / delta_t_) > count_)
+        if (int(run_time / delta_t_) >= count_)
         {
             Q_0_ = Q_n_;
             p_0_ = p_n_;
             current_flow_rate_ = flow_rate_ - previous_flow_rate_;
             previous_flow_rate_ = flow_rate_;
             count_ += 1;
+
+            //std::cout << "flow_rate_ = " << flow_rate_ << std::endl;
         }
     };
 
@@ -453,7 +455,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0.0;
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 6.0;   /**< End time. */
+    Real end_time = 1.0;   /**< End time. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     /** statistics for computing CPU time. */
