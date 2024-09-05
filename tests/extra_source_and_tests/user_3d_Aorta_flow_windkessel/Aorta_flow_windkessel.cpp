@@ -413,6 +413,11 @@ int main(int ac, char *av[])
 
                     ++updateP_n;
                 }
+                outflow_pressure_condition1.exec(dt);
+                outflow_pressure_condition2.exec(dt);
+                outflow_pressure_condition3.exec(dt);
+                outflow_pressure_condition4.exec(dt);
+                outflow_pressure_condition5.exec(dt);
 
                 density_relaxation.exec(dt);
                 
