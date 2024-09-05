@@ -122,7 +122,7 @@ class DisposerOutflowDeletionWithWindkessel: public fluid_dynamics::DisposerOutf
 {
   public:
     DisposerOutflowDeletionWithWindkessel(BodyAlignedBoxByCell &aligned_box_part) : 
-        DisposerOutflowDeletion(aligned_box_part), flow_rate_(*particles_->registerSingleVariable<Real>("TotalVolDeletion")), Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")){};
+        DisposerOutflowDeletion(aligned_box_part), flow_rate_(0.0), Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")){};
     virtual ~DisposerOutflowDeletionWithWindkessel(){};
 
     void update(size_t index_i, Real dt = 0.0)
