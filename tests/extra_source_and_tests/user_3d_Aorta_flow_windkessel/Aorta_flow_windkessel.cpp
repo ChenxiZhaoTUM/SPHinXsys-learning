@@ -275,27 +275,32 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell outflow_emitter_1(water_block, makeShared<AlignedBoxShape>(xAxis, Transform
     (Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(-normal_vector_1)), -vector_1),(buffer_translation_1)),buffer_halfsize_1));
     //fluid_dynamics::BidirectionalBufferWindkesselAndComputeVol<fluid_dynamics::RCRPressureByDeletion>outflow_injection_1(outflow_emitter_1, in_outlet_particle_buffer, 1.18E8, 1.84E9, 7.7E-10, 0.0000098);
-    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_1(outflow_emitter_1, in_outlet_particle_buffer, 1.18E8, 1.84E9, 7.7E-10, 0.0000098);
+    //fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_1(outflow_emitter_1, in_outlet_particle_buffer, 1.18E8, 1.84E9, 7.7E-10, 0.0000098);
+    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer outflow_injection_1(outflow_emitter_1, in_outlet_particle_buffer);
 
     BodyAlignedBoxByCell outflow_emitter_2(water_block, makeShared<AlignedBoxShape>(xAxis, Transform
     (Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(-normal_vector_2)), -vector_2), (buffer_translation_2)), buffer_halfsize_2));
     //fluid_dynamics::BidirectionalBufferWindkesselAndComputeVol<fluid_dynamics::RCRPressureByDeletion>outflow_injection_2(outflow_emitter_2, in_outlet_particle_buffer, 1.04E8, 1.63E9, 8.74E-10, 0.00001);
-    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_2(outflow_emitter_2, in_outlet_particle_buffer, 1.04E8, 1.63E9, 8.74E-10, 0.00001);
+    //fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_2(outflow_emitter_2, in_outlet_particle_buffer, 1.04E8, 1.63E9, 8.74E-10, 0.00001);
+    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer outflow_injection_2(outflow_emitter_2, in_outlet_particle_buffer);
 
     BodyAlignedBoxByCell outflow_emitter_3(water_block, makeShared<AlignedBoxShape>(xAxis, Transform
     (Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(-normal_vector_3)), -vector_3), (buffer_translation_3)), buffer_halfsize_3));
     //fluid_dynamics::BidirectionalBufferWindkesselAndComputeVol<fluid_dynamics::RCRPressureByDeletion>outflow_injection_3(outflow_emitter_3, in_outlet_particle_buffer, 1.18E8, 1.84E9, 7.7E-10, 0.0000068);
-    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_3(outflow_emitter_3, in_outlet_particle_buffer, 1.18E8, 1.84E9, 7.7E-10, 0.0000068);
+    //fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_3(outflow_emitter_3, in_outlet_particle_buffer, 1.18E8, 1.84E9, 7.7E-10, 0.0000068);
+    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer outflow_injection_3(outflow_emitter_3, in_outlet_particle_buffer);
 
     BodyAlignedBoxByCell outflow_emitter_4(water_block, makeShared<AlignedBoxShape>(xAxis, Transform
     (Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(-normal_vector_4)), -vector_4), (buffer_translation_4)), buffer_halfsize_4));
     //fluid_dynamics::BidirectionalBufferWindkesselAndComputeVol<fluid_dynamics::RCRPressureByDeletion>outflow_injection_4(outflow_emitter_4, in_outlet_particle_buffer, 9.7E7, 1.52E9, 9.34E-10, 0.0000118);
-    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_4(outflow_emitter_4, in_outlet_particle_buffer, 9.7E7, 1.52E9, 9.34E-10, 0.0000118);
+    //fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_4(outflow_emitter_4, in_outlet_particle_buffer, 9.7E7, 1.52E9, 9.34E-10, 0.0000118);
+    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer outflow_injection_4(outflow_emitter_4, in_outlet_particle_buffer);
 
     BodyAlignedBoxByCell outflow_emitter_5(water_block, makeShared<AlignedBoxShape>(xAxis, Transform
     (Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_5)), vector_5), (buffer_translation_5)), buffer_halfsize_5));
     //fluid_dynamics::BidirectionalBufferWindkesselAndComputeVol<fluid_dynamics::RCRPressureByDeletion>outflow_injection_5(outflow_emitter_5, in_outlet_particle_buffer, 1.88E7, 2.95E8, 4.82E-9, 0.000096);
-    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_5(outflow_emitter_5, in_outlet_particle_buffer, 1.88E7, 2.95E8, 4.82E-9, 0.000096);
+    //fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressureByDeletion>outflow_injection_5(outflow_emitter_5, in_outlet_particle_buffer, 1.88E7, 2.95E8, 4.82E-9, 0.000096);
+    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer outflow_injection_5(outflow_emitter_5, in_outlet_particle_buffer);
 
     
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
@@ -351,7 +356,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time = 0.0;
+    Real accumulated_time = 0.006;
     int updateP_n = 0;
 
     /** Output the start states of bodies. */
@@ -384,8 +389,7 @@ int main(int ac, char *av[])
                 emitter_buffer_inflow_condition.exec();  
 
                 // windkessel model implementation
-                accumulated_time += dt;
-                if (GlobalStaticVariables::physical_time_ >= updateP_n * 0.006)
+                if (GlobalStaticVariables::physical_time_ >= updateP_n * accumulated_time)
                 {
                     outflow_pressure_condition1.getTargetPressure()->setAccumulationTime(accumulated_time);
                     outflow_pressure_condition1.getTargetPressure()->updateNextPressure();
@@ -407,8 +411,6 @@ int main(int ac, char *av[])
                     outflow_pressure_condition5.getTargetPressure()->updateNextPressure();
                     outflow_pressure_condition5.getTargetPressure()->writeOutletP("Out05");
 
-                    // Reset the accumulated timer
-                    accumulated_time = 0.0;
                     ++updateP_n;
                 }
 

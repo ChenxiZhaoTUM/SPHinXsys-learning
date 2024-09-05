@@ -209,13 +209,11 @@ class OutflowPressure : public FlowPressureBuffer
         if (write_data_)
         {
             std::string output_folder = "./output";
-            //std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
-            std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
-            //std::string filefullpath = output_folder + "/" + body_part_name_ + "_accumulated_flow_vol.dat";
+            std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
+            //std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
             std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-            //out_file << GlobalStaticVariables::physical_time_ << "   " << p_outlet_next_ <<  "\n";
-            out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ <<  "\n";
-            //out_file << GlobalStaticVariables::physical_time_ << "   " << current_flow_rate_ <<  "\n";
+            out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ <<  "\n";
+            //out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ <<  "\n";
             out_file.close();
             
             write_data_ = false; // Reset the flag after writing
@@ -455,7 +453,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0.0;
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 1.0;   /**< End time. */
+    Real end_time = 6.0;   /**< End time. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     /** statistics for computing CPU time. */
@@ -468,7 +466,7 @@ int main(int ac, char *av[])
     int record_n = 0;
 
     /** Output the start states of bodies. */
-    body_states_recording.writeToFile(0);
+    //body_states_recording.writeToFile(0);
     write_centerline_velocity.writeToFile(number_of_iterations);
     /**
      * @brief 	Main loop starts here.
@@ -567,7 +565,7 @@ int main(int ac, char *av[])
             outflow_injection_5.tag_buffer_particles.exec();
         }
         TickCount t2 = TickCount::now();
-        body_states_recording.writeToFile();  
+        //body_states_recording.writeToFile();  
         velocity_observer_contact.updateConfiguration();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;

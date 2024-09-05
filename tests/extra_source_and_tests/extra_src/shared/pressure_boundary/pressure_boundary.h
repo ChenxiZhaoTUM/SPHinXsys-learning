@@ -209,34 +209,38 @@ class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public D
           DataDelegateSimple(aligned_box_part.getSPHBody()),
           R1_(R1), R2_(R2), C_(C), Q_ave_(Q_ave), Q_(0.0), Q_pre_(0.0),
           p_outlet_(0.0), p_outlet_next_(0.0),
-          accumulated_flow_vol_(*particles_->getSingleVariableByName<Real>("TotalVolDeletion")),
-          accumulated_time_(0.0) {};
+          flow_rate_(*particles_->getSingleVariableByName<Real>("TotalVolDeletion")),
+          accumulated_time_(0.0), current_flow_rate_(0.0), previous_flow_rate_(0.0) {};
     virtual ~RCRPressureByDeletion(){};
 
     void setAccumulationTime(Real dt)
     {
         accumulated_time_ = dt;
+
+        Q_pre_ = Q_;
+        p_outlet_ = p_outlet_next_;
+        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
+        previous_flow_rate_ = flow_rate_;
     }
 
     void updatePreAndResetAcc()
     {
-        Q_pre_ = Q_;
-        p_outlet_ = p_outlet_next_;
-        //std::cout << "p_outlet_next_ = " << p_outlet_next_ << std::endl;
+        //Q_pre_ = Q_;
+        //p_outlet_ = p_outlet_next_;
 
-        accumulated_flow_vol_ = 0.0;
+        //accumulated_flow_vol_ = 0.0;
         accumulated_time_ = 0.0;
     }
 
     void writeOutletP(const std::string &body_part_name)
     {
         std::string output_folder = "./output";
-        //std::string filefullpath = output_folder + "/" + body_part_name + "_outlet_pressure.dat";
-        std::string filefullpath = output_folder + "/" + body_part_name + "_flow_rate.dat";
+        std::string filefullpath = output_folder + "/" + body_part_name + "_outlet_pressure.dat";
+        //std::string filefullpath = output_folder + "/" + body_part_name + "_flow_rate.dat";
         //std::string filefullpath = output_folder + "/" + body_part_name + "_accumulated_flow_vol.dat";
         std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-        //out_file << GlobalStaticVariables::physical_time_ << "   " << p_outlet_next_ <<  "\n";
-        out_file << GlobalStaticVariables::physical_time_ << "   " << Q_ <<  "\n";
+        out_file << GlobalStaticVariables::physical_time_ << "   " << p_outlet_next_ <<  "\n";
+        //out_file << GlobalStaticVariables::physical_time_ << "   " << Q_ <<  "\n";
         //out_file << GlobalStaticVariables::physical_time_ << "   " << accumulated_flow_vol_ <<  "\n";
         out_file.close();
 
@@ -245,13 +249,13 @@ class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public D
 
     void updateNextPressure()
     {
-        Q_ = accumulated_flow_vol_ / accumulated_time_ - Q_ave_;
-        Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
-        Real p_star = p_outlet_ + dp_dt * accumulated_time_;
-        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
-        p_outlet_next_ = p_outlet_ + 0.5 * accumulated_time_ * (dp_dt + dp_dt_star);
+        Q_ = current_flow_rate_ / accumulated_time_ - Q_ave_;
+        //Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
+        //Real p_star = p_outlet_ + dp_dt * accumulated_time_;
+        //Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
+        //p_outlet_next_ = p_outlet_ + 0.5 * accumulated_time_ * (dp_dt + dp_dt_star);
 
-        //p_outlet_next_ = ((Q_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_ - Q_pre_) / accumulated_time_) * accumulated_time_ / C_ + p_outlet_) / (1.0 + accumulated_time_ / (C_ * R2_));
+        p_outlet_next_ = ((Q_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_ - Q_pre_) / accumulated_time_) * accumulated_time_ / C_ + p_outlet_) / (1.0 + accumulated_time_ / (C_ * R2_));
 
         //updatePreAndResetAcc();
     }
@@ -266,7 +270,8 @@ class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public D
     Real R1_, R2_, C_, Q_ave_;
     Real Q_, Q_pre_;
     Real p_outlet_, p_outlet_next_;
-    Real &accumulated_flow_vol_, accumulated_time_;
+    Real &flow_rate_, accumulated_time_;
+    Real current_flow_rate_, previous_flow_rate_;
 };
 
 template <typename TargetPressure>
