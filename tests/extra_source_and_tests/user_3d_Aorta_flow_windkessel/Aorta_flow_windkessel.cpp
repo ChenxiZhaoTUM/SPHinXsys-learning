@@ -117,6 +117,112 @@ struct InflowVelocity
     }
 };
 
+/*the following three classses are for windkessel model*/
+class DisposerOutflowDeletionWithWindkessel: public fluid_dynamics::DisposerOutflowDeletion
+{
+  public:
+    DisposerOutflowDeletionWithWindkessel(BodyAlignedBoxByCell &aligned_box_part) : 
+        DisposerOutflowDeletion(aligned_box_part), flow_rate_(0.0), Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")){};
+    virtual ~DisposerOutflowDeletionWithWindkessel(){};
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        mutex_switch_to_buffer_.lock();
+        while (aligned_box_.checkUpperBound(pos_[index_i]) && index_i < particles_->TotalRealParticles())
+        {
+            particles_->switchToBufferParticle(index_i);
+            flow_rate_ += Vol_[index_i];
+        }
+        mutex_switch_to_buffer_.unlock();
+    };
+    Real flow_rate_;
+
+  protected:
+    StdLargeVec<Real> &Vol_;
+};
+
+class FlowPressureBuffer : public fluid_dynamics::BaseFlowBoundaryCondition
+{
+  public:
+    FlowPressureBuffer(BodyAlignedBoxByCell &aligned_box_part) : BaseFlowBoundaryCondition(aligned_box_part),
+        aligned_box_(aligned_box_part.getAlignedBoxShape()),
+        alignment_axis_(aligned_box_.AlignmentAxis()),
+        transform_(aligned_box_.getTransform()),
+        kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")){};
+    virtual ~FlowPressureBuffer(){};
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        vel_[index_i] += 2.0 * kernel_sum_[index_i] * getTargetPressure(dt) / rho_[index_i] * dt;
+        Vecd frame_velocity = Vecd::Zero();
+        frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
+        vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
+    };
+
+  protected:
+    AlignedBoxShape &aligned_box_;
+    const int alignment_axis_;
+    Transform &transform_;
+    StdLargeVec<Vecd> &kernel_sum_;
+
+    virtual Real getTargetPressure(Real dt) = 0;
+};
+
+class OutflowPressure : public FlowPressureBuffer
+{
+  public:
+    OutflowPressure(BodyAlignedBoxByCell &aligned_box_part, const std::string &body_part_name, DisposerOutflowDeletionWithWindkessel &outlet_windkessel,
+                    Real R1, Real R2, Real C, Real delta_t, Real average_Q, Real Q_0 = 0.0, Real Q_n = 0.0, Real p_0 = 0.0, Real p_n = 0.0,
+                    Real current_flow_rate = 0.0, Real previous_flow_rate = 0.0, int count = 1)
+        : FlowPressureBuffer(aligned_box_part), flow_rate_(outlet_windkessel.flow_rate_), 
+        R1_(R1), R2_(R2), C_(C), delta_t_(delta_t), average_Q_(average_Q), Q_0_(Q_0), Q_n_(Q_n), p_0_(p_0), p_n_(p_n), 
+        current_flow_rate_(current_flow_rate), previous_flow_rate_(previous_flow_rate), count_(count),
+        body_part_name_(body_part_name), write_data_(false) {};
+    virtual ~OutflowPressure(){};
+
+    void getFlowRate()
+    {
+        Q_0_ = Q_n_;
+        p_0_ = p_n_;
+        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
+        previous_flow_rate_ = flow_rate_;
+    };
+
+    void updateNextPressure()
+    {
+        Q_n_ = current_flow_rate_ / delta_t_ - average_Q_;
+        p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
+        //std::cout << "p_n_ = " << p_n_ << std::endl;
+
+        writeOutletPressureData();
+
+    }
+
+    Real getTargetPressure(Real dt) override
+    {
+        return p_n_;
+    }
+
+    void writeOutletPressureData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
+        //std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ <<  "\n";
+        //out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ <<  "\n";
+        out_file.close();
+    }
+
+    void setupDynamics(Real dt = 0.0) override {}
+
+  protected:
+    Real &flow_rate_, R1_, R2_, C_, delta_t_, average_Q_, Q_0_, Q_n_, p_0_, p_n_, current_flow_rate_, previous_flow_rate_;
+    int count_;
+    std::string body_part_name_;
+    bool write_data_;
+};
+
+
 /**
  * @brief 	Main program starts here.
  */
@@ -245,27 +351,27 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell disposer_1(water_block, makeShared<AlignedBoxShape>
         (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_1)), 
         vector_1),Vecd(buffer_translation_1)),buffer_halfsize_1));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionAndComputeVol> disposer_outflow_deletion_1(disposer_1);
+    SimpleDynamics<DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_1(disposer_1);
 
     BodyAlignedBoxByCell disposer_2(water_block, makeShared<AlignedBoxShape>
         (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_2)), 
         vector_2),Vecd(buffer_translation_2)),buffer_halfsize_2));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionAndComputeVol> disposer_outflow_deletion_2(disposer_2);
+    SimpleDynamics<DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_2(disposer_2);
 
     BodyAlignedBoxByCell disposer_3(water_block, makeShared<AlignedBoxShape>
         (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_3)), 
         vector_3),Vecd(buffer_translation_3)),buffer_halfsize_3));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionAndComputeVol> disposer_outflow_deletion_3(disposer_3);
+    SimpleDynamics<DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_3(disposer_3);
 
     BodyAlignedBoxByCell disposer_4(water_block, makeShared<AlignedBoxShape>
         (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(normal_vector_4)), 
         vector_4),Vecd(buffer_translation_4)),buffer_halfsize_4));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionAndComputeVol> disposer_outflow_deletion_4(disposer_4);
+    SimpleDynamics<DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_4(disposer_4);
 
     BodyAlignedBoxByCell disposer_5(water_block, makeShared<AlignedBoxShape>
         (xAxis, Transform(Rotation3d(std::acos(Eigen::Vector3d::UnitX().dot(-normal_vector_5)), 
         -vector_5),Vecd(buffer_translation_5)),buffer_halfsize_5));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionAndComputeVol> disposer_outflow_deletion_5(disposer_5);
+    SimpleDynamics<DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_5(disposer_5);
 
 
     BodyAlignedBoxByCell inflow_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform
@@ -305,12 +411,16 @@ int main(int ac, char *av[])
     
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> emitter_buffer_inflow_condition(inflow_emitter);
-    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressureByDeletion>> outflow_pressure_condition1(outflow_emitter_1, 1.18E8, 1.84E9, 7.7E-10, 0.0000098);
-    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressureByDeletion>> outflow_pressure_condition2(outflow_emitter_2, 1.04E8, 1.63E9, 8.74E-10, 0.00001);
-    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressureByDeletion>> outflow_pressure_condition3(outflow_emitter_3, 1.18E8, 1.84E9, 7.7E-10, 0.0000068);
-    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressureByDeletion>> outflow_pressure_condition4(outflow_emitter_4, 9.7E7, 1.52E9, 9.34E-10, 0.0000118);
-    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressureByDeletion>> outflow_pressure_condition5(outflow_emitter_5, 1.88E7, 2.95E8, 4.82E-9, 0.000096);
-
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition1(outflow_emitter_1, "out01", disposer_outflow_deletion_1,
+        1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000098);
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition2(outflow_emitter_2, "out02", disposer_outflow_deletion_2, 
+        1.04E8, 1.63E9, 8.74E-10, 0.006, 0.00001);
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition3(outflow_emitter_3, "out03", disposer_outflow_deletion_3, 
+        1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000068);
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition4(outflow_emitter_4, "out04", disposer_outflow_deletion_4, 
+        9.7E7, 1.52E9, 9.34E-10, 0.006, 0.0000118);
+    SimpleDynamics<OutflowPressure> outflow_pressure_condition5(outflow_emitter_5, "out05", disposer_outflow_deletion_5, 
+        1.88E7, 2.95E8, 4.82E-9, 0.006, 0.000096);
     /**
      * @brief Output.
      */
@@ -360,7 +470,7 @@ int main(int ac, char *av[])
     int updateP_n = 0;
 
     /** Output the start states of bodies. */
-    body_states_recording.writeToFile(0);
+    //body_states_recording.writeToFile(0);
     write_centerline_velocity.writeToFile(number_of_iterations);
     /**
      * @brief 	Main loop starts here.
@@ -389,35 +499,29 @@ int main(int ac, char *av[])
                 emitter_buffer_inflow_condition.exec();  
 
                 // windkessel model implementation
-                if (GlobalStaticVariables::physical_time_ >= updateP_n * accumulated_time)
+
+                if (GlobalStaticVariables::physical_time_ >= updateP_n * 0.006)
                 {
-                    outflow_pressure_condition1.getTargetPressure()->setAccumulationTime(accumulated_time);
-                    outflow_pressure_condition1.getTargetPressure()->updateNextPressure();
-                    outflow_pressure_condition1.getTargetPressure()->writeOutletP("Out01");
-
-                    outflow_pressure_condition2.getTargetPressure()->setAccumulationTime(accumulated_time);
-                    outflow_pressure_condition2.getTargetPressure()->updateNextPressure();
-                    outflow_pressure_condition2.getTargetPressure()->writeOutletP("Out02");
-
-                    outflow_pressure_condition3.getTargetPressure()->setAccumulationTime(accumulated_time);
-                    outflow_pressure_condition3.getTargetPressure()->updateNextPressure();
-                    outflow_pressure_condition3.getTargetPressure()->writeOutletP("Out03");
-
-                    outflow_pressure_condition4.getTargetPressure()->setAccumulationTime(accumulated_time);
-                    outflow_pressure_condition4.getTargetPressure()->updateNextPressure();
-                    outflow_pressure_condition4.getTargetPressure()->writeOutletP("Out04");
-
-                    outflow_pressure_condition5.getTargetPressure()->setAccumulationTime(accumulated_time);
-                    outflow_pressure_condition5.getTargetPressure()->updateNextPressure();
-                    outflow_pressure_condition5.getTargetPressure()->writeOutletP("Out05");
+                    outflow_pressure_condition1.getFlowRate();
+                    outflow_pressure_condition2.getFlowRate();
+                    outflow_pressure_condition3.getFlowRate();
+                    outflow_pressure_condition4.getFlowRate();
+                    outflow_pressure_condition5.getFlowRate();
+                    outflow_pressure_condition1.updateNextPressure();
+                    outflow_pressure_condition2.updateNextPressure();
+                    outflow_pressure_condition3.updateNextPressure();
+                    outflow_pressure_condition4.updateNextPressure();
+                    outflow_pressure_condition5.updateNextPressure();
 
                     ++updateP_n;
                 }
-                outflow_pressure_condition1.exec(dt);
+
+
+                outflow_pressure_condition1.exec(dt); 
                 outflow_pressure_condition2.exec(dt);
-                outflow_pressure_condition3.exec(dt);
-                outflow_pressure_condition4.exec(dt);
-                outflow_pressure_condition5.exec(dt);
+                outflow_pressure_condition3.exec(dt); 
+                outflow_pressure_condition4.exec(dt); 
+                outflow_pressure_condition5.exec(dt);    
 
                 density_relaxation.exec(dt);
                 
@@ -467,7 +571,7 @@ int main(int ac, char *av[])
             outflow_injection_5.tag_buffer_particles.exec();
         }
         TickCount t2 = TickCount::now();
-        body_states_recording.writeToFile();  
+        //body_states_recording.writeToFile();  
         velocity_observer_contact.updateConfiguration();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;

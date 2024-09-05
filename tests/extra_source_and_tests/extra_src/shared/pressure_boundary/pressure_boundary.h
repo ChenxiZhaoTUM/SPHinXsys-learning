@@ -223,14 +223,14 @@ class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public D
         previous_flow_rate_ = flow_rate_;
     }
 
-    void updatePreAndResetAcc()
-    {
-        //Q_pre_ = Q_;
-        //p_outlet_ = p_outlet_next_;
+    //void updatePreAndResetAcc()
+    //{
+    //    //Q_pre_ = Q_;
+    //    //p_outlet_ = p_outlet_next_;
 
-        //accumulated_flow_vol_ = 0.0;
-        accumulated_time_ = 0.0;
-    }
+    //    //accumulated_flow_vol_ = 0.0;
+    //    accumulated_time_ = 0.0;
+    //}
 
     void writeOutletP(const std::string &body_part_name)
     {
@@ -243,8 +243,6 @@ class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public D
         //out_file << GlobalStaticVariables::physical_time_ << "   " << Q_ <<  "\n";
         //out_file << GlobalStaticVariables::physical_time_ << "   " << accumulated_flow_vol_ <<  "\n";
         out_file.close();
-
-        updatePreAndResetAcc();
     }
 
     void updateNextPressure()
