@@ -109,22 +109,19 @@ void DisposerOutflowDeletion::update(size_t index_i, Real dt)
     mutex_switch_to_buffer_.unlock();
 }
 //=================================================================================================//
-DisposerOutflowDeletionAndComputeVol::
-    DisposerOutflowDeletionAndComputeVol(BodyAlignedBoxByCell &aligned_box_part)
-    : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
-      DataDelegateSimple(aligned_box_part.getSPHBody()),
-      pos_(*particles_->getVariableDataByName<Vecd>("Position")),
-      Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")),
-      aligned_box_(aligned_box_part.getAlignedBoxShape()),
-      total_Vol_deletion_(*particles_->registerSingleVariable<Real>("TotalVolDeletion")) {}
+DisposerOutflowDeletionWithWindkessel::
+    DisposerOutflowDeletionWithWindkessel(BodyAlignedBoxByCell &aligned_box_part, const std::string &body_part_name)
+    : DisposerOutflowDeletion(aligned_box_part), 
+      flow_rate_(*this->particles_->registerSingleVariable<Real>(body_part_name+"FlowRate")), 
+      Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")) {}
 //=================================================================================================//
-void DisposerOutflowDeletionAndComputeVol::update(size_t index_i, Real dt)
+void DisposerOutflowDeletionWithWindkessel::update(size_t index_i, Real dt)
 {
     mutex_switch_to_buffer_.lock();
     while (aligned_box_.checkUpperBound(pos_[index_i]) && index_i < particles_->TotalRealParticles())
     {
         particles_->switchToBufferParticle(index_i);
-        total_Vol_deletion_ += Vol_[index_i];
+        flow_rate_ += Vol_[index_i];
     }
     mutex_switch_to_buffer_.unlock();
 }

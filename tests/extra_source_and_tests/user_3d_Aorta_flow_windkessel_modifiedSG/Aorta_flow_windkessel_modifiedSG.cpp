@@ -278,10 +278,10 @@ class OutflowPressure : public FlowPressureBuffer
   public:
     OutflowPressure(BodyAlignedBoxByCell &aligned_box_part, const std::string &body_part_name,
                     Real R1, Real R2, Real C, Real delta_t, Real average_Q, Real Q_0 = 0.0, Real Q_n = 0.0, Real p_0 = 0.0, Real p_n = 0.0,
-                    Real current_flow_rate = 0.0, Real previous_flow_rate = 0.0, int count = 1)
+                    Real current_flow_rate = 0.0, Real previous_flow_rate = 0.0)
         : FlowPressureBuffer(aligned_box_part), flow_rate_(*particles_->getSingleVariableByName<Real>(body_part_name+"FlowRate")),
         R1_(R1), R2_(R2), C_(C), delta_t_(delta_t), average_Q_(average_Q), Q_0_(Q_0), Q_n_(Q_n), p_0_(p_0), p_n_(p_n), 
-        current_flow_rate_(current_flow_rate), previous_flow_rate_(previous_flow_rate), count_(count),
+        current_flow_rate_(current_flow_rate), previous_flow_rate_(previous_flow_rate),
         body_part_name_(body_part_name), write_data_(false) {};
     virtual ~OutflowPressure(){};
 
@@ -325,7 +325,6 @@ class OutflowPressure : public FlowPressureBuffer
   protected:
     Real &flow_rate_;
     Real R1_, R2_, C_, delta_t_, average_Q_, Q_0_, Q_n_, p_0_, p_n_, current_flow_rate_, previous_flow_rate_;
-    int count_;
     std::string body_part_name_;
     bool write_data_;
 };

@@ -41,15 +41,18 @@ class PressureCondition : public BaseFlowBoundaryCondition
 {
   public:
     /** default parameter indicates prescribe pressure */
-    explicit PressureCondition(BodyAlignedBoxByCell &aligned_box_part)
+    template <typename... Args>
+    explicit PressureCondition(BodyAlignedBoxByCell &aligned_box_part, Args &&...args)
         : BaseFlowBoundaryCondition(aligned_box_part),
           aligned_box_(aligned_box_part.getAlignedBoxShape()),
           alignment_axis_(aligned_box_.AlignmentAxis()),
           transform_(aligned_box_.getTransform()),
-          target_pressure_(*this),
+          target_pressure_(TargetPressure(aligned_box_part, std::forward<Args>(args)...)),
           kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")){};
     virtual ~PressureCondition(){};
     AlignedBoxShape &getAlignedBox() { return aligned_box_; };
+
+    TargetPressure *getTargetPressure() { return &target_pressure_; }
 
     void update(size_t index_i, Real dt = 0.0)
     {
@@ -201,109 +204,85 @@ class RCRPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegat
 //-------------------------------------------------------------------------------
 //	Calculate flow rate by total particle volume of injection(-) and deletion(+).
 //-------------------------------------------------------------------------------
-class RCRPressureByDeletion : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
 {
   public:
-    explicit RCRPressureByDeletion(BodyAlignedBoxByCell& aligned_box_part, Real R1, Real R2, Real C, Real Q_ave)
+    explicit TargetOutletPressureWindkessel(BodyAlignedBoxByCell& aligned_box_part, const std::string &body_part_name)
         : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
           DataDelegateSimple(aligned_box_part.getSPHBody()),
-          R1_(R1), R2_(R2), C_(C), Q_ave_(Q_ave), Q_(0.0), Q_pre_(0.0),
-          p_outlet_(0.0), p_outlet_next_(0.0),
-          flow_rate_(*particles_->getSingleVariableByName<Real>("TotalVolDeletion")),
-          accumulated_time_(0.0), current_flow_rate_(0.0), previous_flow_rate_(0.0) {};
-    virtual ~RCRPressureByDeletion(){};
+          body_part_name_(body_part_name),
+          R1_(0.0), R2_(0.0), C_(0.0), Q_ave_(0.0), delta_t_(0.0), 
+          Q_n_(0.0), Q_0_(0.0), p_n_(0.0), p_0_(0.0),
+          flow_rate_(*particles_->getSingleVariableByName<Real>(body_part_name+"FlowRate")),
+          current_flow_rate_(0.0), previous_flow_rate_(0.0) {};
+    virtual ~TargetOutletPressureWindkessel(){};
 
-    void setAccumulationTime(Real dt)
+    void setWindkesselParams(Real R1, Real R2, Real C, Real dt, Real Q_ave)
     {
-        accumulated_time_ = dt;
-
-        Q_pre_ = Q_;
-        p_outlet_ = p_outlet_next_;
-        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
-        previous_flow_rate_ = flow_rate_;
-    }
-
-    //void updatePreAndResetAcc()
-    //{
-    //    //Q_pre_ = Q_;
-    //    //p_outlet_ = p_outlet_next_;
-
-    //    //accumulated_flow_vol_ = 0.0;
-    //    accumulated_time_ = 0.0;
-    //}
-
-    void writeOutletP(const std::string &body_part_name)
-    {
-        std::string output_folder = "./output";
-        std::string filefullpath = output_folder + "/" + body_part_name + "_outlet_pressure.dat";
-        //std::string filefullpath = output_folder + "/" + body_part_name + "_flow_rate.dat";
-        //std::string filefullpath = output_folder + "/" + body_part_name + "_accumulated_flow_vol.dat";
-        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-        out_file << GlobalStaticVariables::physical_time_ << "   " << p_outlet_next_ <<  "\n";
-        //out_file << GlobalStaticVariables::physical_time_ << "   " << Q_ <<  "\n";
-        //out_file << GlobalStaticVariables::physical_time_ << "   " << accumulated_flow_vol_ <<  "\n";
-        out_file.close();
+        R1_ = R1;
+        R2_ = R2;
+        C_ = C;
+        Q_ave_ = Q_ave;
+        delta_t_ = dt;
     }
 
     void updateNextPressure()
     {
-        Q_ = current_flow_rate_ / accumulated_time_ - Q_ave_;
-        //Real dp_dt = - p_outlet_ / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
-        //Real p_star = p_outlet_ + dp_dt * accumulated_time_;
-        //Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_ / (C_ * R2_) + R1_ * (Q_ - Q_pre_) / (accumulated_time_ + TinyReal);
-        //p_outlet_next_ = p_outlet_ + 0.5 * accumulated_time_ * (dp_dt + dp_dt_star);
+        getFlowRate();
 
-        p_outlet_next_ = ((Q_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_ - Q_pre_) / accumulated_time_) * accumulated_time_ / C_ + p_outlet_) / (1.0 + accumulated_time_ / (C_ * R2_));
+        Q_n_ = current_flow_rate_ / delta_t_ - Q_ave_;
+        Real dp_dt = - p_0_ / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
+        Real p_star = p_0_ + dp_dt * delta_t_;
+        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
+        p_n_ = p_0_ + 0.5 * delta_t_ * (dp_dt + dp_dt_star);
 
-        //updatePreAndResetAcc();
+        //p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
+
+        writeOutletPressureData();
+        //writeOutletFlowRateData();
     }
 
     Real operator()(Real &p_current)
     {
-        return p_outlet_next_;
+        return p_n_;
     }
 
   protected:
-    // parameters about Windkessel model
-    Real R1_, R2_, C_, Q_ave_;
-    Real Q_, Q_pre_;
-    Real p_outlet_, p_outlet_next_;
-    Real &flow_rate_, accumulated_time_;
-    Real current_flow_rate_, previous_flow_rate_;
-};
+    std::string body_part_name_;
+    Real R1_, R2_, C_, Q_ave_, delta_t_;
+    Real Q_n_, Q_0_;
+    Real p_n_, p_0_;
+    Real &flow_rate_, current_flow_rate_, previous_flow_rate_;
 
-template <typename TargetPressure>
-class WindkesselCondition : public BaseFlowBoundaryCondition
-{
-  public:
-    /** default parameter indicates prescribe pressure */
-    explicit WindkesselCondition(BodyAlignedBoxByCell &aligned_box_part, Real R1, Real R2, Real C, Real Q_ave)
-        : BaseFlowBoundaryCondition(aligned_box_part),
-          aligned_box_(aligned_box_part.getAlignedBoxShape()),
-          alignment_axis_(aligned_box_.AlignmentAxis()),
-          transform_(aligned_box_.getTransform()),
-          target_pressure_(TargetPressure(aligned_box_part, R1, R2, C, Q_ave)),
-          kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")){};
-    virtual ~WindkesselCondition(){};
-    AlignedBoxShape &getAlignedBox() { return aligned_box_; };
-
-    TargetPressure *getTargetPressure() { return &target_pressure_; }
-
-    void update(size_t index_i, Real dt = 0.0)
+    void getFlowRate()
     {
-        vel_[index_i] += 2.0 * kernel_sum_[index_i] * target_pressure_(p_[index_i]) / rho_[index_i] * dt;
-        Vecd frame_velocity = Vecd::Zero();
-        frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
-        vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
-    };
+        Q_0_ = Q_n_;
+        p_0_ = p_n_;
+        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
+        previous_flow_rate_ = flow_rate_;
+    }
 
-  protected:
-    AlignedBoxShape &aligned_box_;
-    const int alignment_axis_;
-    Transform &transform_;
-    TargetPressure target_pressure_;
-    StdLargeVec<Vecd> &kernel_sum_;
+    void writeOutletPressureData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ <<  "\n";
+        out_file.close();
+    }
+
+    void writeOutletFlowRateData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ <<  "\n";
+        out_file.close();
+    }
 };
+
+using WindkesselBoundaryCondition = PressureCondition<TargetOutletPressureWindkessel>;
+
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // PRESSURE_BOUNDARY_H

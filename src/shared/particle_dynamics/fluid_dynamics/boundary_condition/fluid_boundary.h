@@ -251,20 +251,17 @@ class DisposerOutflowDeletion : public BaseLocalDynamics<BodyPartByCell>, public
     AlignedBoxShape &aligned_box_;
 };
 
-class DisposerOutflowDeletionAndComputeVol : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+class DisposerOutflowDeletionWithWindkessel: public fluid_dynamics::DisposerOutflowDeletion
 {
   public:
-    DisposerOutflowDeletionAndComputeVol(BodyAlignedBoxByCell &aligned_box_part);
-    virtual ~DisposerOutflowDeletionAndComputeVol(){};
+    DisposerOutflowDeletionWithWindkessel(BodyAlignedBoxByCell& aligned_box_part, const std::string& body_part_name);
+    virtual ~DisposerOutflowDeletionWithWindkessel(){};
 
     void update(size_t index_i, Real dt = 0.0);
 
   protected:
-    std::mutex mutex_switch_to_buffer_; /**< mutex exclusion for memory conflict */
-    StdLargeVec<Vecd> &pos_;
     StdLargeVec<Real> &Vol_;
-    AlignedBoxShape &aligned_box_;
-    Real &total_Vol_deletion_;
+    Real &flow_rate_;
 };
 } // namespace fluid_dynamics
 } // namespace SPH
