@@ -28,10 +28,8 @@ Vec3d domain_upper_bound(-100.0 * scaling, 360.0 * scaling, 0.0 * scaling);
 //	Below are common parts for the two test geometries.
 //----------------------------------------------------------------------
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-//Real dp_0 = (domain_upper_bound[0] - domain_lower_bound[0]) / 200.0;  // 1.375 * pow(10, -3)
 Real dp_0 = 0.05;
 Real thickness = 1.0 * dp_0;
-//Real level_set_refinement_ratio = dp_0 / (0.1 * thickness);
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
