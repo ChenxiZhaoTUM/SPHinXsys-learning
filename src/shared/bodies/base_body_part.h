@@ -235,5 +235,23 @@ class AlignedBoxRegion : public BodyRegionType
 
 using BodyAlignedBoxByParticle = AlignedBoxRegion<BodyRegionByParticle>;
 using BodyAlignedBoxByCell = AlignedBoxRegion<BodyRegionByCell>;
+
+template <class BodyRegionType>
+class AlignedCylinderRegion : public BodyRegionType
+{
+  public:
+    AlignedCylinderRegion(RealBody &real_body, AlignedCylinderShape &aligned_cylinder)
+        : BodyRegionType(real_body, aligned_cylinder), aligned_cylinder_(aligned_cylinder){};
+    AlignedCylinderRegion(RealBody& real_body, SharedPtr<AlignedCylinderShape> aligned_cylinder_ptr)
+        : BodyRegionType(real_body, aligned_cylinder_ptr), aligned_cylinder_(*aligned_cylinder_ptr.get()){};
+    virtual ~AlignedCylinderRegion(){};
+    AlignedCylinderShape &getAlignedCylinderShape() { return aligned_cylinder_; };
+
+  protected:
+    AlignedCylinderShape &aligned_cylinder_;
+};
+
+using BodyAlignedCylinderByCell = AlignedCylinderRegion<BodyRegionByCell>;
+
 } // namespace SPH
 #endif // BASE_BODY_PART_H

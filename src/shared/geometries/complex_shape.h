@@ -34,6 +34,8 @@
 #include "geometric_shape.h"
 #include "level_set_shape.h"
 #include "transform_shape.h"
+#include "triangle_mesh_shape.h"
+#include "all_simbody.h"
 
 namespace SPH
 {
@@ -100,6 +102,33 @@ class AlignedBoxShape : public TransformShape<GeometricShapeBox>
     bool checkNearLowerBound(const Vecd &probe_point, Real threshold);
     Vecd getUpperPeriodic(const Vecd &probe_point);
     Vecd getLowerPeriodic(const Vecd &probe_point);
+    int AlignmentAxis() { return alignment_axis_; };
+};
+
+class AlignedCylinderShape : public TriangleMeshShapeCylinder
+{
+    const int alignment_axis_;
+    SimTK::UnitVec3 cylinder_length_axis_;
+    Real radius_;
+    Real halflength_;
+    Vec3d translation_;
+
+  public:
+    /** construct directly */
+    template <typename... Args>
+    explicit AlignedCylinderShape(int upper_bound_axis, SimTK::UnitVec3 cylinder_length_axis, Real radius, Real halflength, int resolution, Vec3d translation,
+                                       const std::string &shape_name = "TriangleMeshShapeCylinder")
+        : TriangleMeshShapeCylinder(cylinder_length_axis, radius, halflength, resolution, translation, shape_name),
+          alignment_axis_(upper_bound_axis), cylinder_length_axis_(cylinder_length_axis), radius_(radius), halflength_(halflength), translation_(translation) {};
+    virtual ~AlignedCylinderShape(){};
+
+    bool checkInBounds(const Vecd &probe_point);
+    /*bool checkUpperBound(const Vecd &probe_point);
+    bool checkLowerBound(const Vecd &probe_point);
+    bool checkNearUpperBound(const Vecd &probe_point, Real threshold);
+    bool checkNearLowerBound(const Vecd &probe_point, Real threshold);
+    Vecd getUpperPeriodic(const Vecd &probe_point);
+    Vecd getLowerPeriodic(const Vecd &probe_point);*/
     int AlignmentAxis() { return alignment_axis_; };
 };
 } // namespace SPH
