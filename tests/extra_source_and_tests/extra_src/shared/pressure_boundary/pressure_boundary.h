@@ -243,7 +243,7 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>,
         //p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
 
         writeOutletPressureData();
-        //writeOutletFlowRateData();
+        writeOutletFlowRateData();
     }
 
     Real operator()(Real &p_current)

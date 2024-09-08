@@ -32,6 +32,7 @@
 #define BIDIRECTIONAL_BUFFER_H
 
 #include "sphinxsys.h"
+#include "pressure_boundary.h"
 
 namespace SPH
 {

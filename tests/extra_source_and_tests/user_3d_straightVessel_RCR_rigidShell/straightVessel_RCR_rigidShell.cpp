@@ -2,13 +2,13 @@
  * @file 	straight_vessel_with_shell.cpp
  * @brief 	3D blood flow in straigt vessel with PIPO and shell
  */
-#include "bidirectional_buffer.h"
+#include "sphinxsys.h" 
 #include "density_correciton.h"
 #include "density_correciton.hpp"
+#include "pressure_boundary.h"
+#include "bidirectional_buffer.h"
 #include "kernel_summation.h"
 #include "kernel_summation.hpp"
-#include "pressure_boundary.h"
-#include "sphinxsys.h"
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -158,7 +158,8 @@ struct InflowVelocity
         int n = static_cast<int>(run_time / t_ref_);
         Real t_in_cycle = run_time - n * t_ref_;
 
-        target_velocity[0] = 130 * sin(Pi * t_in_cycle) * 1.0e-6 / (Pi * pow(fluid_radius, 2));
+        //target_velocity[0] = 130 * sin(Pi * t_in_cycle) * 1.0e-6 / (Pi * pow(fluid_radius, 2));
+        target_velocity[0] = 1.0;
 
         return target_velocity;
     }
@@ -320,7 +321,7 @@ int main(int ac, char *av[])
 
     AlignedBoxShape right_disposer_shape(xAxis, Transform(Vecd(right_bidirectional_translation)), bidirectional_buffer_halfsize);
     BodyAlignedBoxByCell right_disposer(water_block, right_disposer_shape);
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion(right_disposer);
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionWithWindkessel> right_disposer_outflow_deletion(right_disposer, "Outlet");
 
     AlignedBoxShape left_emitter_shape(xAxis, Transform(Vecd(left_bidirectional_translation)), bidirectional_buffer_halfsize);
     BodyAlignedBoxByCell left_emitter(water_block, left_emitter_shape);
@@ -328,12 +329,11 @@ int main(int ac, char *av[])
 
     AlignedBoxShape right_emitter_shape(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vecd(right_bidirectional_translation)), bidirectional_buffer_halfsize);
     BodyAlignedBoxByCell right_emitter(water_block, right_emitter_shape);
-    ReduceDynamics<fluid_dynamics::AverageFlowRate<fluid_dynamics::TotalVelocityNormVal>> compute_flow_rate(right_emitter, Pi * pow(fluid_radius, 2));
-    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressure> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer, R1, R2, C);
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer right_emitter_inflow_injection(right_emitter, "Outlet", in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressure>> right_inflow_pressure_condition(right_emitter, R1, R2, C);
+    SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> right_inflow_pressure_condition(right_emitter, "Outlet");
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
 
     // FSI
@@ -386,11 +386,14 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time_for_5Dt = 0.0; // Add a timer for 5 * Dt
+    Real accumulated_time = 0.006;
+    int updateP_n = 0;
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile();
+    //right_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, R2, C, accumulated_time, 0.0000098);
+    right_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, R2, C, accumulated_time, 0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -420,29 +423,18 @@ int main(int ac, char *av[])
                 //}
 
                 pressure_relaxation.exec(dt);
-                
                 kernel_summation.exec();
-                left_inflow_pressure_condition.exec(dt);
+
+                inflow_velocity_condition.exec();
 
                 // windkessel model implementation
-                compute_flow_rate.exec();
-                right_inflow_pressure_condition.getTargetPressure()->accumulateFlow(dt);
-
-                // Accumulate time for 3 * Dt timer
-                accumulated_time_for_5Dt += dt;
-                // Check if accumulated time reaches or exceeds 3 * Dt
-                if (accumulated_time_for_5Dt >= 5 * Dt)
+                if (GlobalStaticVariables::physical_time_ >= updateP_n * accumulated_time)
                 {
-                    
-                    right_inflow_pressure_condition.getTargetPressure()->setInitialQPre();
                     right_inflow_pressure_condition.getTargetPressure()->updateNextPressure();
-
-                    // Reset the accumulated timer
-                    accumulated_time_for_5Dt = 0.0;
+                    ++updateP_n;
                 }
-
                 right_inflow_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();
+                
 
                 /** FSI for pressure force. */
                 //pressure_force_on_shell.exec();
@@ -467,8 +459,6 @@ int main(int ac, char *av[])
 
      //               shell_stress_relaxation_second.exec(dt_s);
      //               dt_s_sum += dt_s;
-
-     //               // body_states_recording.writeToFile();
      //           }
      //           average_velocity_and_acceleration.update_averages_.exec(dt);
 
@@ -482,6 +472,8 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
+
+                body_states_recording.writeToFile();
             }
             number_of_iterations++;
 
