@@ -121,23 +121,6 @@ void ParticlesInAlignedBoxDetectionByCell::update(size_t index_i, Real dt)
     mutex_switch_to_ghost_.unlock();
 }
 //=================================================================================================//
-ParticlesInAlignedCylinderDetectionByCell::
-    ParticlesInAlignedCylinderDetectionByCell(BodyAlignedCylinderByCell &aligned_cylinder_part)
-    : BaseLocalDynamics<BodyPartByCell>(aligned_cylinder_part),
-      DataDelegateSimple(aligned_cylinder_part.getSPHBody()),
-      pos_(*particles_->getVariableDataByName<Vecd>("Position")),
-      aligned_cylinder_(aligned_cylinder_part.getAlignedCylinderShape()) {}
-//=================================================================================================//
-void ParticlesInAlignedCylinderDetectionByCell::update(size_t index_i, Real dt)
-{
-    mutex_switch_to_ghost_.lock();
-    while (aligned_cylinder_.checkInBounds(pos_[index_i]) && index_i < particles_->TotalRealParticles())
-    {
-        particles_->switchToBufferParticle(index_i);
-    }
-    mutex_switch_to_ghost_.unlock();
-}
-//=================================================================================================//
 ParticlesInAlignedBoxDetectionByParticle::
     ParticlesInAlignedBoxDetectionByParticle(BodyAlignedBoxByParticle &aligned_box_part)
     : BaseLocalDynamics<BodyPartByParticle>(aligned_box_part),

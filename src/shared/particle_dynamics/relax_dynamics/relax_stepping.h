@@ -201,20 +201,6 @@ class ParticlesInAlignedBoxDetectionByCell : public BaseLocalDynamics<BodyPartBy
     AlignedBoxShape &aligned_box_;
 };
 
-class ParticlesInAlignedCylinderDetectionByCell : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
-{
-  public:
-    ParticlesInAlignedCylinderDetectionByCell(BodyAlignedCylinderByCell &aligned_cylinder_part);
-    virtual ~ParticlesInAlignedCylinderDetectionByCell(){};
-
-    void update(size_t index_i, Real dt = 0.0);
-
-  protected:
-    std::mutex mutex_switch_to_ghost_; /**< mutex exclusion for memory conflict */
-    StdLargeVec<Vecd> &pos_;
-    AlignedCylinderShape &aligned_cylinder_;
-};
-
 // useless!
 class ParticlesInAlignedBoxDetectionByParticle : public BaseLocalDynamics<BodyPartByParticle>, public DataDelegateSimple
 {
@@ -229,7 +215,6 @@ class ParticlesInAlignedBoxDetectionByParticle : public BaseLocalDynamics<BodyPa
     StdLargeVec<Vecd> &pos_;
     AlignedBoxShape &aligned_box_;
 };
-
 } // namespace relax_dynamics
 } // namespace SPH
 #endif // RELAX_STEPPING_H

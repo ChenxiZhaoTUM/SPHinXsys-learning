@@ -52,7 +52,6 @@ struct LeftInflowPressure
 Real R1 = 1.21e7;
 Real R2 = 1.212e8;
 Real C = 1.5e-10;
-Real radius = DH / 2;
 //----------------------------------------------------------------------
 //	inflow velocity definition.
 //----------------------------------------------------------------------
@@ -181,16 +180,15 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(left_bidirectional_translation)), bidirectional_buffer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
     BodyAlignedBoxByCell right_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(right_bidirectional_translation)), bidirectional_buffer_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion(right_disposer);
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionWithWindkessel> right_disposer_outflow_deletion(right_disposer, "Outlet");
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_bidirectional_translation)), bidirectional_buffer_halfsize));
     fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation2d(Pi), Vec2d(right_bidirectional_translation)), bidirectional_buffer_halfsize));
-    ReduceDynamics<fluid_dynamics::AverageFlowRate<fluid_dynamics::TotalVelocityNormVal>> compute_flow_rate(right_emitter, DH);
-    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::RCRPressure> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer, R1, R2, C);
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer right_emitter_inflow_injection(right_emitter, "Outlet", in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
-    SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::WindkesselCondition<fluid_dynamics::RCRPressure>> right_inflow_pressure_condition(right_emitter, R1, R2, C);
+    //SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
+    SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> right_inflow_pressure_condition(right_emitter, "Outlet");
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
@@ -229,11 +227,13 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time_for_3Dt = 0.0; // Add a timer for 3 * Dt
+    Real accumulated_time = 0.006;
+    int updateP_n = 0;
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile();
+    right_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, R2, C, accumulated_time, 0.04);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -258,30 +258,17 @@ int main(int ac, char *av[])
 
                 pressure_relaxation.exec(dt);
                 kernel_summation.exec();
-                left_inflow_pressure_condition.exec(dt);
-
+                inflow_velocity_condition.exec();
 
                 // windkessel model implementation
-                compute_flow_rate.exec();
-                right_inflow_pressure_condition.getTargetPressure()->accumulateFlow(dt);
-
-                // Accumulate time for 3 * Dt timer
-                accumulated_time_for_3Dt += dt;
-                // Check if accumulated time reaches or exceeds 3 * Dt
-                if (accumulated_time_for_3Dt >= 3 * Dt)
+                if (GlobalStaticVariables::physical_time_ >= updateP_n * accumulated_time)
                 {
-                    
-                    right_inflow_pressure_condition.getTargetPressure()->setInitialQPre();
                     right_inflow_pressure_condition.getTargetPressure()->updateNextPressure();
-
-                    // Reset the accumulated timer
-                    accumulated_time_for_3Dt = 0.0;
+                    ++updateP_n;
                 }
 
                 right_inflow_pressure_condition.exec(dt);
-
-
-                inflow_velocity_condition.exec();
+                
                 density_relaxation.exec(dt);
 
                 relaxation_time += dt;

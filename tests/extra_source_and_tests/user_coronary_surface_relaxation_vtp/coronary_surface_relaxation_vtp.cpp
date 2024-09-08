@@ -7,6 +7,7 @@
  */
 
 #include "sphinxsys.h"
+#include "particle_deletion_cylinder.h"
 #include <numeric>
 
 using namespace SPH;
