@@ -59,17 +59,6 @@ private:
     std::unique_ptr<TriangleMeshShapeSTL> mesh_shape_;
 };
 
-
-//class ShellShape : public ComplexShape
-//{
-//public:
-//    explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name)
-//    {
-//        add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
-//        subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
-//    }
-//};
-
 class FromVTPFile;
 template <>
 class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerator<SurfaceParticles>
@@ -336,7 +325,7 @@ RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, inlet_st
 Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 
 // outlet main: R=36.1590, (-172.2628, 205.9036, -19.8868), (0.2678, 0.3191, -0.9084)
-Vec3d outlet_half_main = Vec3d(1.0 * dp_0, 37.0 * scaling, 37.0 * scaling);
+Vec3d outlet_half_main = Vec3d(1.0 * dp_0, 36.5 * scaling, 36.5 * scaling);
 Vec3d outlet_normal_main(-0.2678, -0.3191, 0.9084);
 Vec3d outlet_translation_main = Vec3d(-172.2628, 205.9036, -19.8868) * scaling;
 Vec3d outlet_standard_direction_main(1, 0, 0);
@@ -344,7 +333,7 @@ RotationResult outlet_rotation_result_main = RotationCalculator(outlet_normal_ma
 Rotation3d outlet_rotation_main(outlet_rotation_result_main.angle, outlet_rotation_result_main.axis);
 
 // outlet x_pos 01: R=2.6964, (-207.4362, 136.7848, -252.6892), (0.636, 0.771, -0.022)
-Vec3d outlet_half_left_01 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_left_01 = Vec3d(1.0 * dp_0, 2.8 * scaling, 2.8 * scaling);
 Vec3d outlet_normal_left_01(-0.636, -0.771, 0.022);
 Vec3d outlet_translation_left_01 = Vec3d(-207.4362, 136.7848, -252.6892) * scaling;
 Vec3d outlet_standard_direction_left_01(1, 0, 0);
@@ -352,7 +341,7 @@ RotationResult outlet_rotation_result_left_01 = RotationCalculator(outlet_normal
 Rotation3d outlet_rotation_left_01(outlet_rotation_result_left_01.angle, outlet_rotation_result_left_01.axis);
 
 // outlet x_pos 02: R=2.8306, (-193.2735, 337.4625, -270.2884), (-0.6714, 0.3331, -0.6620)
-Vec3d outlet_half_left_02 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_left_02 = Vec3d(1.0 * dp_0, 3.0 * scaling, 3.0 * scaling);
 Vec3d outlet_normal_left_02(-0.6714, 0.3331, -0.6620);
 Vec3d outlet_translation_left_02 = Vec3d(-193.2735, 337.4625, -270.2884) * scaling;
 Vec3d outlet_standard_direction_left_02(1, 0, 0);
@@ -360,7 +349,7 @@ RotationResult outlet_rotation_result_left_02 = RotationCalculator(outlet_normal
 Rotation3d outlet_rotation_left_02(outlet_rotation_result_left_02.angle, outlet_rotation_result_left_02.axis);
 
 // outlet x_pos 03: R=2.2804, (-165.5566, 326.1601, -139.9323), (0.6563, -0.6250, 0.4226)
-Vec3d outlet_half_left_03 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_left_03 = Vec3d(1.0 * dp_0, 2.5 * scaling, 2.5 * scaling);
 Vec3d outlet_normal_left_03(-0.6563, 0.6250, -0.4226);
 Vec3d outlet_translation_left_03 = Vec3d(-165.5566, 326.1601, -139.9323) * scaling;
 Vec3d outlet_standard_direction_left_03(1, 0, 0);
@@ -368,7 +357,7 @@ RotationResult outlet_rotation_result_left_03 = RotationCalculator(outlet_normal
 Rotation3d outlet_rotation_left_03(outlet_rotation_result_left_03.angle, outlet_rotation_result_left_03.axis);
 
 // outlet x_neg_front 01: R=2.6437, (-307.8, 312.1402, -333.2), (-0.185, -0.967, -0.176)
-Vec3d outlet_half_rightF_01 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_rightF_01 = Vec3d(1.0 * dp_0, 2.8 * scaling, 2.8 * scaling);
 Vec3d outlet_normal_rightF_01(-0.185, -0.967, -0.176);
 Vec3d outlet_translation_rightF_01 = Vec3d(-307.8, 312.1402, -333.2) * scaling;
 Vec3d outlet_standard_direction_rightF_01(1, 0, 0);
@@ -376,7 +365,7 @@ RotationResult outlet_rotation_result_rightF_01 = RotationCalculator(outlet_norm
 Rotation3d outlet_rotation_rightF_01(outlet_rotation_result_rightF_01.angle, outlet_rotation_result_rightF_01.axis);
 
 // outlet x_neg_front 02: R=1.5424, (-369.1252, 235.2617, -193.7022), (-0.501, 0.059, -0.863)
-Vec3d outlet_half_rightF_02 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_rightF_02 = Vec3d(1.0 * dp_0, 1.8 * scaling, 1.8 * scaling);
 Vec3d outlet_normal_rightF_02(-0.501, 0.059, -0.863);
 Vec3d outlet_translation_rightF_02 = Vec3d(-369.1252, 235.2617, -193.7022) * scaling;
 Vec3d outlet_standard_direction_rightF_02(1, 0, 0);
@@ -384,7 +373,7 @@ RotationResult outlet_rotation_result_rightF_02 = RotationCalculator(outlet_norm
 Rotation3d outlet_rotation_rightF_02(outlet_rotation_result_rightF_02.angle, outlet_rotation_result_rightF_02.axis);
 
 // outlet x_neg_behind 01: R=1.5743, (-268.3522, 116.0357, -182.4896), (0.325, -0.086, -0.942)
-Vec3d outlet_half_rightB_01 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_rightB_01 = Vec3d(1.0 * dp_0, 1.8 * scaling, 1.8 * scaling);
 Vec3d outlet_normal_rightB_01(0.325, -0.086, -0.942);
 Vec3d outlet_translation_rightB_01 = Vec3d(-268.3522, 116.0357, -182.4896) * scaling;
 Vec3d outlet_standard_direction_rightB_01(1, 0, 0);
@@ -392,7 +381,7 @@ RotationResult outlet_rotation_result_rightB_01 = RotationCalculator(outlet_norm
 Rotation3d outlet_rotation_rightB_01(outlet_rotation_result_rightB_01.angle, outlet_rotation_result_rightB_01.axis);
 
 // outlet x_neg_behind 02: R=1.8204, (-329.0846, 180.5258, -274.3232), (-0.1095, 0.9194, -0.3777)
-Vec3d outlet_half_rightB_02 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_rightB_02 = Vec3d(1.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
 Vec3d outlet_normal_rightB_02(-0.1095, 0.9194, -0.3777);
 Vec3d outlet_translation_rightB_02 = Vec3d(-329.0846, 180.5258, -274.3232) * scaling;
 Vec3d outlet_standard_direction_rightB_02(1, 0, 0);
@@ -400,7 +389,7 @@ RotationResult outlet_rotation_result_rightB_02 = RotationCalculator(outlet_norm
 Rotation3d outlet_rotation_rightB_02(outlet_rotation_result_rightB_02.angle, outlet_rotation_result_rightB_02.axis);
 
 // outlet x_neg_behind 03: R=1.5491, (-342.1711, 197.1107, -277.8681), (0.1992, 0.5114, -0.8361)
-Vec3d outlet_half_rightB_03 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_rightB_03 = Vec3d(1.0 * dp_0, 1.8 * scaling, 1.8 * scaling);
 Vec3d outlet_normal_rightB_03(0.1992, 0.5114, -0.8361);
 Vec3d outlet_translation_rightB_03 = Vec3d(-342.1711, 197.1107, -277.8681) * scaling;
 Vec3d outlet_standard_direction_rightB_03(1, 0, 0);
@@ -408,7 +397,7 @@ RotationResult outlet_rotation_result_rightB_03 = RotationCalculator(outlet_norm
 Rotation3d outlet_rotation_rightB_03(outlet_rotation_result_rightB_03.angle, outlet_rotation_result_rightB_03.axis);
 
 // outlet x_neg_behind 04: R=2.1598, (-362.0112, 200.5693, -253.8417), (0.3694, 0.6067, -0.7044)
-Vec3d outlet_half_rightB_04 = Vec3d(1.0 * dp_0, 5.0 * scaling, 5.0 * scaling);
+Vec3d outlet_half_rightB_04 = Vec3d(1.0 * dp_0, 2.5 * scaling, 2.5 * scaling);
 Vec3d outlet_normal_rightB_04(0.3694, 0.6067, -0.7044);
 Vec3d outlet_translation_rightB_04 = Vec3d(-362.0112, 200.5693, -253.8417) * scaling;
 Vec3d outlet_standard_direction_rightB_04(1, 0, 0);
@@ -496,6 +485,7 @@ int main(int ac, char *av[])
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
+        write_imported_model_to_vtp.addToWrite<Vecd>(imported_model, "NormalDirection");
         BodyStatesRecordingToVtp write_all_to_vtp(sph_system);
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files(imported_model);
@@ -523,8 +513,10 @@ int main(int ac, char *av[])
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
 
-        inlet_particles_detection.exec();
-        imported_model.updateCellLinkedListWithParticleSort(100);
+        shell_normal_prediction.smoothing_normal_exec();
+
+        //inlet_particles_detection.exec();
+        //imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_main_particles_detection.exec();
         imported_model.updateCellLinkedListWithParticleSort(100);
         outlet_left01_particles_detection.exec();
@@ -548,8 +540,6 @@ int main(int ac, char *av[])
 
         write_all_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
-
-        shell_normal_prediction.exec();
         
         return 0;
     }
