@@ -317,7 +317,7 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 }
 int simTK_resolution(20);
 // inlet: R=41.7567, (-203.6015, 204.1509, -135.3577), (0.2987, 0.1312, 0.9445)
-Vec3d inlet_half = Vec3d(1.0 * dp_0, 35.0 * scaling, 35.0 * scaling);
+Vec3d inlet_half = Vec3d(1.0 * dp_0, 44.0 * scaling, 44.0 * scaling);
 Vec3d inlet_normal(-0.2987, -0.1312, -0.9445);
 Vec3d inlet_translation = Vec3d(-203.6015, 204.1509, -135.3577) * scaling;
 Vec3d inlet_standard_direction(1, 0, 0);
