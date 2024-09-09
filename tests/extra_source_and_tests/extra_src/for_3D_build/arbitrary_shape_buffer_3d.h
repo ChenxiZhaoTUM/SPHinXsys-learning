@@ -31,13 +31,15 @@ class AlignedCylinderShape : public TriangleMeshShapeCylinder, public BaseAligne
           BaseAlignedShape(upper_bound_axis), cylinder_length_axis_(cylinder_length_axis), radius_(radius), halflength_(halflength), translation_(translation) {};
     virtual ~AlignedCylinderShape(){};
 
+    SimTK::UnitVec3 LengthAxis() { return cylinder_length_axis_; }
+    Vec3d Translation() { return translation_;  }
     bool checkInBounds(const Vecd &probe_point) override;
-    /*bool checkUpperBound(const Vecd &probe_point);
-    bool checkLowerBound(const Vecd &probe_point);
-    bool checkNearUpperBound(const Vecd &probe_point, Real threshold);
-    bool checkNearLowerBound(const Vecd &probe_point, Real threshold);
-    Vecd getUpperPeriodic(const Vecd &probe_point);
-    Vecd getLowerPeriodic(const Vecd &probe_point);*/
+    bool checkUpperBound(const Vecd &probe_point) override;
+    bool checkLowerBound(const Vecd &probe_point) override;
+    bool checkNearUpperBound(const Vecd &probe_point, Real threshold) override;
+    bool checkNearLowerBound(const Vecd &probe_point, Real threshold) override;
+    Vecd getUpperPeriodic(const Vecd &probe_point) override;
+    Vecd getLowerPeriodic(const Vecd &probe_point) override;
 };
 
 using BodyAlignedCylinderByCell = BaseAlignedRegion<BodyRegionByCell, AlignedCylinderShape>;
@@ -46,5 +48,44 @@ namespace relax_dynamics
 {
 using DeleteParticlesInCylinder = ParticlesInAlignedRegionDetectionByCell<AlignedCylinderShape>;
 } // namespace relax_dynamics
+
+
+namespace fluid_dynamics
+{
+template <typename TargetVelocity>
+class InflowVelocityConditionCylinder : public BaseFlowBoundaryCondition
+{
+  public:
+    /** default parameter indicates prescribe velocity */
+    explicit InflowVelocityConditionCylinder(BodyAlignedCylinderByCell& aligned_region_part, Real relaxation_rate = 1.0)
+        : BaseFlowBoundaryCondition(aligned_region_part),
+          relaxation_rate_(relaxation_rate), aligned_cylinder_(aligned_region_part.getAlignedShape()),
+          cylinder_length_axis_(aligned_cylinder_.LengthAxis()), translation_(aligned_cylinder_.Translation()),
+          target_velocity(*this){};
+    virtual ~InflowVelocityConditionCylinder(){};
+
+    AlignedCylinderShape &getAlignedShape() { return aligned_cylinder_; };
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        if (aligned_cylinder_.checkInBounds(pos_[index_i]))
+        {
+            Vecd frame_position = pos_[index_i] - translation_;
+            Vecd cylinder_length_axis(cylinder_length_axis_[0], cylinder_length_axis_[1], cylinder_length_axis_[2]);
+            Vecd frame_velocity = cylinder_length_axis * vel_[index_i].dot(cylinder_length_axis);
+            Vecd relaxed_frame_velocity = target_velocity(frame_position, frame_velocity) * relaxation_rate_ +
+                                          frame_velocity * (1.0 - relaxation_rate_);
+            vel_[index_i] = relaxed_frame_velocity.dot(cylinder_length_axis) * cylinder_length_axis;
+        }
+    };
+
+  protected:
+    Real relaxation_rate_;
+    AlignedCylinderShape &aligned_cylinder_;
+    SimTK::UnitVec3 cylinder_length_axis_;
+    Vec3d translation_;
+    TargetVelocity target_velocity;
+};
+} // namespace fluid_dynamics
 } // namespace SPH
 #endif // ARBITRARY_SHAPE_BUFFER_3D_H
