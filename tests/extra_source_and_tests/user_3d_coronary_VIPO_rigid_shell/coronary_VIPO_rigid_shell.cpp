@@ -27,7 +27,7 @@ Vec3d domain_lower_bound(-375.0 * scaling, 100.0 * scaling, -340 * scaling);
 Vec3d domain_upper_bound(-100.0 * scaling, 360.0 * scaling, 0.0 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
 Real dp_0 = 0.05;
-Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/ 
+Real shell_resolution = dp_0 / 2;
 Real thickness = 1.0 * shell_resolution;
 //----------------------------------------------------------------------
 //	define the imported model.
@@ -573,7 +573,7 @@ int main(int ac, char *av[])
         : shell_body.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path);
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
-    water_block.defineBodyLevelSetShape()->cleanLevelSet();
+    water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->cleanLevelSet();
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
     //water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
@@ -588,7 +588,7 @@ int main(int ac, char *av[])
     {
         // for shell
         BodyAlignedCylinderByCell inlet_detection_cylinder(shell_body, 
-            makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), 44.0 * scaling, 1.0 * dp_0, simTK_resolution, inlet_cut_translation));
+            makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), 44.0 * scaling, 2.0 * dp_0, simTK_resolution, inlet_cut_translation));
         BodyAlignedBoxByCell outlet_main_detection_box(shell_body, 
             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_rotation_main), Vec3d(outlet_cut_translation_main)), outlet_half_main));
         BodyAlignedBoxByCell outlet_left01_detection_box(shell_body, 
@@ -792,7 +792,6 @@ int main(int ac, char *av[])
     fluid_dynamics::BidirectionalBuffer<OutletInflowPressure> rightB_03_emitter_injection(outlet_rightB_03_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell outlet_rightB_04_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_rotation_rightB_04), Vec3d(outlet_buffer_translation_rightB_04)), outlet_half_rightB_04));
     fluid_dynamics::BidirectionalBuffer<OutletInflowPressure> rightB_04_emitter_injection(outlet_rightB_04_emitter, in_outlet_particle_buffer);
-
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<InletInflowPressure>> inlet_pressure_condition(inlet_emitter);

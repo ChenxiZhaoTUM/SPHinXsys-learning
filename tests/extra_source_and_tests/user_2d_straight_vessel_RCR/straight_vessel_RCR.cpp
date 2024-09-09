@@ -227,13 +227,13 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time = 0.006;
+    Real accumulated_time = 0.03;
     int updateP_n = 0;
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile();
-    right_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, R2, C, accumulated_time, 0.04);
+    right_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, R2, C, accumulated_time, 0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -281,6 +281,8 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "\n";
+
+                body_states_recording.writeToFile();
             }
             number_of_iterations++;
 
