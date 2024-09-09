@@ -279,12 +279,9 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
         makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(1, 0, 0), disposer_halfsize[1], disposer_halfsize[0], simTK_resolution, disposer_translation));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionArb<AlignedCylinderShape>> right_disposer_outflow_deletion(right_disposer_cylinder);
 
-
-    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
-    BodyAlignedBoxByCell right_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vec3d(0., 1.0, 0.)), Vec3d(disposer_translation)), disposer_halfsize));
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
-    SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition(right_emitter);
+    SimpleDynamics<fluid_dynamics::PressureConditionCylinder<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter_cylinder);
+    SimpleDynamics<fluid_dynamics::PressureConditionCylinder<RightInflowPressure>> right_inflow_pressure_condition(right_emitter_cylinder);
     SimpleDynamics<fluid_dynamics::InflowVelocityConditionCylinder<InflowVelocityCylinder>> inflow_velocity_condition(left_emitter_cylinder);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations

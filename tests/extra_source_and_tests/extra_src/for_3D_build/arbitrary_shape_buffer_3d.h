@@ -86,6 +86,42 @@ class InflowVelocityConditionCylinder : public BaseFlowBoundaryCondition
     Vec3d translation_;
     TargetVelocity target_velocity;
 };
+
+template <typename TargetPressure>
+class PressureConditionCylinder : public BaseFlowBoundaryCondition
+{
+  public:
+    /** default parameter indicates prescribe pressure */
+    template <typename... Args>
+    explicit PressureConditionCylinder(BodyAlignedCylinderByCell& aligned_region_part, Args &&...args)
+        : BaseFlowBoundaryCondition(aligned_region_part),
+          aligned_cylinder_(aligned_region_part.getAlignedShape()),
+          cylinder_length_axis_(aligned_cylinder_.LengthAxis()), translation_(aligned_cylinder_.Translation()),
+          target_pressure_(TargetPressure(aligned_region_part, std::forward<Args>(args)...)),
+          kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")){};
+    virtual ~PressureConditionCylinder(){};
+
+    AlignedCylinderShape &getAlignedShape() { return aligned_cylinder_; };
+
+    TargetPressure *getTargetPressure() { return &target_pressure_; }
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        vel_[index_i] += 2.0 * kernel_sum_[index_i] * target_pressure_(p_[index_i]) / rho_[index_i] * dt;
+
+        Vecd cylinder_length_axis(cylinder_length_axis_[0], cylinder_length_axis_[1], cylinder_length_axis_[2]);
+        Vecd frame_velocity = cylinder_length_axis * vel_[index_i].dot(cylinder_length_axis);
+
+        vel_[index_i] = frame_velocity.dot(cylinder_length_axis) * cylinder_length_axis;
+    };
+
+  protected:
+    AlignedCylinderShape &aligned_cylinder_;
+    SimTK::UnitVec3 cylinder_length_axis_;
+    Vec3d translation_;
+    TargetPressure target_pressure_;
+    StdLargeVec<Vecd> &kernel_sum_;
+};
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // ARBITRARY_SHAPE_BUFFER_3D_H
