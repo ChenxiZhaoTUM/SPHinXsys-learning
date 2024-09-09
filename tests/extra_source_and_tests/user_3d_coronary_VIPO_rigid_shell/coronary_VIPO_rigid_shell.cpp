@@ -450,9 +450,9 @@ Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_out_main + DW_out_left_01 + DW
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
 Real Outlet_pressure = 0;
 
-Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
+//Real rho0_s = 1120;                /** Normalized density. */
+//Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
+//Real poisson = 0.49;               /** Poisson ratio. */
 //Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */
 //----------------------------------------------------------------------
 //	Inflow velocity
@@ -460,12 +460,10 @@ Real poisson = 0.49;               /** Poisson ratio. */
 struct InflowVelocity
 {
     Real u_ref_, t_ref_, interval_;
-    AlignedBoxShape &aligned_box_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(0.1), t_ref_(0.218), interval_(0.5),
-        aligned_box_(boundary_condition.getAlignedBox()){}
+        : u_ref_(0.1), t_ref_(0.218), interval_(0.5) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
@@ -560,27 +558,38 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
     //----------------------------------------------------------------------
     SolidBody shell_body(sph_system, makeShared<SolidBodyFromMesh>("ShellBody"));
     shell_body.defineAdaptation<SPHAdaptation>(1.15, dp_0/shell_resolution);
-    shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
-    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-        ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path);
+    shell_body.defineMaterial<Solid>();
+    if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+    {
+        shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName());
+    }
+    else
+    {
+        shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
+        shell_body.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path);
+    }
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
-    water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->cleanLevelSet();
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
     //water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
-    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-    ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
-    : water_block.generateParticles<BaseParticles, Lattice>();
+    if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+    {
+        water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName());
+    }
+    else
+    {
+        water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->cleanLevelSet();
+        water_block.generateParticles<BaseParticles, Lattice>();
+    }
     //----------------------------------------------------------------------
     //	SPH Particle relaxation section
     //----------------------------------------------------------------------
@@ -589,7 +598,7 @@ int main(int ac, char *av[])
     {
         // for shell
         BodyAlignedCylinderByCell inlet_detection_cylinder(shell_body, 
-            makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), 44.0 * scaling, 2.0 * dp_0, simTK_resolution, inlet_cut_translation));
+            makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), inlet_half[1], inlet_half[0], simTK_resolution, inlet_cut_translation));
         BodyAlignedBoxByCell outlet_main_detection_box(shell_body, 
             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_rotation_main), Vec3d(outlet_cut_translation_main)), outlet_half_main));
         BodyAlignedBoxByCell outlet_left01_detection_box(shell_body, 
@@ -747,8 +756,9 @@ int main(int ac, char *av[])
 
     // add buffers
     // disposer
-    BodyAlignedBoxByCell inlet_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation), Vec3d(inlet_buffer_translation)), inlet_half));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> inlet_disposer_deletion(inlet_disposer);
+    BodyAlignedCylinderByCell inlet_disposer_cylinder(water_block,
+        makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), inlet_half[1], inlet_half[0], simTK_resolution, inlet_buffer_translation));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionArb<AlignedCylinderShape>> inlet_disposer_deletion(inlet_disposer_cylinder);
     BodyAlignedBoxByCell outlet_main_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_disposer_rotation_main), Vec3d(outlet_buffer_translation_main)), outlet_half_main));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> main_disposer_injection(outlet_main_disposer);
     BodyAlignedBoxByCell outlet_left_01_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_disposer_rotation_left_01), Vec3d(outlet_buffer_translation_left_01)), outlet_half_left_01));
@@ -771,8 +781,9 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> rightB_04_disposer_injection(outlet_rightB_04_disposer);
 
     // emitter
-    BodyAlignedBoxByCell inlet_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_half));
-    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer inlet_emitter_injection(inlet_emitter, in_outlet_particle_buffer);
+    BodyAlignedCylinderByCell inlet_emitter_cylinder(water_block,
+        makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(0.2987, 0.1312, 0.9445), inlet_half[1], inlet_half[0], simTK_resolution, inlet_buffer_translation));
+    fluid_dynamics::NonPrescribedPressureBidirectionalBufferArb<AlignedCylinderShape> inlet_emitter_injection(inlet_emitter_cylinder, in_outlet_particle_buffer);
     BodyAlignedBoxByCell outlet_main_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_rotation_main), Vec3d(outlet_buffer_translation_main)), outlet_half_main));
     fluid_dynamics::BidirectionalBuffer<OutletInflowPressure> main_emitter_injection(outlet_main_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell outlet_left_01_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_rotation_left_01), Vec3d(outlet_buffer_translation_left_01)), outlet_half_left_01));
@@ -795,7 +806,7 @@ int main(int ac, char *av[])
     fluid_dynamics::BidirectionalBuffer<OutletInflowPressure> rightB_04_emitter_injection(outlet_rightB_04_emitter, in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
-    SimpleDynamics<fluid_dynamics::PressureCondition<InletInflowPressure>> inlet_pressure_condition(inlet_emitter);
+    SimpleDynamics<fluid_dynamics::PressureConditionCylinder<InletInflowPressure>> inlet_pressure_condition(inlet_emitter_cylinder);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> main_pressure_condition(outlet_main_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> left_01_pressure_condition(outlet_left_01_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> left_02_pressure_condition(outlet_left_02_emitter);
@@ -806,7 +817,7 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> rightB_02_pressure_condition(outlet_rightB_02_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> rightB_03_pressure_condition(outlet_rightB_03_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> rightB_04_pressure_condition(outlet_rightB_04_emitter);
-    SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(inlet_emitter);
+    SimpleDynamics<fluid_dynamics::InflowVelocityConditionCylinder<InflowVelocity>> inflow_velocity_condition(inlet_emitter_cylinder);
 
     // FSI
     /*InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
