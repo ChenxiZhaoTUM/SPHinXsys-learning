@@ -10,7 +10,8 @@
 #include "kernel_summation.h"
 #include "kernel_summation.hpp"
 #include "pressure_boundary.h"
-#include "particle_deletion_cylinder.h"
+#include "arbitrary_shape_buffer.h"
+#include "arbitrary_shape_buffer_3d.h"
 
 using namespace SPH;
 //----------------------------------------------------------------------
@@ -622,7 +623,7 @@ int main(int ac, char *av[])
         RelaxationStepInner relaxation_step_inner_blood(blood_inner);
         ShellNormalDirectionPrediction shell_normal_prediction(shell_inner, thickness);
 
-        SimpleDynamics<ParticlesInAlignedCylinderDetectionByCell> inlet_particles_detection(inlet_detection_cylinder);
+        SimpleDynamics<DeleteParticlesInCylinder> inlet_particles_detection(inlet_detection_cylinder);
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_main_particles_detection(outlet_main_detection_box);
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_left01_particles_detection(outlet_left01_detection_box);
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_left02_particles_detection(outlet_left02_detection_box);

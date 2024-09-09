@@ -7,7 +7,8 @@
  */
 
 #include "sphinxsys.h"
-#include "particle_deletion_cylinder.h"
+#include "arbitrary_shape_buffer.h"
+#include "arbitrary_shape_buffer_3d.h"
 #include <numeric>
 
 using namespace SPH;
@@ -441,26 +442,26 @@ int main(int ac, char *av[])
             makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), 44.0 * scaling, 1.0 * dp_0, simTK_resolution, inlet_translation));
         /*BodyAlignedBoxByCell inlet_detection_box(imported_model, 
             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));*/
-        BodyAlignedBoxByCell outlet_main_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_main), Vec3d(outlet_translation_main)), outlet_half_main));
-        BodyAlignedBoxByCell outlet_left01_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_01), Vec3d(outlet_translation_left_01)), outlet_half_left_01));
-        BodyAlignedBoxByCell outlet_left02_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_02), Vec3d(outlet_translation_left_02)), outlet_half_left_02));
-        BodyAlignedBoxByCell outlet_left03_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_03), Vec3d(outlet_translation_left_03)), outlet_half_left_03));
-        BodyAlignedBoxByCell outlet_rightF01_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_01), Vec3d(outlet_translation_rightF_01)), outlet_half_rightF_01));
-        BodyAlignedBoxByCell outlet_rightF02_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_02), Vec3d(outlet_translation_rightF_02)), outlet_half_rightF_02));
-        BodyAlignedBoxByCell outlet_rightB01_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_01), Vec3d(outlet_translation_rightB_01)), outlet_half_rightB_01));
-        BodyAlignedBoxByCell outlet_rightB02_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_02), Vec3d(outlet_translation_rightB_02)), outlet_half_rightB_02));
-        BodyAlignedBoxByCell outlet_rightB03_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_03), Vec3d(outlet_translation_rightB_03)), outlet_half_rightB_03));
-        BodyAlignedBoxByCell outlet_rightB04_detection_box(imported_model, 
-            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_04), Vec3d(outlet_translation_rightB_04)), outlet_half_rightB_04));
+        BodyAlignedBoxByCell02 outlet_main_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_main), Vec3d(outlet_translation_main)), outlet_half_main));
+        BodyAlignedBoxByCell02 outlet_left01_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_left_01), Vec3d(outlet_translation_left_01)), outlet_half_left_01));
+        BodyAlignedBoxByCell02 outlet_left02_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_left_02), Vec3d(outlet_translation_left_02)), outlet_half_left_02));
+        BodyAlignedBoxByCell02 outlet_left03_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_left_03), Vec3d(outlet_translation_left_03)), outlet_half_left_03));
+        BodyAlignedBoxByCell02 outlet_rightF01_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_01), Vec3d(outlet_translation_rightF_01)), outlet_half_rightF_01));
+        BodyAlignedBoxByCell02 outlet_rightF02_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_02), Vec3d(outlet_translation_rightF_02)), outlet_half_rightF_02));
+        BodyAlignedBoxByCell02 outlet_rightB01_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_01), Vec3d(outlet_translation_rightB_01)), outlet_half_rightB_01));
+        BodyAlignedBoxByCell02 outlet_rightB02_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_02), Vec3d(outlet_translation_rightB_02)), outlet_half_rightB_02));
+        BodyAlignedBoxByCell02 outlet_rightB03_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_03), Vec3d(outlet_translation_rightB_03)), outlet_half_rightB_03));
+        BodyAlignedBoxByCell02 outlet_rightB04_detection_box(imported_model, 
+            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_04), Vec3d(outlet_translation_rightB_04)), outlet_half_rightB_04));
 
         InnerRelation imported_model_inner(imported_model);
         //----------------------------------------------------------------------
@@ -472,18 +473,18 @@ int main(int ac, char *av[])
         SurfaceRelaxationStep relaxation_step_inner(imported_model_inner);
         ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness);
 
-        SimpleDynamics<ParticlesInAlignedCylinderDetectionByCell> inlet_particles_detection(inlet_detection_cylinder);
-        //SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_main_particles_detection(outlet_main_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_left01_particles_detection(outlet_left01_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_left02_particles_detection(outlet_left02_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_left03_particles_detection(outlet_left03_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightF01_particles_detection(outlet_rightF01_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightF02_particles_detection(outlet_rightF02_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightB01_particles_detection(outlet_rightB01_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightB02_particles_detection(outlet_rightB02_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightB03_particles_detection(outlet_rightB03_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_rightB04_particles_detection(outlet_rightB04_detection_box);
+        SimpleDynamics<DeleteParticlesInCylinder> inlet_particles_detection(inlet_detection_cylinder);
+        //SimpleDynamics<DeleteParticlesInBox> inlet_particles_detection(inlet_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_main_particles_detection(outlet_main_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_left01_particles_detection(outlet_left01_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_left02_particles_detection(outlet_left02_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_left03_particles_detection(outlet_left03_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_rightF01_particles_detection(outlet_rightF01_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_rightF02_particles_detection(outlet_rightF02_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_rightB01_particles_detection(outlet_rightB01_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_rightB02_particles_detection(outlet_rightB02_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_rightB03_particles_detection(outlet_rightB03_detection_box);
+        SimpleDynamics<DeleteParticlesInBox> outlet_rightB04_particles_detection(outlet_rightB04_detection_box);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_imported_model_to_vtp({imported_model});
