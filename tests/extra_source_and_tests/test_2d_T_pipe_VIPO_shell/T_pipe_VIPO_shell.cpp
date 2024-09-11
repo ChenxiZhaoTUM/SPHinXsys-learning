@@ -31,7 +31,7 @@ Real level_set_refinement_ratio = resolution_ref / (0.1 * BW);
 //	Global parameters on the fluid properties.
 //----------------------------------------------------------------------
 Real Outlet_pressure = 0;
-Real rho0_f = 1000.0;                                                 /**< Reference density of fluid. */
+Real rho0_f = 1.0;                                                 /**< Reference density of fluid. Using air density here.*/
 Real Re = 100.0;                                                      /**< Reynolds number. */
 Real U_f = 1.0;                                                       /**< Characteristic velocity. */
 Real mu_f = rho0_f * U_f * DH / Re;                                   /**< Dynamics viscosity. */
@@ -39,9 +39,9 @@ Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Refere
 //----------------------------------------------------------------------
 //	Material parameters of the shell.
 //----------------------------------------------------------------------
-Real rho0_s = 1120;           /** Normalized density. */
-Real Youngs_modulus = 1.08e8; /** Normalized Youngs Modulus. */
-Real poisson = 0.49;          /** Poisson ratio. */
+Real rho0_s = 1.0e3;           /** Normalized density. */
+Real Youngs_modulus = 1.0e6; /** Normalized Youngs Modulus. */
+Real poisson = 0.3;          /** Poisson ratio. */
 //----------------------------------------------------------------------
 //	Define geometry of SPH bodies.
 //----------------------------------------------------------------------
@@ -57,6 +57,8 @@ std::vector<Vecd> outer_wall_shape{
 std::vector<Vecd> inner_wall_shape{
     Vecd(-DL_sponge - BW, 0.0), Vecd(-DL_sponge - BW, DH), Vecd(DL1, DH), Vecd(DL1, 2.0 * DH + BW),
     Vecd(DL, 2.0 * DH + BW), Vecd(DL, -DH - BW), Vecd(DL1, -DH - BW), Vecd(DL1, 0.0), Vecd(-DL_sponge - BW, 0.0)};
+namespace SPH
+{
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -238,6 +240,7 @@ class BoundaryGeometry : public BodyPartByParticle
         }
     };
 };
+} // namespace SPH
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -381,9 +384,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
-    int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 30.0;                /**< End time. */
-    Real Output_Time = end_time / 300.0; /**< Time stamps for output of body states. */
+    Real end_time = 15.0;                /**< End time. */
+    Real Output_Time = end_time / 150; /**< Time stamps for output of body states. */
     Real dt = 0.0;                       /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
