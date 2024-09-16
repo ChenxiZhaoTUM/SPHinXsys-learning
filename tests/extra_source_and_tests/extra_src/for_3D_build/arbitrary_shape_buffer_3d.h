@@ -15,7 +15,37 @@
 
 namespace SPH
 {
-class AlignedCylinderShape : public TriangleMeshShapeCylinder, public BaseAlignedShape
+class AlignedCylinderShape : public TransformShape<GeometricShapeCylinder>, public BaseAlignedShape
+{
+  public:
+    /** construct directly */
+    template <typename... Args>
+    explicit AlignedCylinderShape(int upper_bound_axis, const Transform &transform, Args &&... args)
+        : TransformShape<GeometricShapeCylinder>(transform, std::forward<Args>(args)...), 
+        BaseAlignedShape(upper_bound_axis) {};  //upper_bound_axis default x
+    /** construct from a shape already has aligned boundaries */
+    // not sure if it is correct in Cylinder shape
+    template <typename... Args>
+    explicit AlignedCylinderShape(int upper_bound_axis, const Shape &shape, Args &&... args)
+        : TransformShape<GeometricShapeCylinder>(
+              Transform(Vecd(0.5 * (shape.bounding_box_.second_ + shape.bounding_box_.first_))),
+              0.5 * (shape.bounding_box_.second_ - shape.bounding_box_.first_), std::forward<Args>(args)...),
+        BaseAlignedShape(upper_bound_axis) {};
+    virtual ~AlignedCylinderShape(){};
+
+    Real HalfLength() { return halflength_; }
+    Real radius() { return radius_; }
+    bool checkInBounds(const Vecd &probe_point);
+    bool checkUpperBound(const Vecd &probe_point);
+    bool checkLowerBound(const Vecd &probe_point);
+    bool checkNearUpperBound(const Vecd &probe_point, Real threshold);
+    bool checkNearLowerBound(const Vecd &probe_point, Real threshold);
+    Vecd getUpperPeriodic(const Vecd &probe_point);
+    Vecd getLowerPeriodic(const Vecd &probe_point);
+    int AlignmentAxis() { return alignment_axis_; };
+};
+
+class AlignedCylinderShapeByTriangleMesh : public TriangleMeshShapeCylinder, public BaseAlignedShape
 {
     SimTK::UnitVec3 cylinder_length_axis_;
     Real radius_;
@@ -25,11 +55,11 @@ class AlignedCylinderShape : public TriangleMeshShapeCylinder, public BaseAligne
   public:
     /** construct directly */
     template <typename... Args>
-    explicit AlignedCylinderShape(int upper_bound_axis, SimTK::UnitVec3 cylinder_length_axis, Real radius, Real halflength, int resolution, Vec3d translation,
+    explicit AlignedCylinderShapeByTriangleMesh(int upper_bound_axis, SimTK::UnitVec3 cylinder_length_axis, Real radius, Real halflength, int resolution, Vec3d translation,
                                        const std::string &shape_name = "TriangleMeshShapeCylinder")
         : TriangleMeshShapeCylinder(cylinder_length_axis, radius, halflength, resolution, translation, shape_name),
           BaseAlignedShape(upper_bound_axis), cylinder_length_axis_(cylinder_length_axis), radius_(radius), halflength_(halflength), translation_(translation) {};
-    virtual ~AlignedCylinderShape(){};
+    virtual ~AlignedCylinderShapeByTriangleMesh(){};
 
     SimTK::UnitVec3 LengthAxis() { return cylinder_length_axis_; }
     Vec3d Translation() { return translation_;  }
@@ -43,10 +73,12 @@ class AlignedCylinderShape : public TriangleMeshShapeCylinder, public BaseAligne
 };
 
 using BodyAlignedCylinderByCell = BaseAlignedRegion<BodyRegionByCell, AlignedCylinderShape>;
+using BodyAlignedCylinderByCellByTriangleMesh = BaseAlignedRegion<BodyRegionByCell, AlignedCylinderShapeByTriangleMesh>;
 
 namespace relax_dynamics
 {
 using DeleteParticlesInCylinder = ParticlesInAlignedRegionDetectionByCell<AlignedCylinderShape>;
+using DeleteParticlesInCylinderByTriangleMesh = ParticlesInAlignedRegionDetectionByCell<AlignedCylinderShapeByTriangleMesh>;
 } // namespace relax_dynamics
 
 

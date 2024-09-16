@@ -413,8 +413,8 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(true);
-    sph_system.setReloadParticles(false);
+    sph_system.setRunParticleRelaxation(false);
+    sph_system.setReloadParticles(true);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
@@ -424,7 +424,8 @@ int main(int ac, char *av[])
 
     RealBody imported_model(sph_system, makeShared<SolidBodyFromMesh>("ShellShape"));
     imported_model.defineAdaptation<SPHAdaptation>(1.15, 1.0);
-    imported_model.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
+    //imported_model.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
+    imported_model.defineBodyLevelSetShape(2.0)->correctLevelSetSign();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? imported_model.generateParticles<SurfaceParticles, Reload>(imported_model.getName())
         : imported_model.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path);
@@ -438,8 +439,10 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     if (sph_system.RunParticleRelaxation())
     {
-        BodyAlignedCylinderByCell inlet_detection_cylinder(imported_model, 
-            makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), 44.0 * scaling, 1.0 * dp_0, simTK_resolution, inlet_translation));
+        BodyAlignedCylinderByCell inlet_detection_cylinder(imported_model,
+            makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half[1], inlet_half[0]));
+        /*BodyAlignedCylinderByCellByTriangleMesh inlet_detection_cylinder(imported_model, 
+            makeShared<AlignedCylinderShapeByTriangleMesh>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), 44.0 * scaling, 1.0 * dp_0, simTK_resolution, inlet_translation));*/
         /*BodyAlignedBoxByCell inlet_detection_box(imported_model, 
             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));*/
         BodyAlignedBoxByCell02 outlet_main_detection_box(imported_model, 
@@ -474,6 +477,7 @@ int main(int ac, char *av[])
         ShellNormalDirectionPrediction shell_normal_prediction(imported_model_inner, thickness);
 
         SimpleDynamics<DeleteParticlesInCylinder> inlet_particles_detection(inlet_detection_cylinder);
+        //SimpleDynamics<DeleteParticlesInCylinderByTriangleMesh> inlet_particles_detection(inlet_detection_cylinder);
         //SimpleDynamics<DeleteParticlesInBox> inlet_particles_detection(inlet_detection_box);
         SimpleDynamics<DeleteParticlesInBox> outlet_main_particles_detection(outlet_main_detection_box);
         SimpleDynamics<DeleteParticlesInBox> outlet_left01_particles_detection(outlet_left01_detection_box);
@@ -544,13 +548,15 @@ int main(int ac, char *av[])
         
         return 0;
     }
-
     RealBody test_body_in(
-        sph_system, makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), 44.0 * scaling, 1.0 * dp_0, simTK_resolution, inlet_translation), "TestBodyIn");
+        sph_system, makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), 44.0 * scaling, 1.0 * dp_0), "TestBodyIn");
     test_body_in.generateParticles<BaseParticles, Lattice>();
-    //RealBody test_body_in(
-    //sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
-    //test_body_in.generateParticles<BaseParticles, Lattice>();
+    /*RealBody test_body_in(
+        sph_system, makeShared<AlignedCylinderShapeByTriangleMesh>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), 44.0 * scaling, 1.0 * dp_0, simTK_resolution, inlet_translation), "TestBodyIn");
+    test_body_in.generateParticles<BaseParticles, Lattice>();*/
+    /*RealBody test_body_in(
+    sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half, "TestBodyIn"));
+    test_body_in.generateParticles<BaseParticles, Lattice>();*/
 
     RealBody test_body_out_main(
     sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_main), Vec3d(outlet_translation_main)), outlet_half_main, "TestBodyOutMain"));

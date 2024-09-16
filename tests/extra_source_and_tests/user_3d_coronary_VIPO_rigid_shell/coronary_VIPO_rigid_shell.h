@@ -344,7 +344,6 @@ Vec3d inlet_normal(-0.2987, -0.1312, -0.9445);
 Vec3d inlet_cut_translation = Vec3d(-203.6015, 204.1509, -135.3577) * scaling + inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
 Vec3d inlet_buffer_translation = Vec3d(-203.6015, 204.1509, -135.3577) * scaling - inlet_normal * 2.0 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
-Rotation3d inlet_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
 

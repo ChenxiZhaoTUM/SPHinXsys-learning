@@ -89,7 +89,6 @@ class GeometricShapeBall : public GeometricShape
 class GeometricShapeCylinder : public GeometricShape
 {
   private:
-    Real halflength_;
     SimTK::ContactGeometry::Cylinder cylinder_;
 
   public:
@@ -101,6 +100,8 @@ class GeometricShapeCylinder : public GeometricShape
     virtual Vec3d findClosestPoint(const Vec3d &probe_point) override;
 
   protected:
+    Real halflength_;
+    Real radius_;
     virtual BoundingBox findBounds() override;
 };
 

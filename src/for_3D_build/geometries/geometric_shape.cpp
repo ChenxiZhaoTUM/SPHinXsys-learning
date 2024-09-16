@@ -87,7 +87,7 @@ BoundingBox GeometricShapeBall::findBounds()
 //=================================================================================================//
 GeometricShapeCylinder::
     GeometricShapeCylinder(const Real &radius, const Real &halflength, const std::string &shape_name)
-    : GeometricShape(shape_name), cylinder_(radius), halflength_(halflength)
+    : GeometricShape(shape_name), cylinder_(radius), halflength_(halflength), radius_(radius)
 {
     contact_geometry_ = &cylinder_;
     // default center (0, 0, 0), default axis direction (1, 0, 0)
@@ -106,7 +106,7 @@ Vec3d GeometricShapeCylinder::findClosestPoint(const Vec3d &probe_point)
 {
     bool ptWasInside = checkContain(probe_point, true);
     Real axial_distance = probe_point[0];
-    Real radial_distance = std::sqrt(probe_point[1] * probe_point[1] + probe_point[2] * probe_point[2]);
+    Real radial_distance = sqrt(probe_point[1] * probe_point[1] + probe_point[2] * probe_point[2]);
     Vecd closest_point = probe_point;
 
     Real distance_to_caps = halflength_ - ABS(axial_distance); // Distance to the nearest end cap

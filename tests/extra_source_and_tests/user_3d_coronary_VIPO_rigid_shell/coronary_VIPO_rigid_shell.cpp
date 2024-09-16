@@ -54,8 +54,8 @@ int main(int ac, char *av[])
     if (sph_system.RunParticleRelaxation())
     {
         // for shell
-        BodyAlignedCylinderByCell inlet_detection_cylinder(shell_body, 
-            makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), inlet_half[1], inlet_half[0], simTK_resolution, inlet_cut_translation));
+        BodyAlignedCylinderByCell inlet_detection_cylinder(shell_body,
+            makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half[1], inlet_half[0]));
         BodyAlignedBoxByCell outlet_main_detection_box(shell_body, 
             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_rotation_main), Vec3d(outlet_cut_translation_main)), outlet_half_main));
         BodyAlignedBoxByCell outlet_left01_detection_box(shell_body, 
@@ -208,13 +208,14 @@ int main(int ac, char *av[])
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> density_relaxation(water_block_inner, water_shell_contact);
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
+    ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_shell_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_shell_contact);
 
     // add buffers
     // disposer
     BodyAlignedCylinderByCell inlet_disposer_cylinder(water_block,
-        makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-0.2987, -0.1312, -0.9445), inlet_half[1], inlet_half[0], simTK_resolution, inlet_buffer_translation));
+            makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation), Vec3d(inlet_buffer_translation)), inlet_half[1], inlet_half[0]));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionArb<AlignedCylinderShape>> inlet_disposer_deletion(inlet_disposer_cylinder);
     BodyAlignedBoxByCell outlet_main_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_disposer_rotation_main), Vec3d(outlet_buffer_translation_main)), outlet_half_main));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> main_disposer_injection(outlet_main_disposer);
@@ -239,7 +240,7 @@ int main(int ac, char *av[])
 
     // emitter
     BodyAlignedCylinderByCell inlet_emitter_cylinder(water_block,
-        makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(0.2987, 0.1312, 0.9445), inlet_half[1], inlet_half[0], simTK_resolution, inlet_buffer_translation));
+            makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_half[1], inlet_half[0]));
     fluid_dynamics::NonPrescribedPressureBidirectionalBufferArb<AlignedCylinderShape> inlet_emitter_injection(inlet_emitter_cylinder, in_outlet_particle_buffer);
     BodyAlignedBoxByCell outlet_main_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_emitter_rotation_main), Vec3d(outlet_buffer_translation_main)), outlet_half_main));
     fluid_dynamics::BidirectionalBuffer<OutletInflowPressure> main_emitter_injection(outlet_main_emitter, in_outlet_particle_buffer);
