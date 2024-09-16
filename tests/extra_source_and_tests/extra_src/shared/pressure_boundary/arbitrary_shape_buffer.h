@@ -17,53 +17,6 @@
 
 namespace SPH
 {
-class BaseAlignedShape
-{
-protected:
-    const int alignment_axis_;
-
-public:
-    explicit BaseAlignedShape(int upper_bound_axis)
-        : alignment_axis_(upper_bound_axis) {};
-    virtual ~BaseAlignedShape(){};
-
-    virtual bool checkInBounds(const Vecd &probe_point) = 0;
-    virtual bool checkUpperBound(const Vecd &probe_point) = 0;
-    virtual bool checkLowerBound(const Vecd &probe_point) = 0;
-    virtual bool checkNearUpperBound(const Vecd &probe_point, Real threshold) = 0;
-    virtual bool checkNearLowerBound(const Vecd &probe_point, Real threshold) = 0;
-    virtual Vecd getUpperPeriodic(const Vecd &probe_point) = 0;
-    virtual Vecd getLowerPeriodic(const Vecd &probe_point) = 0;
-    int AlignmentAxis() { return alignment_axis_; };
-};
-
-class AlignedBoxShape02 : public TransformShape<GeometricShapeBox>, public BaseAlignedShape
-{
-  public:
-    /** construct directly */
-    template <typename... Args>
-    explicit AlignedBoxShape02(int upper_bound_axis, const Transform &transform, Args &&... args)
-        : TransformShape<GeometricShapeBox>(transform, std::forward<Args>(args)...),
-          BaseAlignedShape(upper_bound_axis){};
-    /** construct from a shape already has aligned boundaries */
-    template <typename... Args>
-    explicit AlignedBoxShape02(int upper_bound_axis, const Shape &shape, Args &&... args)
-        : TransformShape<GeometricShapeBox>(
-              Transform(Vecd(0.5 * (shape.bounding_box_.second_ + shape.bounding_box_.first_))),
-              0.5 * (shape.bounding_box_.second_ - shape.bounding_box_.first_), std::forward<Args>(args)...),
-          BaseAlignedShape(upper_bound_axis){};
-    virtual ~AlignedBoxShape02(){};
-
-    Vecd HalfSize() { return halfsize_; }
-    bool checkInBounds(const Vecd &probe_point) override;
-    bool checkUpperBound(const Vecd &probe_point) override;
-    bool checkLowerBound(const Vecd &probe_point) override;
-    bool checkNearUpperBound(const Vecd &probe_point, Real threshold) override;
-    bool checkNearLowerBound(const Vecd &probe_point, Real threshold) override; 
-    Vecd getUpperPeriodic(const Vecd &probe_point) override;
-    Vecd getLowerPeriodic(const Vecd &probe_point) override;
-};
-
 template <class BodyRegionType, typename AlignedShapeType>
 class BaseAlignedRegion : public BodyRegionType
 {
@@ -82,7 +35,7 @@ protected:
 template <typename AlignedShapeType>
 using BodyAlignedRegionByCell = BaseAlignedRegion<BodyRegionByCell, AlignedShapeType>;
 
-using BodyAlignedBoxByCell02 = BaseAlignedRegion<BodyRegionByCell, AlignedBoxShape02>;
+using BodyAlignedBoxByCell02 = BaseAlignedRegion<BodyRegionByCell, AlignedBoxShape>;
 
 
 namespace relax_dynamics
@@ -114,7 +67,7 @@ class ParticlesInAlignedRegionDetectionByCell : public BaseLocalDynamics<BodyPar
     AlignedShapeType &aligned_shape_;
 };
 
-using DeleteParticlesInBox = ParticlesInAlignedRegionDetectionByCell<AlignedBoxShape02>;
+using DeleteParticlesInBox = ParticlesInAlignedRegionDetectionByCell<AlignedBoxShape>;
 } // namespace relax_dynamics
 
 

@@ -413,8 +413,8 @@ int main(int ac, char *av[])
     //	Build up -- a SPHSystem
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(false);
-    sph_system.setReloadParticles(true);
+    sph_system.setRunParticleRelaxation(true);
+    sph_system.setReloadParticles(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
@@ -446,25 +446,25 @@ int main(int ac, char *av[])
         /*BodyAlignedBoxByCell inlet_detection_box(imported_model, 
             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_rotation), Vec3d(inlet_translation)), inlet_half));*/
         BodyAlignedBoxByCell02 outlet_main_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_main), Vec3d(outlet_translation_main)), outlet_half_main));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_main), Vec3d(outlet_translation_main)), outlet_half_main));
         BodyAlignedBoxByCell02 outlet_left01_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_left_01), Vec3d(outlet_translation_left_01)), outlet_half_left_01));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_01), Vec3d(outlet_translation_left_01)), outlet_half_left_01));
         BodyAlignedBoxByCell02 outlet_left02_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_left_02), Vec3d(outlet_translation_left_02)), outlet_half_left_02));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_02), Vec3d(outlet_translation_left_02)), outlet_half_left_02));
         BodyAlignedBoxByCell02 outlet_left03_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_left_03), Vec3d(outlet_translation_left_03)), outlet_half_left_03));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_left_03), Vec3d(outlet_translation_left_03)), outlet_half_left_03));
         BodyAlignedBoxByCell02 outlet_rightF01_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_01), Vec3d(outlet_translation_rightF_01)), outlet_half_rightF_01));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_01), Vec3d(outlet_translation_rightF_01)), outlet_half_rightF_01));
         BodyAlignedBoxByCell02 outlet_rightF02_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_02), Vec3d(outlet_translation_rightF_02)), outlet_half_rightF_02));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightF_02), Vec3d(outlet_translation_rightF_02)), outlet_half_rightF_02));
         BodyAlignedBoxByCell02 outlet_rightB01_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_01), Vec3d(outlet_translation_rightB_01)), outlet_half_rightB_01));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_01), Vec3d(outlet_translation_rightB_01)), outlet_half_rightB_01));
         BodyAlignedBoxByCell02 outlet_rightB02_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_02), Vec3d(outlet_translation_rightB_02)), outlet_half_rightB_02));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_02), Vec3d(outlet_translation_rightB_02)), outlet_half_rightB_02));
         BodyAlignedBoxByCell02 outlet_rightB03_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_03), Vec3d(outlet_translation_rightB_03)), outlet_half_rightB_03));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_03), Vec3d(outlet_translation_rightB_03)), outlet_half_rightB_03));
         BodyAlignedBoxByCell02 outlet_rightB04_detection_box(imported_model, 
-            makeShared<AlignedBoxShape02>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_04), Vec3d(outlet_translation_rightB_04)), outlet_half_rightB_04));
+            makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_rotation_rightB_04), Vec3d(outlet_translation_rightB_04)), outlet_half_rightB_04));
 
         InnerRelation imported_model_inner(imported_model);
         //----------------------------------------------------------------------

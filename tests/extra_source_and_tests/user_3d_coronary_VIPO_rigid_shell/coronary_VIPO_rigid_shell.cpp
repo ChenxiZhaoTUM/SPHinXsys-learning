@@ -264,7 +264,7 @@ int main(int ac, char *av[])
     fluid_dynamics::BidirectionalBuffer<OutletInflowPressure> rightB_04_emitter_injection(outlet_rightB_04_emitter, in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
-    SimpleDynamics<fluid_dynamics::PressureConditionCylinder<InletInflowPressure>> inlet_pressure_condition(inlet_emitter_cylinder);
+    SimpleDynamics<fluid_dynamics::PressureConditionArb<InletInflowPressure, AlignedCylinderShape>> inlet_pressure_condition(inlet_emitter_cylinder);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> main_pressure_condition(outlet_main_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> left_01_pressure_condition(outlet_left_01_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> left_02_pressure_condition(outlet_left_02_emitter);
@@ -275,7 +275,7 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> rightB_02_pressure_condition(outlet_rightB_02_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> rightB_03_pressure_condition(outlet_rightB_03_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<OutletInflowPressure>> rightB_04_pressure_condition(outlet_rightB_04_emitter);
-    SimpleDynamics<fluid_dynamics::InflowVelocityConditionCylinder<InflowVelocity>> inflow_velocity_condition(inlet_emitter_cylinder);
+    SimpleDynamics<fluid_dynamics::InflowVelocityConditionArb<InflowVelocity, AlignedCylinderShape>> inflow_velocity_condition(inlet_emitter_cylinder);
 
     // FSI
     /*InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);

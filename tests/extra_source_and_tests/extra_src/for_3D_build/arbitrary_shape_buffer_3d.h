@@ -15,14 +15,16 @@
 
 namespace SPH
 {
-class AlignedCylinderShape : public TransformShape<GeometricShapeCylinder>, public BaseAlignedShape
+class AlignedCylinderShape : public TransformShape<GeometricShapeCylinder>
 {
+  const int alignment_axis_;
+
   public:
     /** construct directly */
     template <typename... Args>
     explicit AlignedCylinderShape(int upper_bound_axis, const Transform &transform, Args &&... args)
         : TransformShape<GeometricShapeCylinder>(transform, std::forward<Args>(args)...), 
-        BaseAlignedShape(upper_bound_axis) {};  //upper_bound_axis default x
+        alignment_axis_(upper_bound_axis) {};  //upper_bound_axis default x
     /** construct from a shape already has aligned boundaries */
     // not sure if it is correct in Cylinder shape
     template <typename... Args>
@@ -30,7 +32,7 @@ class AlignedCylinderShape : public TransformShape<GeometricShapeCylinder>, publ
         : TransformShape<GeometricShapeCylinder>(
               Transform(Vecd(0.5 * (shape.bounding_box_.second_ + shape.bounding_box_.first_))),
               0.5 * (shape.bounding_box_.second_ - shape.bounding_box_.first_), std::forward<Args>(args)...),
-        BaseAlignedShape(upper_bound_axis) {};
+        alignment_axis_(upper_bound_axis) {};
     virtual ~AlignedCylinderShape(){};
 
     Real HalfLength() { return halflength_; }
@@ -45,8 +47,9 @@ class AlignedCylinderShape : public TransformShape<GeometricShapeCylinder>, publ
     int AlignmentAxis() { return alignment_axis_; };
 };
 
-class AlignedCylinderShapeByTriangleMesh : public TriangleMeshShapeCylinder, public BaseAlignedShape
+class AlignedCylinderShapeByTriangleMesh : public TriangleMeshShapeCylinder
 {
+    const int alignment_axis_;
     SimTK::UnitVec3 cylinder_length_axis_;
     Real radius_;
     Real halflength_;
@@ -58,18 +61,20 @@ class AlignedCylinderShapeByTriangleMesh : public TriangleMeshShapeCylinder, pub
     explicit AlignedCylinderShapeByTriangleMesh(int upper_bound_axis, SimTK::UnitVec3 cylinder_length_axis, Real radius, Real halflength, int resolution, Vec3d translation,
                                        const std::string &shape_name = "TriangleMeshShapeCylinder")
         : TriangleMeshShapeCylinder(cylinder_length_axis, radius, halflength, resolution, translation, shape_name),
-          BaseAlignedShape(upper_bound_axis), cylinder_length_axis_(cylinder_length_axis), radius_(radius), halflength_(halflength), translation_(translation) {};
+          alignment_axis_(upper_bound_axis),
+          cylinder_length_axis_(cylinder_length_axis), radius_(radius), halflength_(halflength), translation_(translation) {};
     virtual ~AlignedCylinderShapeByTriangleMesh(){};
 
     SimTK::UnitVec3 LengthAxis() { return cylinder_length_axis_; }
     Vec3d Translation() { return translation_;  }
-    bool checkInBounds(const Vecd &probe_point) override;
-    bool checkUpperBound(const Vecd &probe_point) override;
-    bool checkLowerBound(const Vecd &probe_point) override;
-    bool checkNearUpperBound(const Vecd &probe_point, Real threshold) override;
-    bool checkNearLowerBound(const Vecd &probe_point, Real threshold) override;
-    Vecd getUpperPeriodic(const Vecd &probe_point) override;
-    Vecd getLowerPeriodic(const Vecd &probe_point) override;
+    bool checkInBounds(const Vecd &probe_point);
+    bool checkUpperBound(const Vecd &probe_point);
+    bool checkLowerBound(const Vecd &probe_point);
+    bool checkNearUpperBound(const Vecd &probe_point, Real threshold);
+    bool checkNearLowerBound(const Vecd &probe_point, Real threshold);
+    Vecd getUpperPeriodic(const Vecd &probe_point);
+    Vecd getLowerPeriodic(const Vecd &probe_point);
+    int AlignmentAxis() { return alignment_axis_; };
 };
 
 using BodyAlignedCylinderByCell = BaseAlignedRegion<BodyRegionByCell, AlignedCylinderShape>;
@@ -84,19 +89,89 @@ using DeleteParticlesInCylinderByTriangleMesh = ParticlesInAlignedRegionDetectio
 
 namespace fluid_dynamics
 {
-template <typename TargetVelocity>
-class InflowVelocityConditionCylinder : public BaseFlowBoundaryCondition
+template <typename TargetVelocity, typename AlignedShapeType>
+class InflowVelocityConditionArb : public BaseFlowBoundaryCondition
 {
   public:
     /** default parameter indicates prescribe velocity */
-    explicit InflowVelocityConditionCylinder(BodyAlignedCylinderByCell& aligned_region_part, Real relaxation_rate = 1.0)
+    explicit InflowVelocityConditionArb(BaseAlignedRegion<BodyRegionByParticle, AlignedShapeType>& aligned_region_part, Real relaxation_rate = 1.0)
+        : BaseFlowBoundaryCondition(aligned_region_part),
+          relaxation_rate_(relaxation_rate), aligned_shape_(aligned_region_part.getAlignedShape()),
+          transform_(aligned_shape_.getTransform()),
+          target_velocity(*this){};
+    virtual ~InflowVelocityConditionArb(){};
+    AlignedShapeType &getAlignedShape() { return aligned_shape_; };
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        if (aligned_shape_.checkInBounds(pos_[index_i]))
+        {
+            Vecd frame_position = transform_.shiftBaseStationToFrame(pos_[index_i]);
+            Vecd frame_velocity = transform_.xformBaseVecToFrame(vel_[index_i]);
+            Vecd relaxed_frame_velocity = target_velocity(frame_position, frame_velocity) * relaxation_rate_ +
+                                          frame_velocity * (1.0 - relaxation_rate_);
+            vel_[index_i] = transform_.xformFrameVecToBase(relaxed_frame_velocity);
+        }
+    };
+
+  protected:
+    Real relaxation_rate_;
+    AlignedShapeType &aligned_shape_;
+    Transform &transform_;
+    TargetVelocity target_velocity;
+};
+
+template <typename TargetPressure, typename AlignedShapeType>
+class PressureConditionArb : public BaseFlowBoundaryCondition
+{
+  public:
+    /** default parameter indicates prescribe pressure */
+    template <typename... Args>
+    explicit PressureConditionArb(BaseAlignedRegion<BodyRegionByCell, AlignedShapeType>& aligned_region_part, Args &&...args)
+        : BaseFlowBoundaryCondition(aligned_region_part),
+          aligned_shape_(aligned_region_part.getAlignedShape()),
+          alignment_axis_(aligned_shape_.AlignmentAxis()),
+          transform_(aligned_shape_.getTransform()),
+          target_pressure_(TargetPressure(aligned_region_part, std::forward<Args>(args)...)),
+          kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")){};
+    virtual ~PressureConditionArb(){};
+    AlignedShapeType &getAlignedShape() { return aligned_shape_; };
+
+    TargetPressure *getTargetPressure() { return &target_pressure_; }
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        vel_[index_i] += 2.0 * kernel_sum_[index_i] * target_pressure_(p_[index_i]) / rho_[index_i] * dt;
+
+        Vecd frame_velocity = Vecd::Zero();
+        frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
+        vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
+    };
+
+  protected:
+    AlignedShapeType &aligned_shape_;
+    const int alignment_axis_;
+    Transform &transform_;
+    TargetPressure target_pressure_;
+    StdLargeVec<Vecd> &kernel_sum_;
+};
+
+//-------------------------------------------------------------------------------
+//	InflowVelocityCondition and PressureCondition use Cylinder by TriangleMesh.
+//-------------------------------------------------------------------------------
+template <typename TargetVelocity>
+class InflowVelocityConditionCylinderByTriangleMesh : public BaseFlowBoundaryCondition
+{
+  public:
+    /** default parameter indicates prescribe velocity */
+    explicit InflowVelocityConditionCylinderByTriangleMesh(BodyAlignedCylinderByCellByTriangleMesh& aligned_region_part, Real relaxation_rate = 1.0)
         : BaseFlowBoundaryCondition(aligned_region_part),
           relaxation_rate_(relaxation_rate), aligned_cylinder_(aligned_region_part.getAlignedShape()),
           cylinder_length_axis_(aligned_cylinder_.LengthAxis()), translation_(aligned_cylinder_.Translation()),
           target_velocity(*this){};
-    virtual ~InflowVelocityConditionCylinder(){};
+    virtual ~InflowVelocityConditionCylinderByTriangleMesh(){};
 
-    AlignedCylinderShape &getAlignedShape() { return aligned_cylinder_; };
+    AlignedCylinderShapeByTriangleMesh &getAlignedShape() { return aligned_cylinder_; };
 
     void update(size_t index_i, Real dt = 0.0)
     {
@@ -113,27 +188,27 @@ class InflowVelocityConditionCylinder : public BaseFlowBoundaryCondition
 
   protected:
     Real relaxation_rate_;
-    AlignedCylinderShape &aligned_cylinder_;
+    AlignedCylinderShapeByTriangleMesh &aligned_cylinder_;
     SimTK::UnitVec3 cylinder_length_axis_;
     Vec3d translation_;
     TargetVelocity target_velocity;
 };
 
 template <typename TargetPressure>
-class PressureConditionCylinder : public BaseFlowBoundaryCondition
+class PressureConditionCylinderByTriangleMesh : public BaseFlowBoundaryCondition
 {
   public:
     /** default parameter indicates prescribe pressure */
     template <typename... Args>
-    explicit PressureConditionCylinder(BodyAlignedCylinderByCell& aligned_region_part, Args &&...args)
+    explicit PressureConditionCylinderByTriangleMesh(BodyAlignedCylinderByCellByTriangleMesh& aligned_region_part, Args &&...args)
         : BaseFlowBoundaryCondition(aligned_region_part),
           aligned_cylinder_(aligned_region_part.getAlignedShape()),
           cylinder_length_axis_(aligned_cylinder_.LengthAxis()), translation_(aligned_cylinder_.Translation()),
           target_pressure_(TargetPressure(aligned_region_part, std::forward<Args>(args)...)),
           kernel_sum_(*particles_->getVariableDataByName<Vecd>("KernelSummation")){};
-    virtual ~PressureConditionCylinder(){};
+    virtual ~PressureConditionCylinderByTriangleMesh(){};
 
-    AlignedCylinderShape &getAlignedShape() { return aligned_cylinder_; };
+    AlignedCylinderShapeByTriangleMesh &getAlignedShape() { return aligned_cylinder_; };
 
     TargetPressure *getTargetPressure() { return &target_pressure_; }
 
@@ -148,7 +223,7 @@ class PressureConditionCylinder : public BaseFlowBoundaryCondition
     };
 
   protected:
-    AlignedCylinderShape &aligned_cylinder_;
+    AlignedCylinderShapeByTriangleMesh &aligned_cylinder_;
     SimTK::UnitVec3 cylinder_length_axis_;
     Vec3d translation_;
     TargetPressure target_pressure_;
