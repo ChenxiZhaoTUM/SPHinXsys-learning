@@ -260,29 +260,26 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //----------------------------------------------------------------------
     //	Boundary conditions. Inflow & Outflow in Y-direction
     //----------------------------------------------------------------------
-    
     BodyAlignedCylinderByCell left_emitter_cylinder(water_block,
-        makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(1, 0, 0), emitter_halfsize[1], emitter_halfsize[0], simTK_resolution, emitter_translation));
+            makeShared<AlignedCylinderShape>(xAxis, Transform(Vec3d(emitter_translation)),  emitter_halfsize[1], emitter_halfsize[0]));
     fluid_dynamics::NonPrescribedPressureBidirectionalBufferArb<AlignedCylinderShape> left_emitter_inflow_injection(left_emitter_cylinder, inlet_particle_buffer);
 
-
     BodyAlignedCylinderByCell left_disposer_cylinder(water_block,
-        makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-1, 0, 0), emitter_halfsize[1], emitter_halfsize[0], simTK_resolution, emitter_translation));
+            makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(emitter_translation)),  emitter_halfsize[1], emitter_halfsize[0]));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionArb<AlignedCylinderShape>> left_disposer_outflow_deletion(left_disposer_cylinder);
 
-
     BodyAlignedCylinderByCell right_emitter_cylinder(water_block,
-        makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(-1, 0, 0), disposer_halfsize[1], disposer_halfsize[0], simTK_resolution, disposer_translation));
+            makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(disposer_translation)), disposer_halfsize[1], disposer_halfsize[0]));
     fluid_dynamics::BidirectionalBufferArb<AlignedCylinderShape, RightInflowPressure> right_emitter_inflow_injection(right_emitter_cylinder, inlet_particle_buffer);
 
     BodyAlignedCylinderByCell right_disposer_cylinder(water_block,
-        makeShared<AlignedCylinderShape>(xAxis, SimTK::UnitVec3(1, 0, 0), disposer_halfsize[1], disposer_halfsize[0], simTK_resolution, disposer_translation));
+            makeShared<AlignedCylinderShape>(xAxis, Transform(Vec3d(disposer_translation)), disposer_halfsize[1], disposer_halfsize[0]));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionArb<AlignedCylinderShape>> right_disposer_outflow_deletion(right_disposer_cylinder);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
-    SimpleDynamics<fluid_dynamics::PressureConditionCylinder<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter_cylinder);
-    SimpleDynamics<fluid_dynamics::PressureConditionCylinder<RightInflowPressure>> right_inflow_pressure_condition(right_emitter_cylinder);
-    SimpleDynamics<fluid_dynamics::InflowVelocityConditionCylinder<InflowVelocityCylinder>> inflow_velocity_condition(left_emitter_cylinder);
+    SimpleDynamics<fluid_dynamics::PressureConditionArb<LeftInflowPressure, AlignedCylinderShape>> left_inflow_pressure_condition(left_emitter_cylinder);
+    SimpleDynamics<fluid_dynamics::PressureConditionArb<RightInflowPressure, AlignedCylinderShape>> right_inflow_pressure_condition(right_emitter_cylinder);
+    SimpleDynamics<fluid_dynamics::InflowVelocityConditionArb<InflowVelocityCylinder, AlignedCylinderShape>> inflow_velocity_condition(left_emitter_cylinder);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //----------------------------------------------------------------------
