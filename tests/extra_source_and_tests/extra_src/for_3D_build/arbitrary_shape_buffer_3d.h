@@ -94,7 +94,7 @@ class InflowVelocityConditionArb : public BaseFlowBoundaryCondition
 {
   public:
     /** default parameter indicates prescribe velocity */
-    explicit InflowVelocityConditionArb(BaseAlignedRegion<BodyRegionByParticle, AlignedShapeType>& aligned_region_part, Real relaxation_rate = 1.0)
+    explicit InflowVelocityConditionArb(BaseAlignedRegion<BodyRegionByCell, AlignedShapeType>& aligned_region_part, Real relaxation_rate = 1.0)
         : BaseFlowBoundaryCondition(aligned_region_part),
           relaxation_rate_(relaxation_rate), aligned_shape_(aligned_region_part.getAlignedShape()),
           transform_(aligned_shape_.getTransform()),
