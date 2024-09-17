@@ -108,7 +108,7 @@ class WindkesselModel : public BaseLocalDynamics<BodyPartByCell>, public DataDel
         updateP_lock_.unlock();
     }
 
-    Real getOutletPressure()
+    Real &getOutletPressure()
     {
         return p_n_;
     }
@@ -182,7 +182,7 @@ class WindkesselModel : public BaseLocalDynamics<BodyPartByCell>, public DataDel
 
 struct TargetPressureByWindekesselModel
 {
-    Real p_n_;
+    Real &p_n_;
 
     TargetPressureByWindekesselModel(BodyAlignedBoxByCell &aligned_box_part, WindkesselModel &windkessel_model)
         : p_n_(windkessel_model.getOutletPressure()) {}
