@@ -71,6 +71,129 @@ class PressureCondition : public BaseFlowBoundaryCondition
     StdLargeVec<Vecd> &kernel_sum_;
 };
 
+class WindkesselModel : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+{
+  public:
+    explicit WindkesselModel(BodyAlignedBoxByCell &aligned_box_part, const std::string &body_part_name, Real R1, Real R2, Real C, Real dt, Real Q_ave)
+        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+          DataDelegateSimple(aligned_box_part.getSPHBody()),
+          aligned_box_(aligned_box_part.getAlignedBoxShape()),
+          pos_(*particles_->getVariableDataByName<Vecd>("Position")),
+          Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+          buffer_particle_indicator_(*particles_->registerSharedVariable<int>("BufferParticleIndicator")),
+          body_part_name_(body_part_name),
+          R1_(R1), R2_(R2), C_(C), delta_t_(dt), Q_ave_(Q_ave),
+          Q_n_(0.0), Q_0_(0.0),
+          p_n_(0.0), p_0_(0.0),
+          flow_rate_(0.0), current_flow_rate_(0.0), previous_flow_rate_(0.0),
+          updateP_n(0), ifUpdateP(false)
+    {
+        particles_->addVariableToSort<int>("BufferParticleIndicator");
+    };
+    virtual ~WindkesselModel(){};
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        calculateFlowRate(index_i);
+
+        updateP_lock_.lock();
+        Real run_time = GlobalStaticVariables::physical_time_;
+        ifUpdateP = (run_time >= updateP_n * delta_t_) ? true : false;
+        if (ifUpdateP)
+        {
+            updateNextPressure();
+            ++updateP_n;
+            ifUpdateP = false;
+        }
+        updateP_lock_.unlock();
+    }
+
+    Real getOutletPressure()
+    {
+        return p_n_;
+    }
+
+  protected:
+    AlignedBoxShape &aligned_box_;
+    StdLargeVec<Vecd> &pos_;
+    StdLargeVec<Real> &Vol_;
+    StdLargeVec<int> &buffer_particle_indicator_;
+    
+    std::string body_part_name_;
+    Real R1_, R2_, C_, delta_t_, Q_ave_;
+    Real Q_n_, Q_0_;
+    Real p_n_, p_0_;
+    Real flow_rate_, current_flow_rate_, previous_flow_rate_;
+
+    int updateP_n;
+    bool ifUpdateP;
+    std::mutex updateP_lock_;
+
+    void calculateFlowRate(size_t index_i)
+    {
+        if (aligned_box_.checkUpperBound(pos_[index_i]) && index_i < particles_->TotalRealParticles())
+        {
+            flow_rate_ += Vol_[index_i];
+        }
+
+        if (aligned_box_.checkLowerBound(pos_[index_i]) && buffer_particle_indicator_[index_i] == 1)
+        {
+            flow_rate_ -= Vol_[index_i];
+        }
+    }
+
+    void updateNextPressure()
+    {
+        Q_0_ = Q_n_;
+        p_0_ = p_n_;
+        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
+        previous_flow_rate_ = flow_rate_;
+
+        Q_n_ = current_flow_rate_ / delta_t_ - Q_ave_;
+        /*Real dp_dt = - p_0_ / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
+        Real p_star = p_0_ + dp_dt * delta_t_;
+        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
+        p_n_ = p_0_ + 0.5 * delta_t_ * (dp_dt + dp_dt_star);*/
+
+        p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
+
+        writeOutletPressureData();
+        writeOutletFlowRateData();
+    }
+
+    void writeOutletPressureData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ << "\n";
+        out_file.close();
+    }
+
+    void writeOutletFlowRateData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ << "\n";
+        out_file.close();
+    }
+};
+
+struct TargetPressureByWindekesselModel
+{
+    Real p_n_;
+
+    TargetPressureByWindekesselModel(BodyAlignedBoxByCell &aligned_box_part, WindkesselModel &windkessel_model)
+        : p_n_(windkessel_model.getOutletPressure()) {}
+
+    Real operator()(Real &p_)
+    {
+        return p_n_;
+    }
+};
+
+using PressureConditionByWindekesselModel = PressureCondition<TargetPressureByWindekesselModel>;
 //-------------------------------------------------------------------------------
 //	Calculate flow rate by velocity times area.
 //-------------------------------------------------------------------------------
