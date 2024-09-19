@@ -288,7 +288,7 @@ Real Outlet_pressure = 0;
 Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
-//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */
+Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -538,12 +538,17 @@ int main(int ac, char *av[])
     ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_velocity_damping(0.2, shell_inner, "Velocity", physical_viscosity);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_rotation_damping(0.2, shell_inner, "AngularVelocity", physical_viscosity);
+    //DampingPairwiseInner vs DampingProjectionInner?
 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
-    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
-    SimpleDynamics<solid_dynamics::SpringConstrain> constrain_holder(boundary_geometry, 0.2);
-    SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_body);
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    /*SimpleDynamics<solid_dynamics::SpringConstrain> constrain_holder(boundary_geometry, 0.2);
+    SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_body);*/
 
     /** Exert constrain on shell. */
     /*BodyAlignedBoxByCell inlet_wall_constrain_region(shell_body, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation),Vec3d(inlet_buffer_translation)), inlet_half));
@@ -613,7 +618,6 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     shell_corrected_configuration.exec();
     shell_average_curvature.exec();
-    constrain_mass_center.exec();
     constrain_holder.exec();
     water_block_complex.updateConfiguration();
     shell_water_contact.updateConfiguration();
@@ -691,7 +695,9 @@ int main(int ac, char *av[])
                         dt_s = dt - dt_s_sum;
                     shell_stress_relaxation_first.exec(dt_s);
 
-                    constrain_mass_center.exec();
+                    constrain_holder.exec();
+                    shell_velocity_damping.exec(dt);
+                    shell_rotation_damping.exec(dt);
                     constrain_holder.exec();
 
                     shell_stress_relaxation_second.exec(dt_s);
