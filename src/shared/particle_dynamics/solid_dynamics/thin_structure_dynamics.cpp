@@ -269,6 +269,42 @@ void ConstrainShellBodyRegionAlongAxis::update(size_t index_i, Real dt)
     dangular_vel_dt_[index_i][1 - axis_] = 0.0;
 }
 //=================================================================================================//
+ConstrainShellBodyRegionAlongArbNormal::ConstrainShellBodyRegionAlongArbNormal(BodyAlignedBoxByCell &aligned_box_part)
+    : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+      DataDelegateSimple(aligned_box_part.getSPHBody()),
+      aligned_box_(aligned_box_part.getAlignedBoxShape()),
+      transform_(aligned_box_.getTransform()),
+      pos_(*particles_->getVariableDataByName<Vecd>("Position")),
+      pos0_(*particles_->registerSharedVariableFrom<Vecd>("InitialPosition", "Position")),
+      vel_(*particles_->getVariableDataByName<Vecd>("Velocity")),
+      force_(*particles_->getVariableDataByName<Vecd>("Force")),
+      rotation_(*particles_->getVariableDataByName<Vecd>("Rotation")),
+      angular_vel_(*particles_->getVariableDataByName<Vecd>("AngularVelocity")),
+      dangular_vel_dt_(*particles_->getVariableDataByName<Vecd>("AngularAcceleration")),
+      mass_(*particles_->getVariableDataByName<Real>("Mass")) {}
+//=================================================================================================//
+void ConstrainShellBodyRegionAlongArbNormal::update(size_t index_i, Real dt)
+{
+    Vecd frame_velocity = transform_.xformBaseVecToFrame(vel_[index_i]);
+    Vecd frame_force = transform_.xformBaseVecToFrame(force_[index_i]);
+    Vecd frame_angular_vel = transform_.xformBaseVecToFrame(angular_vel_[index_i]);
+    Vecd frame_dangular_vel_dt = transform_.xformBaseVecToFrame(dangular_vel_dt_[index_i]);
+
+    frame_velocity[0] = 0.0;
+    frame_force[0] = 0.0;
+
+    frame_angular_vel[1] = 0.0;
+    frame_angular_vel[2] = 0.0;
+
+    frame_dangular_vel_dt[1] = 0.0;
+    frame_dangular_vel_dt[2] = 0.0;
+
+    vel_[index_i] = transform_.xformFrameVecToBase(frame_velocity);
+    force_[index_i] = transform_.xformFrameVecToBase(frame_force);
+    angular_vel_[index_i] = transform_.xformFrameVecToBase(frame_angular_vel);
+    dangular_vel_dt_[index_i] = transform_.xformFrameVecToBase(frame_dangular_vel_dt);
+}
+//=================================================================================================//
 InitialShellCurvature::InitialShellCurvature(BaseInnerRelation &inner_relation)
     : LocalDynamics(inner_relation.getSPHBody()), DataDelegateInner(inner_relation),
       Vol_(*particles_->getVariableDataByName<Real>("VolumetricMeasure")),

@@ -405,7 +405,8 @@ int main(int ac, char *av[])
     TriangleMeshShapeSTL* mesh_shape = body_from_mesh.getMeshShape();
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
     shell_body.defineAdaptation<SPHAdaptation>(1.15, dp_0/shell_resolution);
-    shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
+    //shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
+    shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign();
     shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
@@ -540,7 +541,18 @@ int main(int ac, char *av[])
 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
-    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    SimpleDynamics<solid_dynamics::SpringConstrain> constrain_holder(boundary_geometry, 0.2);
+    SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_body);
+
+    /** Exert constrain on shell. */
+    /*BodyAlignedBoxByCell inlet_wall_constrain_region(shell_body, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation),Vec3d(inlet_buffer_translation)), inlet_half));
+    BodyAlignedBoxByCell outlet_up_wall_constrain_region(shell_body, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_disposer_rotation), Vec3d(outlet_up_buffer_translation)), outlet_up_half));
+    BodyAlignedBoxByCell outlet_down_wall_constrain_region(shell_body, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_disposer_rotation), Vec3d(outlet_down_buffer_translation)), outlet_down_half));
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegionAlongArbNormal> constrain_left(inlet_wall_constrain_region);
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegionAlongArbNormal> constrain_right_up(outlet_up_wall_constrain_region);
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegionAlongArbNormal> constrain_right_down(outlet_down_wall_constrain_region);*/
+
 
     // fluid dynamics
     TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
@@ -601,6 +613,7 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     shell_corrected_configuration.exec();
     shell_average_curvature.exec();
+    constrain_mass_center.exec();
     constrain_holder.exec();
     water_block_complex.updateConfiguration();
     shell_water_contact.updateConfiguration();
@@ -678,7 +691,8 @@ int main(int ac, char *av[])
                         dt_s = dt - dt_s_sum;
                     shell_stress_relaxation_first.exec(dt_s);
 
-                    constrain_holder.exec(dt_s);
+                    constrain_mass_center.exec();
+                    constrain_holder.exec();
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;

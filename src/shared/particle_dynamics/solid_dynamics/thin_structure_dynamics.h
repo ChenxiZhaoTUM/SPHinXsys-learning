@@ -330,6 +330,22 @@ class ConstrainShellBodyRegionAlongAxis : public BaseLocalDynamics<BodyPartByPar
     StdLargeVec<Real> &mass_;
 };
 
+class ConstrainShellBodyRegionAlongArbNormal : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+{
+  public:
+    ConstrainShellBodyRegionAlongArbNormal(BodyAlignedBoxByCell &aligned_box_part);
+    virtual ~ConstrainShellBodyRegionAlongArbNormal(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    AlignedBoxShape &aligned_box_;
+    Transform &transform_;
+    StdLargeVec<Vecd> &pos_, &pos0_;
+    StdLargeVec<Vecd> &vel_, &force_;
+    StdLargeVec<Vecd> &rotation_, &angular_vel_, &dangular_vel_dt_;
+    StdLargeVec<Real> &mass_;
+};
+
 /**
  * @class ShellInitialCurvature
  * @brief  Compute shell initial curvature
