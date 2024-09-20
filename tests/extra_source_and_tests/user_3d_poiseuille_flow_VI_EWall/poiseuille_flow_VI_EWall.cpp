@@ -15,42 +15,39 @@ Real fluid_radius = 0.5 * diameter;
 Real full_length = 10 * fluid_radius;
 int number_of_particles = 10;
 Real resolution_ref = diameter / number_of_particles;
+int SimTK_resolution = 10;
 //----------------------------------------------------------------------
 //	Geometry parameters for shell.
 //----------------------------------------------------------------------
-Real inflow_length = resolution_ref * 10.0; // Inflow region
 Real wall_thickness = resolution_ref * 4.0;
-int SimTK_resolution = 20;
-Vec3d translation_fluid(0., full_length * 0.5, 0.);
+Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 //----------------------------------------------------------------------
 //	Geometry parameters for boundary condition.
 //----------------------------------------------------------------------
-Vec3d emitter_halfsize(fluid_radius, resolution_ref * 2, fluid_radius);
-Vec3d emitter_translation(0., resolution_ref * 2, 0.);
-Vec3d disposer_halfsize(fluid_radius * 1.1, resolution_ref * 2, fluid_radius * 1.1);
-Vec3d disposer_translation(0., full_length - disposer_halfsize[1], 0.);
+Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
+Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
+Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
+Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
 //----------------------------------------------------------------------
 //	Domain bounds of the system.
 //----------------------------------------------------------------------
-BoundingBox system_domain_bounds(Vec3d(-0.5 * diameter, 0, -0.5 * diameter) -
+BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter) -
                                             Vec3d(wall_thickness, wall_thickness,
                                                     wall_thickness),
-                                        Vec3d(0.5 * diameter, full_length, 0.5 * diameter) +
+                                        Vec3d(full_length, 0.5 * diameter, 0.5 * diameter) +
                                             Vec3d(wall_thickness, wall_thickness,
                                                     wall_thickness));
 //----------------------------------------------------------------------
 //  Define body shapes
 //----------------------------------------------------------------------
-
 class WaterBlock : public ComplexShape
 {
   public:
-    explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
-    {
-        add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(0., 1., 0.), fluid_radius,
-                                                    full_length * 0.5, SimTK_resolution,
-                                                    translation_fluid);
-    }
+      explicit WaterBlock(const std::string& shape_name) : ComplexShape(shape_name)
+      {
+          //add<TransformShape<GeometricShapeCylinder>>(Transform(Vec3d(translation_fluid)), fluid_radius, full_length * 0.5);
+          add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius, full_length * 0.5, SimTK_resolution, translation_fluid);
+      }
 };
 
 class WallBoundary : public ComplexShape
@@ -58,12 +55,12 @@ class WallBoundary : public ComplexShape
   public:
     explicit WallBoundary(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(0., 1., 0.), fluid_radius + wall_thickness,
-                                                    full_length * 0.5 + wall_thickness, SimTK_resolution,
-                                                    translation_fluid);
-        subtract<TriangleMeshShapeCylinder>(SimTK::UnitVec3(0., 1., 0.), fluid_radius,
-                                                    full_length * 0.5 + wall_thickness, SimTK_resolution,
-                                                    translation_fluid);
+        /*add<TransformShape<GeometricShapeCylinder>>(Transform(Vec3d(translation_fluid)), fluid_radius + wall_thickness, full_length);
+        subtract<TransformShape<GeometricShapeCylinder>>(Transform(Vec3d(translation_fluid)), fluid_radius, full_length);*/
+
+        add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius + wall_thickness, full_length * 0.5, SimTK_resolution, translation_fluid);
+        subtract<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius, full_length * 0.5, SimTK_resolution, translation_fluid);
+
     }
 };
 //----------------------------------------------------------------------
@@ -86,11 +83,11 @@ StdVec<Vecd> createAxialObservationPoints(
     double full_length, Vec3d translation = Vec3d(0.0, 0.0, 0.0))
 {
     StdVec<Vecd> observation_points;
-    int ny = 51;
-    for (int i = 0; i < ny; i++)
+    int nx = 51;
+    for (int i = 0; i < nx; i++)
     {
-        double y = full_length / (ny - 1) * i;
-        Vec3d point_coordinate(0.0, y, 0.0);
+        double x = full_length / (nx - 1) * i;
+        Vec3d point_coordinate(x, 0.0, 0.0);
         observation_points.emplace_back(point_coordinate + translation);
     }
     return observation_points;
@@ -102,14 +99,14 @@ StdVec<Vecd> createRadialObservationPoints(
 {
     StdVec<Vecd> observation_points;
     int n = number_of_particles + 1;
-    double y = full_length / 2.0;
+    double x = full_length / 2.0;
     for (int i = 0; i < n - 1; i++) // we leave out the point close to the boundary as the
                                     // interpolation there is incorrect
                                     // TODO: fix the interpolation
     {
         double z = diameter / 2.0 * i / double(n);
-        observation_points.emplace_back(Vec3d(0.0, y, z) + translation);
-        observation_points.emplace_back(Vec3d(0.0, y, -z) + translation);
+        observation_points.emplace_back(Vec3d(x, 0.0, z) + translation);
+        observation_points.emplace_back(Vec3d(x, 0.0, -z) + translation);
     }
     return observation_points;
 };
@@ -131,10 +128,11 @@ struct InflowVelocity
     Vec3d operator()(Vec3d &position, Vec3d &velocity)
     {
         Vec3d target_velocity = Vec3d(0, 0, 0);
-        target_velocity[1] = SMAX(2.0 * U_f *
-                                      (1.0 - (position[0] * position[0] + position[2] * position[2]) /
+        target_velocity[0] = SMAX(2.0 * U_f *
+                                      (1.0 - (position[1] * position[1] + position[2] * position[2]) /
                                                  fluid_radius / fluid_radius),
                                   0.0);
+
         return target_velocity;
     }
 };
@@ -165,7 +163,7 @@ class BoundaryGeometry : public BodyPartByParticle
 
 int main(int ac, char *av[])
 {
-    std::cout << "U_f = " << U_f << std::endl;
+    //std::cout << "U_f = " << U_f << std::endl; //U_f = 0.0539933
 
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
@@ -180,14 +178,18 @@ int main(int ac, char *av[])
     //	Creating bodies with corresponding materials and particles.
     //----------------------------------------------------------------------
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
+    water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> inlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(inlet_particle_buffer);
+    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+        ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(inlet_particle_buffer, water_block.getName())
+        : water_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
-    wall_boundary.defineBodyLevelSetShape()->writeLevelSet(sph_system);
+    wall_boundary.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     //wall_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
     wall_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
+    //wall_boundary.defineMaterial<Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? wall_boundary.generateParticles<BaseParticles, Reload>(wall_boundary.getName())
         : wall_boundary.generateParticles<BaseParticles, Lattice>();
@@ -201,31 +203,37 @@ int main(int ac, char *av[])
     {
         /** body topology only for particle relaxation */
         InnerRelation wall_boundary_inner(wall_boundary);
+        InnerRelation water_block_inner(water_block);
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
         using namespace relax_dynamics;
         /** Random reset the insert body particle position. */
         SimpleDynamics<RandomizeParticlePosition> random_body_particles(wall_boundary);
+        SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
         /** Write the body state to Vtp file. */
-        BodyStatesRecordingToVtp write_body_to_vtp(wall_boundary);
+        BodyStatesRecordingToVtp write_body_to_vtp({sph_system});
         /** Write the particle reload files. */
-        ReloadParticleIO write_particle_reload_files(wall_boundary);
+        ReloadParticleIO write_particle_reload_files({ &wall_boundary, &water_block });
         /** A  Physics relaxation step. */
         RelaxationStepInner relaxation_step_inner(wall_boundary_inner);
+        RelaxationStepInner relaxation_step_water_inner(water_block_inner);
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
         random_body_particles.exec(0.25);
+        random_water_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
+        relaxation_step_water_inner.SurfaceBounding().exec();
         write_body_to_vtp.writeToFile(0);
 
         int ite_p = 0;
-        while (ite_p < 2000)
+        while (ite_p < 5000)
         {
             relaxation_step_inner.exec();
+            relaxation_step_water_inner.exec();
             ite_p += 1;
-            if (ite_p % 100 == 0)
+            if (ite_p % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the inserted body N = " << ite_p << "\n";
                 write_body_to_vtp.writeToFile(ite_p);
@@ -284,11 +292,11 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_max);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
     //	Boundary conditions. Inflow & Outflow in Y-direction
-    BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
+    BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, inlet_particle_buffer);
-    BodyAlignedBoxByCell emitter_buffer(water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
+    BodyAlignedBoxByCell emitter_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> emitter_buffer_inflow_condition(emitter_buffer);
-    BodyAlignedBoxByCell disposer(water_block, makeShared<AlignedBoxShape>(yAxis, Transform(Vec3d(disposer_translation)), disposer_halfsize));
+    BodyAlignedBoxByCell disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(disposer_translation)), disposer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_outflow_deletion(disposer);
 
     // FSI
@@ -349,7 +357,6 @@ int main(int ac, char *av[])
             /** Acceleration due to viscous force and gravity. */
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
-            //std::cout << "Dt = " << Dt << std::endl;
             inlet_outlet_surface_particle_indicator.exec();
             update_density_by_summation.exec();
             viscous_acceleration.exec();
@@ -365,7 +372,6 @@ int main(int ac, char *av[])
             {
                 dt = SMIN(get_fluid_time_step_size.exec(),
                           Dt - relaxation_time);
-                //std::cout << "dt = " << dt << std::endl;
                 /** Fluid pressure relaxation */
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
@@ -380,7 +386,6 @@ int main(int ac, char *av[])
                     dt_s = wall_computing_time_step_size.exec();
                     if (dt - dt_s_sum < dt_s)
                         dt_s = dt - dt_s_sum;
-                    //std::cout << "dt_s = " << dt_s << std::endl;
                     wall_stress_relaxation_first_half.exec(dt_s);
 
                     constrain_holder.exec(dt_s);
