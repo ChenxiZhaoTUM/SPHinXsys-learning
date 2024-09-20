@@ -297,11 +297,11 @@ int main(int ac, char *av[])
     
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> emitter_buffer_inflow_condition(inflow_emitter);
-    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_1(outflow_emitter_1, "out01", 0.2685E-4);
-    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_2(outflow_emitter_1, "out02", 0.2230E-4);
-    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_3(outflow_emitter_1, "out03", 0.3948E-4);
-    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_4(outflow_emitter_1, "out04", 0.5133E-4);
-    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_5(outflow_emitter_1, "out05", 2.67E-4);
+    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_1(disposer_1, "out01", 0.2685E-4);
+    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_2(disposer_2, "out02", 0.2230E-4);
+    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_3(disposer_3, "out03", 0.3948E-4);
+    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_4(disposer_4, "out04", 0.5133E-4);
+    ReduceDynamics<fluid_dynamics::OutletTransientFlowRate> compute_transient_flow_rate_5(disposer_5, "out05", 2.67E-4);
     SimpleDynamics<fluid_dynamics::WindkesselBoundaryConditionByVel> outflow_pressure_condition1(outflow_emitter_1, "out01");
     SimpleDynamics<fluid_dynamics::WindkesselBoundaryConditionByVel> outflow_pressure_condition2(outflow_emitter_2, "out02");
     SimpleDynamics<fluid_dynamics::WindkesselBoundaryConditionByVel> outflow_pressure_condition3(outflow_emitter_3, "out03");

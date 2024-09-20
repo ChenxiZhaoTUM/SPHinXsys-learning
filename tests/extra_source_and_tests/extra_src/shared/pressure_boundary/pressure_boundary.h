@@ -71,6 +71,9 @@ class PressureCondition : public BaseFlowBoundaryCondition
     StdLargeVec<Vecd> &kernel_sum_;
 };
 
+//-------------------------------------------------------------------------------
+//	Calculate flow rate and update pressure with WindkesselModel class.
+//-------------------------------------------------------------------------------
 class WindkesselModel : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
 {
   public:
@@ -194,139 +197,7 @@ struct TargetPressureByWindekesselModel
 };
 
 using PressureConditionByWindekesselModel = PressureCondition<TargetPressureByWindekesselModel>;
-//-------------------------------------------------------------------------------
-//	Calculate flow rate by velocity times area.
-//-------------------------------------------------------------------------------
-class TotalVelocityNormVal
-    : public BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>,
-      public DataDelegateSimple
-{
-  protected:
-    StdLargeVec<Vecd> &vel_;
-    AlignedBoxShape &aligned_box_;
-    const int alignment_axis_;
-    Transform &transform_;
 
-  public:
-      explicit TotalVelocityNormVal(BodyAlignedBoxByCell& emitter_part)
-          : BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>(emitter_part),
-          DataDelegateSimple(emitter_part.getSPHBody()),
-          vel_(*particles_->getVariableDataByName<Vecd>("Velocity")),
-          aligned_box_(emitter_part.getAlignedBoxShape()),
-          alignment_axis_(aligned_box_.AlignmentAxis()),
-          transform_(aligned_box_.getTransform()) {};
-
-    virtual ~TotalVelocityNormVal(){};
-
-    Real reduce(size_t index_i, Real dt = 0.0)
-    {
-        Vecd frame_velocity = Vecd::Zero();
-        frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
-        return -frame_velocity[alignment_axis_];
-    }
-};
-
-template <class ReduceSumType>
-class AreaAverageFlowRate : public ReduceSumType
-{
-  public:
-    explicit AreaAverageFlowRate(BodyAlignedBoxByCell& aligned_box_part, const std::string &body_part_name, Real outlet_area)
-          : ReduceSumType(aligned_box_part),
-            tansient_flow_rate_(*this->particles_->registerSingleVariable<Real>(body_part_name+"TransientFlowRate")),
-            outlet_area_(outlet_area) {};
-    virtual ~AreaAverageFlowRate(){};
-
-    virtual Real outputResult(Real reduced_value) override
-    {
-        Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
-        tansient_flow_rate_ = average_velocity_norm * outlet_area_;
-        return tansient_flow_rate_;
-    }
-
-  private:
-    Real &tansient_flow_rate_;
-    Real outlet_area_;
-};
-
-using OutletTransientFlowRate = AreaAverageFlowRate<TotalVelocityNormVal>;
-
-class RCRPressureByVel : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
-{
-  public:
-    explicit RCRPressureByVel(BodyAlignedBoxByCell& aligned_box_part, const std::string &body_part_name)
-        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
-          DataDelegateSimple(aligned_box_part.getSPHBody()),
-          body_part_name_(body_part_name),
-          R1_(0.0), R2_(0.0), C_(0.0), Q_ave_(0.0), delta_t_(0.0), 
-          Q_n_(0.0), Q_0_(0.0), p_n_(0.0), p_0_(0.0),
-          transient_flow_rate_(*particles_->getSingleVariableByName<Real>(body_part_name+"TransientFlowRate")) {};
-    virtual ~RCRPressureByVel(){};
-
-    void setWindkesselParams(Real R1, Real R2, Real C, Real Q_ave)
-    {
-        R1_ = R1;
-        R2_ = R2;
-        C_ = C;
-        Q_ave_ = Q_ave;
-    }
-
-    void accumulateFlowAndTime(Real dt)
-    {
-        accumulated_flow_ += transient_flow_rate_ * dt;
-        delta_t_ += dt;
-    }
-
-    void updateNextPressure()
-    {
-        Q_n_ = accumulated_flow_ / delta_t_ - Q_ave_;
-        Real dp_dt = - p_0_ / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
-        Real p_star = p_0_ + dp_dt * delta_t_;
-        Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
-        p_n_ = p_0_ + 0.5 * delta_t_ * (dp_dt + dp_dt_star);
-
-        //std::cout << "p_n_ = " << p_n_ << std::endl;
-
-        //p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
-
-        writeOutletPressureData();
-        //writeOutletFlowRateData();
-
-        Q_0_ = Q_n_;
-        p_0_ = p_n_;
-        accumulated_flow_ = 0;
-        delta_t_ = 0;
-    }
-
-    Real operator()(Real &p_current)
-    {
-        return p_n_;
-    }
-
-  protected:
-    std::string body_part_name_;
-    Real R1_, R2_, C_, Q_ave_, delta_t_;
-    Real Q_n_, Q_0_;
-    Real p_n_, p_0_;
-    Real &transient_flow_rate_, accumulated_flow_;
-
-    void writeOutletPressureData()
-    {
-        std::string output_folder = "./output";
-        std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
-        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-        out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ <<  "\n";
-        out_file.close();
-    }
-
-    void writeOutletFlowRateData()
-    {
-        std::string output_folder = "./output";
-        std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
-        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-        out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ <<  "\n";
-        out_file.close();
-    }
-};
 
 //-------------------------------------------------------------------------------
 //	Calculate flow rate by total particle volume of injection(-) and deletion(+).
@@ -409,6 +280,143 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>,
 };
 
 using WindkesselBoundaryCondition = PressureCondition<TargetOutletPressureWindkessel>;
+
+
+//-------------------------------------------------------------------------------
+//	Calculate flow rate by velocity times area.
+//-------------------------------------------------------------------------------
+class TotalVelocityNormVal
+    : public BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>,
+      public DataDelegateSimple
+{
+  protected:
+    StdLargeVec<Vecd> &vel_;
+    AlignedBoxShape &aligned_box_;
+    const int alignment_axis_;
+    Transform &transform_;
+
+  public:
+      explicit TotalVelocityNormVal(BodyAlignedBoxByCell& disposer_part)
+          : BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>(disposer_part),
+          DataDelegateSimple(disposer_part.getSPHBody()),
+          vel_(*particles_->getVariableDataByName<Vecd>("Velocity")),
+          aligned_box_(disposer_part.getAlignedBoxShape()),
+          alignment_axis_(aligned_box_.AlignmentAxis()),
+          transform_(aligned_box_.getTransform()) {};
+
+    virtual ~TotalVelocityNormVal(){};
+
+    Real reduce(size_t index_i, Real dt = 0.0)
+    {
+        Vecd frame_velocity = Vecd::Zero();
+        frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
+        return frame_velocity[alignment_axis_];
+    }
+};
+
+template <class ReduceSumType>
+class AreaAverageFlowRate : public ReduceSumType
+{
+  public:
+    explicit AreaAverageFlowRate(BodyAlignedBoxByCell& aligned_box_part, const std::string &body_part_name, Real outlet_area)
+          : ReduceSumType(aligned_box_part),
+            tansient_flow_rate_(*this->particles_->registerSingleVariable<Real>(body_part_name+"TransientFlowRate")),
+            outlet_area_(outlet_area) {};
+    virtual ~AreaAverageFlowRate(){};
+
+    virtual Real outputResult(Real reduced_value) override
+    {
+        Real average_velocity_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
+        tansient_flow_rate_ = average_velocity_norm * outlet_area_;
+
+        //std::cout << "tansient_flow_rate_ = " << tansient_flow_rate_ << std::endl;
+        return tansient_flow_rate_;
+    }
+
+  private:
+    Real &tansient_flow_rate_;
+    Real outlet_area_;
+};
+
+using OutletTransientFlowRate = AreaAverageFlowRate<TotalVelocityNormVal>;
+
+class RCRPressureByVel : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+{
+  public:
+    explicit RCRPressureByVel(BodyAlignedBoxByCell& aligned_box_part, const std::string &body_part_name)
+        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+          DataDelegateSimple(aligned_box_part.getSPHBody()),
+          body_part_name_(body_part_name),
+          R1_(0.0), R2_(0.0), C_(0.0), Q_ave_(0.0), delta_t_(0.0), 
+          Q_n_(0.0), Q_0_(0.0), p_n_(0.0), p_0_(0.0),
+          transient_flow_rate_(*particles_->getSingleVariableByName<Real>(body_part_name+"TransientFlowRate")) {};
+    virtual ~RCRPressureByVel(){};
+
+    void setWindkesselParams(Real R1, Real R2, Real C, Real Q_ave)
+    {
+        R1_ = R1;
+        R2_ = R2;
+        C_ = C;
+        Q_ave_ = Q_ave;
+    }
+
+    void accumulateFlowAndTime(Real dt)
+    {
+        accumulated_flow_ += transient_flow_rate_ * dt;
+        delta_t_ += dt;
+    }
+
+    void updateNextPressure()
+    {
+        Q_n_ = accumulated_flow_ / delta_t_ - Q_ave_;
+        //Real dp_dt = - p_0_ / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
+        //Real p_star = p_0_ + dp_dt * delta_t_;
+        //Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
+        //p_n_ = p_0_ + 0.5 * delta_t_ * (dp_dt + dp_dt_star);
+
+
+        p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
+
+        writeOutletPressureData();
+        writeOutletFlowRateData();
+
+        Q_0_ = Q_n_;
+        p_0_ = p_n_;
+        accumulated_flow_ = 0;
+        delta_t_ = 0;
+    }
+
+    Real operator()(Real &p_current)
+    {
+        return p_n_;
+    }
+
+  protected:
+    std::string body_part_name_;
+    Real R1_, R2_, C_, Q_ave_, delta_t_;
+    Real Q_n_, Q_0_;
+    Real p_n_, p_0_;
+    Real &transient_flow_rate_, accumulated_flow_;
+
+    void writeOutletPressureData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ <<  "\n";
+        out_file.close();
+    }
+
+    void writeOutletFlowRateData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ <<  "\n";
+        out_file.close();
+    }
+};
+
 using WindkesselBoundaryConditionByVel = PressureCondition<RCRPressureByVel>;
 
 } // namespace fluid_dynamics
