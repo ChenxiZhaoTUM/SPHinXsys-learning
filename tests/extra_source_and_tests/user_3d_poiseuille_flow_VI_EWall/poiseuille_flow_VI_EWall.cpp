@@ -101,9 +101,9 @@ Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
 Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e3;    /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 1.08e5;    /** Normalized Youngs Modulus. */
 Real poisson = 0.3;               /** Poisson ratio. */
-
+Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
 
 StdVec<Vecd> createAxialObservationPoints(
     double full_length, Vec3d translation = Vec3d(0.0, 0.0, 0.0))
@@ -308,6 +308,11 @@ int main(int ac, char *av[])
     /** Exert constrain on wall. */
     BoundaryGeometry boundary_geometry(wall_boundary, "BoundaryGeometry", resolution_ref * 4);
     SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
+        DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        wall_velocity_damping(0.2, wall_boundary_inner, "Velocity", physical_viscosity);
+    //DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+    //    wall_rotation_damping(0.2, wall_boundary_inner, "AngularVelocity", physical_viscosity);
+ 
 
     // fluid dynamics
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> inlet_outlet_surface_particle_indicator(water_block_inner, water_block_contact);
@@ -384,6 +389,7 @@ int main(int ac, char *av[])
             /** Acceleration due to viscous force and gravity. */
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
+            //std::cout << "Dt = " << Dt << std::endl;
             inlet_outlet_surface_particle_indicator.exec();
             update_density_by_summation.exec();
             viscous_acceleration.exec();
@@ -399,6 +405,7 @@ int main(int ac, char *av[])
             {
                 dt = SMIN(get_fluid_time_step_size.exec(),
                           Dt - relaxation_time);
+                //std::cout << "dt = " << dt << std::endl;
                 /** Fluid pressure relaxation */
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
@@ -413,8 +420,11 @@ int main(int ac, char *av[])
                     dt_s = wall_computing_time_step_size.exec();
                     if (dt - dt_s_sum < dt_s)
                         dt_s = dt - dt_s_sum;
+                    //std::cout << "dt_s = " << dt_s << std::endl;
                     wall_stress_relaxation_first_half.exec(dt_s);
 
+                    constrain_holder.exec(dt_s);
+                    wall_velocity_damping.exec(dt);
                     constrain_holder.exec(dt_s);
 
                     wall_stress_relaxation_second_half.exec(dt_s);
