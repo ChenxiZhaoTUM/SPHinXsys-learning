@@ -101,8 +101,8 @@ Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
 Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
+Real Youngs_modulus = 1.08e3;    /** Normalized Youngs Modulus. */
+Real poisson = 0.3;               /** Poisson ratio. */
 
 
 StdVec<Vecd> createAxialObservationPoints(
@@ -179,8 +179,8 @@ class BoundaryGeometry : public BodyPartByParticle
 
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][1] < constrain_len_ 
-            || base_particles_.ParticlePositions()[index_i][1] > full_length - constrain_len_)
+        if (base_particles_.ParticlePositions()[index_i][0] < constrain_len_ 
+            || base_particles_.ParticlePositions()[index_i][0] > full_length - constrain_len_)
         {
             body_part_particles_.push_back(index_i);
         }
