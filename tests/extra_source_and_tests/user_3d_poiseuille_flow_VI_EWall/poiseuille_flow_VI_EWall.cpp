@@ -103,7 +103,8 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e5;    /** Normalized Youngs Modulus. */
 Real poisson = 0.3;               /** Poisson ratio. */
-Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
+//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
+Real physical_viscosity = 200;
 
 StdVec<Vecd> createAxialObservationPoints(
     double full_length, Vec3d translation = Vec3d(0.0, 0.0, 0.0))
@@ -190,6 +191,7 @@ class BoundaryGeometry : public BodyPartByParticle
 int main(int ac, char *av[])
 {
     //std::cout << "U_f = " << U_f << std::endl; //U_f = 0.0539933
+    //std::cout << "physical_viscosity = " << physical_viscosity << std::endl;  // physical_viscosity = 0.0872981
 
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
@@ -308,10 +310,8 @@ int main(int ac, char *av[])
     /** Exert constrain on wall. */
     BoundaryGeometry boundary_geometry(wall_boundary, "BoundaryGeometry", resolution_ref * 4);
     SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
-        DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
         wall_velocity_damping(0.2, wall_boundary_inner, "Velocity", physical_viscosity);
-    //DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-    //    wall_rotation_damping(0.2, wall_boundary_inner, "AngularVelocity", physical_viscosity);
  
 
     // fluid dynamics
@@ -424,7 +424,7 @@ int main(int ac, char *av[])
                     wall_stress_relaxation_first_half.exec(dt_s);
 
                     constrain_holder.exec(dt_s);
-                    wall_velocity_damping.exec(dt);
+                    wall_velocity_damping.exec(dt_s);
                     constrain_holder.exec(dt_s);
 
                     wall_stress_relaxation_second_half.exec(dt_s);

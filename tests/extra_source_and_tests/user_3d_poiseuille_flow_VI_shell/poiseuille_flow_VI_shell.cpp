@@ -71,7 +71,8 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e5;    /** Normalized Youngs Modulus. */
 Real poisson = 0.3;               /** Poisson ratio. */
-Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
+//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
+Real physical_viscosity = 200;
 
 StdVec<Vecd> createAxialObservationPoints(
     double full_length, Vec3d translation = Vec3d(0.0, 0.0, 0.0))
@@ -310,9 +311,9 @@ int main(int ac, char *av[])
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_boundary);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_velocity_damping(0.2, shell_boundary_inner, "Velocity", physical_viscosity);
+        shell_velocity_damping(0.5, shell_boundary_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_rotation_damping(0.2, shell_boundary_inner, "AngularVelocity", physical_viscosity);
+        shell_rotation_damping(0.5, shell_boundary_inner, "AngularVelocity", physical_viscosity);
  
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
@@ -444,8 +445,8 @@ int main(int ac, char *av[])
                     shell_stress_relaxation_first.exec(dt_s);
 
                     constrain_holder.exec();
-                    shell_velocity_damping.exec(dt);
-                    shell_rotation_damping.exec(dt);
+                    shell_velocity_damping.exec(dt_s);
+                    shell_rotation_damping.exec(dt_s);
                     constrain_holder.exec();
 
                     shell_stress_relaxation_second.exec(dt_s);
