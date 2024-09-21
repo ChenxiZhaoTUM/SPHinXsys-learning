@@ -19,4 +19,4 @@ set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "
 add_test(NAME ${PROJECT_NAME}
     COMMAND ${PROJECT_NAME}
     WORKING_DIRECTORY ${EXECUTABLE_OUTPUT_PATH})
-set_tests_properties(${PROJECT_NAME} PROPERTIES LABELS "poiseuille flow with elastic wall")
+set_tests_properties(${PROJECT_NAME} PROPERTIES LABELS "poiseuille flow with rigid shell")
