@@ -18,9 +18,12 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
+std::string full_path_to_stl_file_wall_outer = "./input/wall_outer.stl";
+std::string full_path_to_stl_file_fluid = "./input/water.stl";
+
 Real DL = 0.1;                                             /**< Channel length. */
 Real diameter = 0.02;                                             /**< Channel height. */
-Real resolution_ref = diameter / 20.0;                             /**< Initial reference particle spacing. */
+Real resolution_ref = diameter / 20;                             /**< Initial reference particle spacing. */
 Real wall_thickness = resolution_ref * 4;                                /**< Extending width for BCs. */
 Vec3d translation_fluid(DL * 0.5, 0., 0.);
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.0, 0.0)}; /**< Displacement observation point. */
@@ -76,32 +79,26 @@ struct RightInflowPressure
 //----------------------------------------------------------------------
 //	Fluid body definition.
 //----------------------------------------------------------------------
-int SimTK_resolution = 20;
+Vec3d translation(0., 0., 0.);
+Real scale = 1;
 class WaterBlock : public ComplexShape
 {
   public:
     explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), diameter / 2,
-                                       DL * 0.5, SimTK_resolution,
-                                       translation_fluid);
+        /** Geometry definition. */
+        add<TriangleMeshShapeSTL>(full_path_to_stl_file_fluid, translation, scale);
     }
 };
 
-//----------------------------------------------------------------------
-//	Wall boundary body definition.
-//----------------------------------------------------------------------
 class WallBoundary : public ComplexShape
 {
   public:
     explicit WallBoundary(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), diameter/2 + wall_thickness,
-                                       DL * 0.5, SimTK_resolution,
-                                       translation_fluid);
-        subtract<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), diameter/2,
-                                            DL * 0.5, SimTK_resolution,
-                                            translation_fluid);
+        /** Geometry definition. */
+        add<TriangleMeshShapeSTL>(full_path_to_stl_file_wall_outer, translation, scale);
+        subtract<TriangleMeshShapeSTL>(full_path_to_stl_file_fluid, translation, scale);
     }
 };
 //----------------------------------------------------------------------
@@ -122,12 +119,16 @@ int main(int ac, char *av[])
     //	Creating bodies with corresponding materials and particles.
     //----------------------------------------------------------------------
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
+    water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
+    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+        ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
+        : water_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
-    //wall_boundary.defineBodyLevelSetShape()->writeLevelSet(sph_system);
+    //wall_boundary.defineAdaptationRatios(1.15, 2.0);
+    wall_boundary.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     wall_boundary.defineMaterial<Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? wall_boundary.generateParticles<BaseParticles, Reload>(wall_boundary.getName())
@@ -140,29 +141,35 @@ int main(int ac, char *av[])
     {
         /** body topology only for particle relaxation */
         InnerRelation wall_boundary_inner(wall_boundary);
+        InnerRelation water_block_inner(water_block);
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
         using namespace relax_dynamics;
         /** Random reset the insert body particle position. */
         SimpleDynamics<RandomizeParticlePosition> random_body_particles(wall_boundary);
+        SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
         /** Write the body state to Vtp file. */
-        BodyStatesRecordingToVtp write_body_to_vtp(wall_boundary);
+        BodyStatesRecordingToVtp write_body_to_vtp({sph_system});
         /** Write the particle reload files. */
-        ReloadParticleIO write_particle_reload_files(wall_boundary);
+        ReloadParticleIO write_particle_reload_files({ &wall_boundary, &water_block });
         /** A  Physics relaxation step. */
         RelaxationStepInner relaxation_step_inner(wall_boundary_inner);
+        RelaxationStepInner relaxation_step_water_inner(water_block_inner);
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
         random_body_particles.exec(0.25);
+        random_water_particles.exec(0.25);
         relaxation_step_inner.SurfaceBounding().exec();
+        relaxation_step_water_inner.SurfaceBounding().exec();
         write_body_to_vtp.writeToFile(0);
 
         int ite_p = 0;
-        while (ite_p < 2000)
+        while (ite_p < 5000)
         {
             relaxation_step_inner.exec();
+            relaxation_step_water_inner.exec();
             ite_p += 1;
             if (ite_p % 500 == 0)
             {
@@ -322,7 +329,7 @@ int main(int ac, char *av[])
             right_emitter_inflow_injection.injection.exec();
             left_disposer_outflow_deletion.exec();
             right_disposer_outflow_deletion.exec();
-            water_block.updateCellLinkedList();
+            water_block.updateCellLinkedListWithParticleSort(100);
             water_block_complex.updateConfiguration();
             interval_updating_configuration += TickCount::now() - time_instance;
             boundary_indicator.exec();

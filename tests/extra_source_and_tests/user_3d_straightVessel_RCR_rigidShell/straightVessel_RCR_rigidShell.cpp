@@ -484,7 +484,7 @@ int main(int ac, char *av[])
             left_disposer_outflow_deletion.exec();
             right_disposer_outflow_deletion.exec();
 
-            water_block.updateCellLinkedList();
+            water_block.updateCellLinkedListWithParticleSort(100);
             /*shell_update_normal.exec();
             shell_body.updateCellLinkedList();
             shell_curvature_inner.updateConfiguration();

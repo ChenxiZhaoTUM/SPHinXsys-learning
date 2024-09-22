@@ -13,6 +13,9 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
+std::string full_path_to_stl_file_wall_outer = "./input/wall_outer.stl";
+std::string full_path_to_stl_file_fluid = "./input/water.stl";
+
 Real DL = 0.1;                                             /**< Channel length. */
 Real diameter = 0.02;                                             /**< Channel height. */
 Real resolution_ref = diameter / 20.0;                             /**< Initial reference particle spacing. */
@@ -34,7 +37,8 @@ Real c_f = 10.0 * U_f;
 Real rho0_s = 1000;           /** Normalized density. */
 Real Youngs_modulus = 1.0e6; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
-Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * DL;
+//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * DL;  //physical_viscosity = 790.569
+Real physical_viscosity = 2000;
 //----------------------------------------------------------------------
 //	parameters of buffers
 //----------------------------------------------------------------------
@@ -44,32 +48,26 @@ Vecd right_bidirectional_translation(DL - 2.0 * resolution_ref, 0.0, 0.0);
 //----------------------------------------------------------------------
 //  Define body shapes
 //----------------------------------------------------------------------
-int SimTK_resolution = 20;
+Vec3d translation(0., 0., 0.);
+Real scale = 1;
 class WaterBlock : public ComplexShape
 {
   public:
     explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), diameter / 2,
-                                       DL * 0.5, SimTK_resolution,
-                                       translation_fluid);
+        /** Geometry definition. */
+        add<TriangleMeshShapeSTL>(full_path_to_stl_file_fluid, translation, scale);
     }
 };
 
-//----------------------------------------------------------------------
-//	Wall boundary body definition.
-//----------------------------------------------------------------------
 class WallBoundary : public ComplexShape
 {
   public:
     explicit WallBoundary(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), diameter/2 + wall_thickness,
-                                       DL * 0.5, SimTK_resolution,
-                                       translation_fluid);
-        subtract<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), diameter/2,
-                                            DL * 0.5, SimTK_resolution,
-                                            translation_fluid);
+        /** Geometry definition. */
+        add<TriangleMeshShapeSTL>(full_path_to_stl_file_wall_outer, translation, scale);
+        subtract<TriangleMeshShapeSTL>(full_path_to_stl_file_fluid, translation, scale);
     }
 };
 //----------------------------------------------------------------------
@@ -85,7 +83,7 @@ struct LeftInflowPressure
         Real run_time = GlobalStaticVariables::physical_time_;
         /*constant pressure*/
         Real pressure = Inlet_pressure;
-        return run_time < 0.02 ? 0.0 : pressure;
+        return run_time < 0.05 ? 0.0 : pressure;
     }
 };
 
@@ -133,6 +131,7 @@ class BoundaryGeometry : public BodyPartByParticle
 int main(int ac, char *av[])
 {
     //std::cout << "U_f = " << U_f << std::endl;
+    //std::cout << "physical_viscosity = " << physical_viscosity << std::endl;
 
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
@@ -147,16 +146,16 @@ int main(int ac, char *av[])
     //	Creating bodies with corresponding materials and particles.
     //----------------------------------------------------------------------
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
-    water_block.defineBodyLevelSetShape();
+    water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
-    //water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-    ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
-    : water_block.generateParticles<BaseParticles, Lattice>();
+        ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
+        : water_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
-    //wall_boundary.defineBodyLevelSetShape()->writeLevelSet(sph_system);
+    //wall_boundary.defineAdaptationRatios(1.15, 2.0);
+    wall_boundary.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(sph_system);
     wall_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? wall_boundary.generateParticles<BaseParticles, Reload>(wall_boundary.getName())
@@ -245,7 +244,7 @@ int main(int ac, char *av[])
     SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> wall_update_normal(wall_boundary);
     // add solid dampinng
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
-        wall_position_damping(0.5, wall_boundary_inner, "Velocity", physical_viscosity);
+        wall_velocity_damping(0.5, wall_boundary_inner, "Velocity", physical_viscosity);
     /** Exert constrain on wall. */
     BoundaryGeometry boundary_geometry(wall_boundary, "BoundaryGeometry", resolution_ref * 4);
     //SimpleDynamics<FixedInAxisDirection> constrain_holder(boundary_geometry, Vecd(0.0, 1.0, 1.0));
@@ -319,8 +318,8 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 0.12;   /**< End time. */
-    Real Output_Time = end_time/120; /**< Time stamps for output of body states. */
+    Real end_time = 0.15;   /**< End time. */
+    Real Output_Time = end_time/150; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0;        /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
@@ -387,11 +386,8 @@ int main(int ac, char *av[])
                     wall_stress_relaxation_first_half.exec(dt_s);
 
                     constrain_holder.exec(dt_s);
-                    if (GlobalStaticVariables::physical_time_ < 0.02)
-					{
-						wall_position_damping.exec(dt_s);
-						constrain_holder.exec();
-					}
+					wall_velocity_damping.exec(dt_s);
+					constrain_holder.exec(dt_s);
 
                     wall_stress_relaxation_second_half.exec(dt_s);
                     dt_s_sum += dt_s;
@@ -423,7 +419,7 @@ int main(int ac, char *av[])
             left_disposer_outflow_deletion.exec();
             right_disposer_outflow_deletion.exec();
 
-            water_block.updateCellLinkedList();
+            water_block.updateCellLinkedListWithParticleSort(100);
             wall_update_normal.exec();
             wall_boundary.updateCellLinkedList();
             water_block_complex.updateConfiguration();

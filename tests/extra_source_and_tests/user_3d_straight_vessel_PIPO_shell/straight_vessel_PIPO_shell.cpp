@@ -120,7 +120,8 @@ struct LeftInflowPressure
         Real run_time = GlobalStaticVariables::physical_time_;
         /*constant pressure*/
         Real pressure = Inlet_pressure;
-        return run_time < 0.1 ? 0.0 : pressure;
+        //return run_time < 0.1 ? 0.0 : pressure;
+        return pressure;
     }
 };
 
@@ -264,7 +265,7 @@ int main(int ac, char *av[])
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
     // add solid dampinng
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
-        shell_position_damping(0.5, shell_inner, "Velocity", physical_viscosity);
+        shell_velocity_damping(0.5, shell_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
         shell_rotation_damping(0.5, shell_inner, "AngularVelocity", physical_viscosity);
     /** Exert constrain on shell. */
@@ -330,7 +331,7 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     shell_corrected_configuration.exec();
     shell_average_curvature.exec();
-    constrain_holder.exec();
+    //constrain_holder.exec();
     
     boundary_indicator.exec();
     left_emitter_inflow_injection.tag_buffer_particles.exec();
@@ -384,10 +385,6 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
-                if (GlobalStaticVariables::physical_time_ < 0.02)
-                {
-                    implicit_viscous_damping.exec(dt);
-                }
 
                 pressure_relaxation.exec(dt);
                 
@@ -410,11 +407,10 @@ int main(int ac, char *av[])
                     // std::cout << "dt_s = " << dt_s << std::endl;
                     shell_stress_relaxation_first.exec(dt_s);
 
-                    constrain_holder.exec(dt_s);
-
-					shell_position_damping.exec(dt_s);
-					shell_rotation_damping.exec(dt_s);
-					constrain_holder.exec();
+                    constrain_holder.exec();
+                    shell_velocity_damping.exec(dt_s);
+                    shell_rotation_damping.exec(dt_s);
+                    constrain_holder.exec();
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;
@@ -443,7 +439,7 @@ int main(int ac, char *av[])
             left_disposer_outflow_deletion.exec();
             right_disposer_outflow_deletion.exec();
 
-            water_block.updateCellLinkedList();
+            water_block.updateCellLinkedListWithParticleSort(100);
             shell_update_normal.exec();
             shell_body.updateCellLinkedList();
             shell_curvature_inner.updateConfiguration();
