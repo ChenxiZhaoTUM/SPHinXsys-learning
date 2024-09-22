@@ -32,8 +32,10 @@ const Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 const Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
 Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e8;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
+Real Youngs_modulus = 1.08e5;    /** Normalized Youngs Modulus. */
+Real poisson = 0.3;               /** Poisson ratio. */
+//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
+Real physical_viscosity = 200;
 
 namespace SPH
 {
@@ -132,8 +134,6 @@ struct InflowVelocity
     }
 };
 
-Real Outlet_pressure = 0;
-
 struct LeftInflowPressure
 {
     template <class BoundaryConditionType>
@@ -153,7 +153,7 @@ struct RightInflowPressure
     Real operator()(Real &p_)
     {
         /*constant pressure*/
-        Real pressure = Outlet_pressure;
+        Real pressure = 0;
         return pressure;
     }
 };
@@ -192,7 +192,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //	Geometry parameters for shell.
     //----------------------------------------------------------------------
     const int number_of_particles = 10;
-    const Real inflow_length = resolution_ref * 10.0; // Inflow region
     const int SimTK_resolution = 20;
     const Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 
@@ -280,9 +279,16 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_boundary);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_boundary);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_velocity_damping(0.5, shell_boundary_inner, "Velocity", physical_viscosity);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_rotation_damping(0.5, shell_boundary_inner, "AngularVelocity", physical_viscosity);  // or 0.5?
+
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_shell* 4);
-    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
+
 
     // fluid dynamics
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
@@ -415,7 +421,10 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                         dt_s = dt - dt_s_sum;
                     shell_stress_relaxation_first.exec(dt_s);
 
-                    constrain_holder.exec(dt_s);
+                    constrain_holder.exec();
+                    shell_velocity_damping.exec(dt_s);
+                    shell_rotation_damping.exec(dt_s);
+                    constrain_holder.exec();
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;  
@@ -425,13 +434,6 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
-
-                /*kernel_summation.exec();
-                left_inflow_pressure_condition.exec(dt);
-                right_inflow_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();*/
-
-                //body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation +=
                 TickCount::now() - time_instance;
