@@ -19,8 +19,12 @@ std::string full_path_to_file = "./input/carotid_fluid_geo.stl";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
+Real rho0 = 1000;
+Real U0 = 0.5;
+Real L0 = 6.0e-3;
+
 Vec3d translation(0.0, 0.0, 0.0);
-Real scaling = pow(10, -3);
+Real scaling = pow(10, -3) / L0;
 Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
 Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
@@ -278,18 +282,17 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
-Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 0.5;    /**< Characteristic velocity. */
+Real rho0_f = 1060 / rho0; /**< Reference density of fluid. */
+Real U_f = 0.5 / U0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_out_up + DW_out_down));
-Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real Outlet_pressure = 0;
+Real mu_f = 0.00355 / (rho0 * U0 * L0); /**< Dynamics viscosity. */
+Real Outlet_pressure = 0 / (rho0 * pow(U0, 2));
 
-Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
+Real rho0_s = 1120 / rho0;                /** Normalized density. */
+Real Youngs_modulus = 1.08e6 / rho0 / U0 / L0;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
-//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */
-Real physical_viscosity = 200;
+Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 / L0 * scaling; /** physical damping */
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -300,17 +303,17 @@ struct InflowVelocity
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(0.1), t_ref_(0.218), interval_(0.5),
+        : u_ref_(0.1 / U0), t_ref_(0.218 / (L0/U0)), interval_(0.5 / (L0/U0)),
         aligned_box_(boundary_condition.getAlignedBox()){}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
-        Real run_time = GlobalStaticVariables::physical_time_;
+        Real run_time = GlobalStaticVariables::physical_time_ / (L0/U0);  //?
         int n = static_cast<int>(run_time / interval_);
         Real t_in_cycle = run_time - n * interval_;
 
-        target_velocity[0] = t_in_cycle < t_ref_ ? 0.5 * sin(4 * Pi * (run_time + 0.0160236)) : u_ref_;
+        target_velocity[0] = t_in_cycle < t_ref_ ? 0.5 * sin(4 * Pi * (run_time + 0.0160236))  / U0 : u_ref_;
         return target_velocity;
     }
 };
@@ -321,15 +324,15 @@ class TimeDependentAcceleration : public Gravity
 
   public:
     explicit TimeDependentAcceleration(Vecd gravity_vector)
-        : Gravity(gravity_vector), t_ref_(0.218), du_ave_dt_(0), interval_(0.5) {}
+        : Gravity(gravity_vector), t_ref_(0.218 / (L0/U0)), du_ave_dt_(0), interval_(0.5 / (L0/U0)) {}
 
     virtual Vecd InducedAcceleration(const Vecd &position) override
     {
-        Real run_time = GlobalStaticVariables::physical_time_;
+        Real run_time = GlobalStaticVariables::physical_time_ / (L0/U0);
         int n = static_cast<int>(run_time / interval_);
         Real t_in_cycle = run_time - n * interval_;
 
-        du_ave_dt_ = 0.5 * 4 * Pi * cos(4 * Pi * run_time);
+        du_ave_dt_ = 0.5 * 4 * Pi * cos(4 * Pi * run_time) / pow(U0, 2) / L0;
 
         return t_in_cycle < t_ref_ ? Vecd(0.0, 0.0, du_ave_dt_) : global_acceleration_;
     }
@@ -547,9 +550,10 @@ int main(int ac, char *av[])
 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
-    SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
     /*SimpleDynamics<solid_dynamics::SpringConstrain> constrain_holder(boundary_geometry, 0.2);
-    SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_body);*/
+    SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_body);
+    SimpleDynamics<solid_dynamics::SpringDamperConstraintParticleWise> spring_constraint(shell_body, Vecd(0.2, 0.2, 0.2), 0.01);*/
 
     /** Exert constrain on shell. */
     /*BodyAlignedBoxByCell inlet_wall_constrain_region(shell_body, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation),Vec3d(inlet_buffer_translation)), inlet_half));
@@ -632,8 +636,8 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 2.5;   /**< End time. */
-    Real Output_Time = end_time/250; /**< Time stamps for output of body states. */
+    Real end_time = 1;   /**< End time. */
+    Real Output_Time = 0.05; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
@@ -694,11 +698,12 @@ int main(int ac, char *av[])
                     dt_s = shell_time_step_size.exec();
                     if (dt - dt_s_sum < dt_s)
                         dt_s = dt - dt_s_sum;
+
                     shell_stress_relaxation_first.exec(dt_s);
 
                     constrain_holder.exec();
-                    shell_velocity_damping.exec(dt_s);
-                    shell_rotation_damping.exec(dt_s);
+                    shell_velocity_damping.exec(dt);
+                    shell_rotation_damping.exec(dt);
                     constrain_holder.exec();
 
                     shell_stress_relaxation_second.exec(dt_s);
