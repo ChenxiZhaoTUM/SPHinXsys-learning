@@ -83,7 +83,7 @@ struct LeftInflowPressure
         Real run_time = GlobalStaticVariables::physical_time_;
         /*constant pressure*/
         Real pressure = Inlet_pressure;
-        return run_time < 0.05 ? 0.0 : pressure;
+        return run_time < 0.05 ? run_time*pressure/0.05 : pressure;
     }
 };
 
@@ -361,10 +361,10 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
-                if (GlobalStaticVariables::physical_time_ < 0.02)
+                /*if (GlobalStaticVariables::physical_time_ < 0.05)
                 {
                     implicit_viscous_damping.exec(dt);
-                }
+                }*/
 
                 pressure_relaxation.exec(dt);
                 
