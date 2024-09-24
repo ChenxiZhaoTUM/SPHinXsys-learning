@@ -42,6 +42,7 @@ Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Refere
 Real rho0_s = 1.0e3;           /** Normalized density. */
 Real Youngs_modulus = 1.0e5; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
+Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * DL;  //500
 //----------------------------------------------------------------------
 //	Define geometry of SPH bodies.
 //----------------------------------------------------------------------
@@ -305,6 +306,12 @@ int main(int ac, char *av[])
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
     SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
+        shell_velocity_damping(0.5, shell_inner, "Velocity", physical_viscosity);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
+        shell_rotation_damping(0.5, shell_inner, "AngularVelocity", physical_viscosity);
+ 
     //----------------------------------------------------------------------
     // Fluid dynamics.
     //----------------------------------------------------------------------
@@ -361,9 +368,11 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
     body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Vecd>(shell_body, "Force");
+    body_states_recording.addToWrite<Vecd>(shell_body, "ForcePrior");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
-   RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>> write_centerline_velocity("Velocity", velocity_observer_contact);
+    RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>> write_centerline_velocity("Velocity", velocity_observer_contact);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -447,6 +456,9 @@ int main(int ac, char *av[])
                         dt_s = dt - dt_s_sum;
                     shell_stress_relaxation_first.exec(dt_s);
 
+                    constrain_holder.exec(dt_s);
+                    shell_velocity_damping.exec(dt_s);
+                    shell_rotation_damping.exec(dt_s);
                     constrain_holder.exec(dt_s);
 
                     shell_stress_relaxation_second.exec(dt_s);
