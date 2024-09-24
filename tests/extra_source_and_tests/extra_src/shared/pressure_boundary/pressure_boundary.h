@@ -236,6 +236,8 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>,
 
         p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
 
+        std::cout << "p_n_ = " << p_n_ << std::endl;
+
         writeOutletPressureData();
         writeOutletFlowRateData();
     }
@@ -369,6 +371,7 @@ class RCRPressureByVel : public BaseLocalDynamics<BodyPartByCell>, public DataDe
     void updateNextPressure()
     {
         Q_n_ = accumulated_flow_ / delta_t_ - Q_ave_;
+        //std::cout << "Q_n_ = " << Q_n_ << std::endl;
         //Real dp_dt = - p_0_ / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
         //Real p_star = p_0_ + dp_dt * delta_t_;
         //Real dp_dt_star = - p_star / (C_ * R2_) + (R1_ + R2_) * Q_n_ / (C_ * R2_) + R1_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
@@ -376,7 +379,7 @@ class RCRPressureByVel : public BaseLocalDynamics<BodyPartByCell>, public DataDe
 
 
         p_n_ = ((Q_n_ * (1.0 + R1_ / R2_) + C_ * R1_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * R2_));
-
+        //std::cout << "p_n_ = " << p_n_ << std::endl;
         writeOutletPressureData();
         writeOutletFlowRateData();
 

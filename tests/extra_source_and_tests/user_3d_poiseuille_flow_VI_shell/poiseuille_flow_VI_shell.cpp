@@ -356,6 +356,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<Vecd>(shell_boundary, "NormalDirection");
     body_states_recording.addToWrite<Vecd>(shell_boundary, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Vecd>(shell_boundary, "Force");
+    body_states_recording.addToWrite<Vecd>(shell_boundary, "ForcePrior");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);
