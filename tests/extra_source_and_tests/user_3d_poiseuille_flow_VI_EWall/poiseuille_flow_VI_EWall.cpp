@@ -28,7 +28,7 @@ Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 //----------------------------------------------------------------------
 //	Geometry parameters for boundary condition.
 //----------------------------------------------------------------------
-Vec3d emitter_halfsize(resolution_ref * 3, fluid_radius, fluid_radius);
+Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
 Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
 Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
 Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
