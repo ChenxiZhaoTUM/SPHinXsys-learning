@@ -16,6 +16,8 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
+std::string full_path_to_stl_file_fluid = "./input/water.stl";
+
 const Real scale = 0.001;
 const Real diameter = 6.35 * scale;
 const Real fluid_radius = 0.5 * diameter;
@@ -76,27 +78,28 @@ template <>
 class ParticleGenerator<SurfaceParticles, ShellBoundary> : public ParticleGenerator<SurfaceParticles>
 {
     Real resolution_shell_;
+    Real wall_thickness_;
     Real shell_thickness_;
 
   public:
     explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles,
-                               Real resolution_shell, Real shell_thickness)
+                               Real resolution_shell, Real wall_thickness, Real shell_thickness)
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
           resolution_shell_(resolution_shell),
-          shell_thickness_(shell_thickness){};
+          wall_thickness_(wall_thickness), shell_thickness_(shell_thickness){};
     void prepareGeometricData() override
     {
         const Real radius_mid_surface = fluid_radius + resolution_shell_ * 0.5;
         const auto particle_number_mid_surface =
             int(2.0 * radius_mid_surface * Pi / resolution_shell_);
         const auto particle_number_height =
-            int(full_length / resolution_shell_);
+            int((full_length + 2.0 * wall_thickness_) / resolution_shell_);
         for (int i = 0; i < particle_number_mid_surface; i++)
         {
             for (int j = 0; j < particle_number_height; j++)
             {
                 Real theta = (i + 0.5) * 2 * Pi / (Real)particle_number_mid_surface;
-                Real x = full_length * j / (Real)particle_number_height + 0.5 * resolution_shell_;
+                Real x = -wall_thickness_ + (full_length + 2 * wall_thickness_) * j / (Real)particle_number_height + 0.5 * resolution_shell_;
                 Real y = radius_mid_surface * cos(theta);
                 Real z = radius_mid_surface * sin(theta);
                 addPositionAndVolumetricMeasure(Vec3d(x, y, z),
@@ -194,7 +197,8 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     const int number_of_particles = 10;
     const int SimTK_resolution = 20;
     const Vec3d translation_fluid(full_length * 0.5, 0., 0.);
-
+    //const Real wall_thickness = resolution_ref * 4.0;
+    const Real wall_thickness = 0;
     //----------------------------------------------------------------------
     //	Geometry parameters for boundary condition.
     //----------------------------------------------------------------------
@@ -207,24 +211,25 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     //	Domain bounds of the system.
     //----------------------------------------------------------------------
     const BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter) -
-                                               Vec3d(0.0, shell_thickness,
+                                               Vec3d(wall_thickness, shell_thickness,
                                                      shell_thickness),
                                            Vec3d(full_length, 0.5 * diameter, 0.5 * diameter) +
-                                               Vec3d(0.0, shell_thickness,
+                                               Vec3d(wall_thickness, shell_thickness,
                                                      shell_thickness));
     //----------------------------------------------------------------------
     //  Define water shape
     //----------------------------------------------------------------------
     auto water_block_shape = makeShared<ComplexShape>("WaterBody");
-    water_block_shape->add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius,
-                                                      full_length * 0.5, SimTK_resolution,
-                                                      translation_fluid);
+    const Vec3d translation(0., 0., 0.);
+    water_block_shape->add<TriangleMeshShapeSTL>(full_path_to_stl_file_fluid, translation, scale);
 
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, resolution_ref);
     IOEnvironment io_environment(system);
+    system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    system.setReloadParticles(true);       // Tag for computation with save particles distribution
 
     //----------------------------------------------------------------------
     //	Creating bodies with corresponding materials and particles.
@@ -232,12 +237,14 @@ void poiseuille_flow(const Real resolution_ref, const Real resolution_shell, con
     FluidBody water_block(system, water_block_shape);
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> inlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(inlet_particle_buffer);
+    (!system.RunParticleRelaxation() && system.ReloadParticles())
+        ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(inlet_particle_buffer, water_block.getName())
+        : water_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody shell_boundary(system, makeShared<DefaultShape>("Shell"));
     shell_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_shell);
     shell_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
-    shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, shell_thickness);
+    shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, wall_thickness, shell_thickness);
 
     ObserverBody observer_axial(system, "fluid_observer_axial");
     observer_axial.generateParticles<ObserverParticles>(createAxialObservationPoints(full_length));
