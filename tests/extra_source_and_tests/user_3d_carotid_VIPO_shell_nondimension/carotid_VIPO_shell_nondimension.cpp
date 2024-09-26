@@ -292,7 +292,8 @@ Real Outlet_pressure = 0 / (rho0 * pow(U0, 2));
 Real rho0_s = 1120 / rho0;                /** Normalized density. */
 Real Youngs_modulus = 1.08e6 / rho0 / U0 / L0;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
-Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 / L0 * scaling; /** physical damping */
+//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 / L0 * scaling; /** physical damping */  //physical_viscosity = 242527
+Real physical_viscosity = 1.0e4;
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -395,6 +396,7 @@ class BoundaryGeometry : public BodyPartByParticle
 //-----------------------------------------------------------------------------------------------------------
 int main(int ac, char *av[])
 {
+    //std::cout << "physical_viscosity = " << physical_viscosity << std::endl;
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
@@ -613,8 +615,10 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
     body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
-    body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
-    body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
+    body_states_recording.addToWrite<Vecd>(shell_body, "Force");
+    body_states_recording.addToWrite<Vecd>(shell_body, "ForcePrior");
+    //body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
+    //body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -702,8 +706,8 @@ int main(int ac, char *av[])
                     shell_stress_relaxation_first.exec(dt_s);
 
                     constrain_holder.exec();
-                    shell_velocity_damping.exec(dt);
-                    shell_rotation_damping.exec(dt);
+                    shell_velocity_damping.exec(dt_s);
+                    shell_rotation_damping.exec(dt_s);
                     constrain_holder.exec();
 
                     shell_stress_relaxation_second.exec(dt_s);

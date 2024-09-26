@@ -28,7 +28,7 @@ Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 //----------------------------------------------------------------------
 //	Geometry parameters for boundary condition.
 //----------------------------------------------------------------------
-Vec3d emitter_halfsize(resolution_ref * 3, fluid_radius, fluid_radius);
+Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
 Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
 Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
 Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
@@ -341,6 +341,9 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp body_states_recording(sph_system);
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
+    body_states_recording.addToWrite<Vecd>(water_block, "Force");
+    body_states_recording.addToWrite<Vecd>(water_block, "ForcePrior");
+
     body_states_recording.addToWrite<Vecd>(wall_boundary, "NormalDirection");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "PressureForceFromFluid");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);

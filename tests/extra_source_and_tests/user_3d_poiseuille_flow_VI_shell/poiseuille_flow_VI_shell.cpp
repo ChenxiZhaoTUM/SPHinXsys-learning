@@ -29,7 +29,7 @@ Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 //----------------------------------------------------------------------
 //	Geometry parameters for boundary condition.
 //----------------------------------------------------------------------
-Vec3d emitter_halfsize(resolution_ref * 3, fluid_radius, fluid_radius);
+Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
 Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
 Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
 Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
@@ -324,6 +324,9 @@ int main(int ac, char *av[])
 
 
     // fluid dynamics
+    //InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> water_block_kernel_correction_matrix(water_block_inner, water_shell_contact);
+    //InteractionDynamics<KernelGradientCorrectionComplex> kernel_gradient_update(water_block_inner, water_shell_contact);
+
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallNoRiemann> density_relaxation(water_block_inner, water_shell_contact);
@@ -354,8 +357,14 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
     body_states_recording.addToWrite<Real>(water_block, "Density");
+    body_states_recording.addToWrite<Vecd>(water_block, "Force");
+    //body_states_recording.addToWrite<Vecd>(water_block, "ForcePrior");
+
     body_states_recording.addToWrite<Vecd>(shell_boundary, "NormalDirection");
-    body_states_recording.addToWrite<Vecd>(shell_boundary, "PressureForceFromFluid");
+    //body_states_recording.addToWrite<Vecd>(shell_boundary, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Vecd>(shell_boundary, "Force");
+    //body_states_recording.addToWrite<Vecd>(shell_boundary, "ForcePrior");
+    body_states_recording.addToWrite<Matd>(shell_boundary, "MidSurfaceCauchyStress");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);
@@ -372,6 +381,8 @@ int main(int ac, char *av[])
     water_block_complex.updateConfiguration();
     shell_water_contact.updateConfiguration();
 
+    //water_block_kernel_correction_matrix.exec();
+    //kernel_gradient_update.exec();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------

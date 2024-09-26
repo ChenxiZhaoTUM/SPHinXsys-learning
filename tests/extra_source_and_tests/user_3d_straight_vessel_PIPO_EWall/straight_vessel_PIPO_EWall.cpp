@@ -274,11 +274,11 @@ int main(int ac, char *av[])
 
     AlignedBoxShape left_emitter_shape(xAxis, Transform(Vecd(left_bidirectional_translation)), bidirectional_buffer_halfsize);
     BodyAlignedBoxByCell left_emitter(water_block, left_emitter_shape);
-    fluid_dynamics::BidirectionalBuffer<LeftInflowPressure, SequencedPolicy> left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
+    fluid_dynamics::BidirectionalBuffer<LeftInflowPressure> left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
 
     AlignedBoxShape right_emitter_shape(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vecd(right_bidirectional_translation)), bidirectional_buffer_halfsize);
     BodyAlignedBoxByCell right_emitter(water_block, right_emitter_shape);
-    fluid_dynamics::BidirectionalBuffer<RightInflowPressure, SequencedPolicy> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer);
+    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_emitter_inflow_injection(right_emitter, in_outlet_particle_buffer);
 
     SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_inflow_pressure_condition(right_emitter);

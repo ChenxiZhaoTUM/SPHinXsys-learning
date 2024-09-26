@@ -288,8 +288,9 @@ Real Outlet_pressure = 0;
 Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
-//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */
-Real physical_viscosity = 200;
+//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */  //478
+//Real physical_viscosity = 2000;
+Real physical_viscosity = 1.0e4;
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
