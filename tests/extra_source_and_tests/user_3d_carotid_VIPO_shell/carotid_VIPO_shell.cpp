@@ -257,24 +257,24 @@ Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_re
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
 
 // outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Real DW_out_up = 1.9416 * 2 * scaling;
-Vec3d outlet_up_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
-Vec3d outlet_up_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_up_cut_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_up_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_up_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_up_normal * 2.0 * dp_0;
-RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
-Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
-Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
-
-// outlet2 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
-Real DW_out_down = 1.3261 * 2 * scaling;
-Vec3d outlet_down_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
-Vec3d outlet_down_normal(-0.0399, 0.0693, 0.9972);
-Vec3d outlet_down_cut_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_down_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_down_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_down_normal * 2.0 * dp_0;
+Real DW_out_down = 1.9416 * 2 * scaling;
+Vec3d outlet_down_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
+Vec3d outlet_down_normal(-0.3160, -0.0009, 0.9488);
+Vec3d outlet_down_cut_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_down_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_down_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_down_normal * 2.0 * dp_0;
 RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
 Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
 Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, outlet_down_rotation_result.axis);
+
+// outlet2 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
+Real DW_out_up = 1.3261 * 2 * scaling;
+Vec3d outlet_up_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
+Vec3d outlet_up_normal(-0.0399, 0.0693, 0.9972);
+Vec3d outlet_up_cut_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_up_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_up_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_up_normal * 2.0 * dp_0;
+RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
+Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
+Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
@@ -289,8 +289,8 @@ Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
 //Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */  //478
-//Real physical_viscosity = 2000;
-Real physical_viscosity = 1.0e4;
+Real physical_viscosity = 2000;
+//Real physical_viscosity = 1.0e4;
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -377,11 +377,24 @@ class BoundaryGeometry : public BodyPartByParticle
   private:
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][2] < -30.8885 * scaling + 0.9935 * 4 * dp_0
-            || (base_particles_.ParticlePositions()[index_i][2] > 21.7855 * scaling - 0.9488 * 4 * dp_0
-                && base_particles_.ParticlePositions()[index_i][0] <= 0)
-            || (base_particles_.ParticlePositions()[index_i][2] > 18.6389 * scaling - 0.9972 * 4 * dp_0
-                && base_particles_.ParticlePositions()[index_i][0] > 0))
+        const Vecd &pos = base_particles_.ParticlePositions()[index_i];
+        Vecd center_point_inlet = Vecd(1.5611, 5.8559, -30.8885) * scaling;
+        Vecd center_point_outlet_up = Vecd(9.0220, 0.9750, 18.6389) * scaling;
+        Vecd center_point_outlet_down = Vecd(-2.6975, -0.4330, 21.7855) * scaling;
+
+
+        Vecd relative_position_inlet = pos - center_point_inlet;
+        Vecd relative_position_outlet_up = pos - center_point_outlet_up;
+        Vecd relative_position_outlet_down = pos - center_point_outlet_down;
+
+        Real projection_distance_inlet = relative_position_inlet.dot(inlet_normal);
+        Real projection_distance_outlet_up = relative_position_outlet_up.dot(-outlet_up_normal);
+        Real projection_distance_outlet_down = relative_position_outlet_down.dot(-outlet_down_normal);
+
+
+        if (ABS(projection_distance_inlet) < 4 * dp_0
+            || (ABS(projection_distance_outlet_up) < 4 * dp_0 && pos[0] > 0.005)
+            || (ABS(projection_distance_outlet_down) < 4 * dp_0 && pos[0] < 0.002))
         {
             body_part_particles_.push_back(index_i);
         }
@@ -433,9 +446,9 @@ int main(int ac, char *av[])
 
         BodyAlignedBoxByCell inlet_detection_box(shell_body,
                                              makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half));
-        BodyAlignedBoxByCell outlet01_detection_box(shell_body,
-                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_cut_translation)), outlet_up_half));
         BodyAlignedBoxByCell outlet02_detection_box(shell_body,
+                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_cut_translation)), outlet_up_half));
+        BodyAlignedBoxByCell outlet01_detection_box(shell_body,
                                                 makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_cut_translation)), outlet_down_half));
 
         RealBody test_body_in(
@@ -609,7 +622,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
-    body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Matd>(shell_body, "MidSurfaceCauchyStress");
+    //body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
     //----------------------------------------------------------------------
