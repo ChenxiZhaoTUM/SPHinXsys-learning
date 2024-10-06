@@ -32,8 +32,8 @@ Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
 Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
 
-//Vec3d inlet_buffer_halfsize(resolution_ref * 3, fluid_radius, fluid_radius);
-//Vec3d inlet_buffer_translation(resolution_ref * 2, 0., 0.);
+Vec3d inlet_buffer_halfsize(resolution_ref * 3, fluid_radius, fluid_radius);
+Vec3d inlet_buffer_translation(resolution_ref * 1, 0., 0.);
 
 Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
 Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
@@ -73,7 +73,7 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 //	Material parameters of the shell
 //----------------------------------------------------------------------
 Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e5;    /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 1.08e4;    /** Normalized Youngs Modulus. */
 Real poisson = 0.3;               /** Poisson ratio. */
 //Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
 Real physical_viscosity = 200;
@@ -344,8 +344,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     BodyAlignedBoxByParticle emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, inlet_particle_buffer);
-    //BodyAlignedBoxByCell emitter_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(inlet_buffer_translation)), inlet_buffer_halfsize));
-    BodyAlignedBoxByCell emitter_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
+    BodyAlignedBoxByCell emitter_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(inlet_buffer_translation)), inlet_buffer_halfsize));
+    //BodyAlignedBoxByCell emitter_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> emitter_buffer_inflow_condition(emitter_buffer);
     BodyAlignedBoxByCell disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(disposer_translation)), disposer_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_outflow_deletion(disposer);
