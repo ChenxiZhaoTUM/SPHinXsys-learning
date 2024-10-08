@@ -17,7 +17,7 @@ Real DL = 0.1;                                             /**< Channel length. 
 Real diameter = 0.02;                                             /**< Channel height. */
 Real fluid_radius = diameter / 2;
 Real resolution_ref = diameter / 20.0;                             /**< Initial reference particle spacing. */
-Real resolution_shell = resolution_ref;
+Real resolution_shell = 0.5 * resolution_ref;
 Real wall_thickness = resolution_shell * 1.0;
 Vec3d translation_fluid(DL * 0.5, 0., 0.);
 BoundingBox system_domain_bounds(Vecd(0, -fluid_radius - wall_thickness, -fluid_radius - wall_thickness),
@@ -29,7 +29,7 @@ Real Inlet_pressure = 5000;
 Real Outlet_pressure = 0.0;
 Real rho0_f = 1000.0;
 Real mu_f = 4.0e-3;
-Real U_f = 0.8;
+Real U_f = 6;
 Real c_f = 10.0 * U_f;
 
 Real rho0_s = 1000;           /** Normalized density. */
@@ -120,7 +120,7 @@ struct LeftInflowPressure
         Real run_time = GlobalStaticVariables::physical_time_;
         /*constant pressure*/
         Real pressure = Inlet_pressure;
-        //return run_time < 0.1 ? 0.0 : pressure;
+        return run_time < 0.02 ? 2.5e5 * run_time : pressure;
         return pressure;
     }
 };
@@ -345,8 +345,8 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 0.2;   /**< End time. */
-    Real Output_Time = end_time/200; /**< Time stamps for output of body states. */
+    Real end_time = 0.12;   /**< End time. */
+    Real Output_Time = end_time/120; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0;        /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
