@@ -98,7 +98,7 @@ Real rho0_f = 1060; /**< Reference density of fluid. */
 Real U_f = 0.5;    /**< Characteristic velocity. */
 Real U_max = 2 * U_f;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_max * SMAX(Real(1), DW_in / (DW_up + DW_down));
+Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in * DW_in / (DW_up * DW_up + DW_down * DW_down));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
 //Real Outlet_pressure = 0;  // for comparison with solely velocity inlet bc
 //Real Outlet_pressure = 1.33e4;

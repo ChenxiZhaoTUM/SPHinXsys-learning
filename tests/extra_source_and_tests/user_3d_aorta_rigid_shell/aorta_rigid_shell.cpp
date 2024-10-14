@@ -10,22 +10,24 @@
 #include "kernel_summation.h"
 #include "kernel_summation.hpp"
 #include "pressure_boundary.h"
+#include "arbitrary_shape_buffer.h"
+#include "arbitrary_shape_buffer_3d.h"
 
 using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-std::string full_path_to_file = "./input/carotid_fluid_geo.stl";
+std::string full_path_to_file = "./input/blood.stl";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
-Real scaling = pow(10, -3);
-Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
-Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
-BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.2 * scaling;
-Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/ 
+Real scaling = 1.0E-2;
+BoundingBox system_domain_bounds(Vecd(-6.0E-2, -4.0E-2, -2.0E-2), Vecd(3.0E-2, 10.0E-2, 15.0E-2));
+Real dp_0 = 0.06 * scaling;
+//Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/
+Real shell_resolution = dp_0;  /*thickness = 1.0 * shell_resolution*/
+StdVec<Vecd> observer_location = {Vecd(-1.24, 4.41, 5.18) * scaling};
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -246,42 +248,85 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 
 Vecd standard_direction(1, 0, 0);
 
-// inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
-Real DW_in = 2.9293 * 2 * scaling;
-Vec3d inlet_half = Vec3d(2.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
-Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
-Vec3d inlet_cut_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d inlet_buffer_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 2.0 * dp_0;
+// inlet (-0.9768, 4.6112, 3.0052), (0.1000, 0.1665, 0.9810)
+Real A_in = 5.9765 * scaling * scaling;
+Vec3d inlet_half = Vec3d(2.0 * dp_0, 1.8 * scaling, 1.8 * scaling);
+Vec3d inlet_vector(0.1000, 0.1665, 0.9810);
+Vec3d inlet_normal = inlet_vector.normalized();
+Vec3d inlet_center = Vec3d(-0.9768, 4.6112, 3.0052) * scaling - inlet_normal * (2.0 * dp_0);
+Vec3d inlet_cut_translation = inlet_center - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d inlet_buffer_translation = inlet_center + inlet_normal * 2.0 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
 
-// outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Real DW_out_up = 1.9416 * 2 * scaling;
-Vec3d outlet_up_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
-Vec3d outlet_up_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_up_cut_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_up_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_up_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_up_normal * 2.0 * dp_0;
-RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
-Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
-Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
+// outlet1 (-1.2562, 4.4252, 10.0148), (0.6420, 0.4110, 0.6472)
+Real A_out1 = 0.2688 * scaling * scaling;
+Vec3d outlet_1_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
+Vec3d outlet_1_vector(0.6420, 0.4110, 0.6472);
+Vec3d outlet_1_normal = outlet_1_vector.normalized();
+Vec3d outlet_1_center = Vec3d(-1.2562, 4.4252, 10.0148) * scaling + outlet_1_normal * (2.0 * dp_0);
+Vec3d outlet_1_cut_translation = outlet_1_center + outlet_1_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_1_buffer_translation = outlet_1_center - outlet_1_normal * 2.0 * dp_0;
+RotationResult outlet_1_rotation_result = RotationCalculator(outlet_1_normal, standard_direction);
+Rotation3d outlet_1_disposer_rotation(outlet_1_rotation_result.angle, outlet_1_rotation_result.axis);
+Rotation3d outlet_1_emitter_rotation(outlet_1_rotation_result.angle + Pi, outlet_1_rotation_result.axis);
 
-// outlet2 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
-Real DW_out_down = 1.3261 * 2 * scaling;
-Vec3d outlet_down_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
-Vec3d outlet_down_normal(-0.0399, 0.0693, 0.9972);
-Vec3d outlet_down_cut_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_down_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_down_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_down_normal * 2.0 * dp_0;
-RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
-Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
-Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, outlet_down_rotation_result.axis);
+// outlet2 (-2.6303, 3.0594, 10.6919), (-0.0988, 0.0485, 0.9939)
+Real A_out2 = 0.2230 * scaling * scaling;
+Vec3d outlet_2_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
+Vec3d outlet_2_vector(-0.0988, 0.0485, 0.9939);
+Vec3d outlet_2_normal = outlet_2_vector.normalized();
+Vec3d outlet_2_center = Vec3d(-2.6303, 3.0594, 10.6919) * scaling + outlet_2_normal * (2.0 * dp_0);
+Vec3d outlet_2_cut_translation = outlet_2_center + outlet_2_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_2_buffer_translation = outlet_2_center - outlet_2_normal * 2.0 * dp_0;
+RotationResult outlet_2_rotation_result = RotationCalculator(outlet_2_normal, standard_direction);
+Rotation3d outlet_2_disposer_rotation(outlet_2_rotation_result.angle, outlet_2_rotation_result.axis);
+Rotation3d outlet_2_emitter_rotation(outlet_2_rotation_result.angle + Pi, outlet_2_rotation_result.axis);
+
+// outlet3 (-2.8585, 1.8357, 9.8034), (-0.1471, -0.1813, 0.9724)
+Real A_out3 = 0.3948 * scaling * scaling;
+Vec3d outlet_3_half = Vec3d(2.0 * dp_0, 0.4 * scaling, 0.4 * scaling);
+Vec3d outlet_3_vector(-0.1471, -0.1813, 0.9724);
+Vec3d outlet_3_normal = outlet_3_vector.normalized();
+Vec3d outlet_3_center = Vec3d(-2.8585, 1.8357, 9.8034) * scaling + outlet_3_normal * (2.0 * dp_0);
+Vec3d outlet_3_cut_translation = outlet_3_center + outlet_3_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_3_buffer_translation = outlet_3_center - outlet_3_normal * 2.0 * dp_0;
+RotationResult outlet_3_rotation_result = RotationCalculator(outlet_3_normal, standard_direction);
+Rotation3d outlet_3_disposer_rotation(outlet_3_rotation_result.angle, outlet_3_rotation_result.axis);
+Rotation3d outlet_3_emitter_rotation(outlet_3_rotation_result.angle + Pi, outlet_3_rotation_result.axis);
+
+// outlet4 (-1.0946, 1.0386, 9.5016), (0.5675, 0.4280, 0.7034)
+Real A_out4 = 0.5134 * scaling * scaling;
+Vec3d outlet_4_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
+Vec3d outlet_4_vector(0.5675, 0.4280, 0.7034);
+Vec3d outlet_4_normal = outlet_4_vector.normalized();
+Vec3d outlet_4_center = Vec3d(-1.0946, 1.0386, 9.5016) * scaling + outlet_4_normal * (2.0 * dp_0);
+Vec3d outlet_4_cut_translation = outlet_4_center + outlet_4_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_4_buffer_translation = outlet_4_center - outlet_4_normal * 2.0 * dp_0;
+RotationResult outlet_4_rotation_result = RotationCalculator(outlet_4_normal, standard_direction);
+Rotation3d outlet_4_disposer_rotation(outlet_4_rotation_result.angle, outlet_4_rotation_result.axis);
+Rotation3d outlet_4_emitter_rotation(outlet_4_rotation_result.angle + Pi, outlet_4_rotation_result.axis);
+
+// outlet5 (-1.6791, -0.8069, 0.5017), (0.0327, -0.0729, 0.9968)
+Real A_out5 = 2.67 * scaling * scaling;
+Vec3d outlet_5_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
+Vec3d outlet_5_vector(-0.0327, 0.0729, -0.9968);
+Vec3d outlet_5_normal = outlet_5_vector.normalized();
+Vec3d outlet_5_center = Vec3d(-1.6791, -0.8069, 0.5017) * scaling + outlet_5_normal * (2.0 * dp_0);
+Vec3d outlet_5_cut_translation = outlet_5_center + outlet_5_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_5_buffer_translation = outlet_5_center - outlet_5_normal * 2.0 * dp_0;
+RotationResult outlet_5_rotation_result = RotationCalculator(outlet_5_normal, standard_direction);
+Rotation3d outlet_5_disposer_rotation(outlet_5_rotation_result.angle, outlet_5_rotation_result.axis);
+Rotation3d outlet_5_emitter_rotation(outlet_5_rotation_result.angle + Pi, outlet_5_rotation_result.axis);
+
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
 Real U_f = 0.5;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in * DW_in / (DW_out_up * DW_out_up + DW_out_down * DW_out_down));
+Real c_f = 10.0 * U_f * SMAX(Real(1), A_in / (A_out1 + A_out2 + A_out3 + A_out4 + A_out5));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
 Real Outlet_pressure = 0;
 
@@ -294,98 +339,32 @@ Real poisson = 0.49;               /** Poisson ratio. */
 //----------------------------------------------------------------------
 struct InflowVelocity
 {
-    Real u_ref_, t_ref_, interval_;
-    AlignedBoxShape &aligned_box_;
+    Real u_ave;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(0.1), t_ref_(0.218), interval_(0.5),
-        aligned_box_(boundary_condition.getAlignedBox()){}
+        : u_ave(0.0) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
-        int n = static_cast<int>(run_time / interval_);
-        Real t_in_cycle = run_time - n * interval_;
 
-        target_velocity[0] = t_in_cycle < t_ref_ ? 0.5 * sin(4 * Pi * (run_time + 0.0160236)) : u_ref_;
+        u_ave = 0.3782;
+        Real a[8] = {-0.1812, 0.1276, -0.08981, 0.04347, -0.05412, 0.02642, 0.008946, -0.009005};
+        Real b[8] = {-0.07725, 0.01466, 0.004295, -0.06679, 0.05679, -0.01878, 0.01869, -0.01888};
+        for (size_t i = 0; i < 8; i++)
+        {
+            u_ave = u_ave + a[i] * cos(8.302 * (i + 1) * run_time) + b[i] * sin(8.302 * (i + 1) * run_time);
+        }
+
+        target_velocity[0] = u_ave;
+        target_velocity[1] = 0.0;
+        target_velocity[2] = 0.0;
+
         return target_velocity;
     }
 };
-
-class TimeDependentAcceleration : public Gravity
-{
-    Real t_ref_, du_ave_dt_, interval_;
-
-  public:
-    explicit TimeDependentAcceleration(Vecd gravity_vector)
-        : Gravity(gravity_vector), t_ref_(0.218), du_ave_dt_(0), interval_(0.5) {}
-
-    virtual Vecd InducedAcceleration(const Vecd &position) override
-    {
-        Real run_time = GlobalStaticVariables::physical_time_;
-        int n = static_cast<int>(run_time / interval_);
-        Real t_in_cycle = run_time - n * interval_;
-
-        du_ave_dt_ = 0.5 * 4 * Pi * cos(4 * Pi * run_time);
-
-        return t_in_cycle < t_ref_ ? Vecd(0.0, 0.0, du_ave_dt_) : global_acceleration_;
-    }
-};
-
-//----------------------------------------------------------------------
-//	Pressure boundary definition.
-//----------------------------------------------------------------------
-struct LeftInflowPressure
-{
-    template <class BoundaryConditionType>
-    LeftInflowPressure(BoundaryConditionType &boundary_condition) {}
-
-    Real operator()(Real &p_)
-    {
-        return p_;
-    }
-};
-
-struct RightInflowPressure
-{
-    template <class BoundaryConditionType>
-    RightInflowPressure(BoundaryConditionType &boundary_condition) {}
-
-    Real operator()(Real &p_)
-    {
-        /*constant pressure*/
-        Real pressure = Outlet_pressure;
-        return pressure;
-    }
-};
-
-class BoundaryGeometry : public BodyPartByParticle
-{
-  public:
-    BoundaryGeometry(SPHBody &body, const std::string &body_part_name)
-        : BodyPartByParticle(body, body_part_name)
-    {
-        TaggingParticleMethod tagging_particle_method = std::bind(&BoundaryGeometry::tagManually, this, _1);
-        tagParticles(tagging_particle_method);
-    };
-    virtual ~BoundaryGeometry(){};
-
-  private:
-    void tagManually(size_t index_i)
-    {
-        if (base_particles_.ParticlePositions()[index_i][2] < -30.8885 * scaling + 0.9935 * 4 * dp_0
-            || (base_particles_.ParticlePositions()[index_i][2] > 21.7855 * scaling - 0.9488 * 4 * dp_0
-                && base_particles_.ParticlePositions()[index_i][0] <= 0)
-            || (base_particles_.ParticlePositions()[index_i][2] > 18.6389 * scaling - 0.9972 * 4 * dp_0
-                && base_particles_.ParticlePositions()[index_i][0] > 0))
-        {
-            body_part_particles_.push_back(index_i);
-        }
-    };
-};
-
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -419,6 +398,9 @@ int main(int ac, char *av[])
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
     ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
     : water_block.generateParticles<BaseParticles, Lattice>();
+    
+    ObserverBody velocity_observer(sph_system, "VelocityObserver");
+    velocity_observer.generateParticles<ObserverParticles>(observer_location);
     //----------------------------------------------------------------------
     //	SPH Particle relaxation section
     //----------------------------------------------------------------------
@@ -428,24 +410,43 @@ int main(int ac, char *av[])
         InnerRelation shell_inner(shell_body);
         InnerRelation blood_inner(water_block);
 
-        BodyAlignedBoxByCell inlet_detection_box(shell_body,
-                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half));
+        BodyAlignedCylinderByCell inlet_detection_cylinder(shell_body,
+                                                           makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half[1], inlet_half[0]));
         BodyAlignedBoxByCell outlet01_detection_box(shell_body,
-                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_cut_translation)), outlet_up_half));
+                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_1_emitter_rotation), Vec3d(outlet_1_cut_translation)), outlet_1_half));
         BodyAlignedBoxByCell outlet02_detection_box(shell_body,
-                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_cut_translation)), outlet_down_half));
+                                                makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_2_emitter_rotation), Vec3d(outlet_2_cut_translation)), outlet_2_half));
+        BodyAlignedBoxByCell outlet03_detection_box(shell_body,
+                                                    makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_3_emitter_rotation), Vec3d(outlet_3_cut_translation)), outlet_3_half));
+        BodyAlignedBoxByCell outlet04_detection_box(shell_body,
+                                                    makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_4_emitter_rotation), Vec3d(outlet_4_cut_translation)), outlet_4_half));
+        BodyAlignedBoxByCell outlet05_detection_box(shell_body,
+                                                    makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_5_emitter_rotation), Vec3d(outlet_5_cut_translation)), outlet_5_half));
+
 
         RealBody test_body_in(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half, "TestBodyIn"));
+            sph_system, makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half[1], inlet_half[0], "TestBodyIn"));
         test_body_in.generateParticles<BaseParticles, Lattice>();
 
-        RealBody test_body_out_up(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_cut_translation)), outlet_up_half, "TestBodyOutUp"));
-        test_body_out_up.generateParticles<BaseParticles, Lattice>();
+        RealBody test_body_out_1(
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_1_emitter_rotation), Vec3d(outlet_1_cut_translation)), outlet_1_half, "TestBodyOut01"));
+        test_body_out_1.generateParticles<BaseParticles, Lattice>();
 
-        RealBody test_body_out_down(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_cut_translation)), outlet_down_half, "TestBodyOutDown"));
-        test_body_out_down.generateParticles<BaseParticles, Lattice>();
+        RealBody test_body_out_2(
+        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_2_emitter_rotation), Vec3d(outlet_2_cut_translation)), outlet_2_half, "TestBodyOut02"));
+        test_body_out_2.generateParticles<BaseParticles, Lattice>();
+
+        RealBody test_body_out_3(
+            sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_3_emitter_rotation), Vec3d(outlet_3_cut_translation)), outlet_3_half, "TestBodyOut03"));
+        test_body_out_3.generateParticles<BaseParticles, Lattice>();
+
+        RealBody test_body_out_4(
+            sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_4_emitter_rotation), Vec3d(outlet_4_cut_translation)), outlet_4_half, "TestBodyOut04"));
+        test_body_out_4.generateParticles<BaseParticles, Lattice>();
+
+        RealBody test_body_out_5(
+            sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_5_emitter_rotation), Vec3d(outlet_5_cut_translation)), outlet_5_half, "TestBodyOut05"));
+        test_body_out_5.generateParticles<BaseParticles, Lattice>();
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
@@ -457,9 +458,12 @@ int main(int ac, char *av[])
         RelaxationStepInner relaxation_step_inner_blood(blood_inner);
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
+        SimpleDynamics<DeleteParticlesInCylinder> inlet_particles_detection(inlet_detection_cylinder);
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box);
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet03_particles_detection(outlet03_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet04_particles_detection(outlet04_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet05_particles_detection(outlet05_detection_box);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_shell_to_vtp({shell_body});
@@ -480,12 +484,12 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 2000)
+        while (ite_p < 200)
         {
             relaxation_step_inner.exec();
             relaxation_step_inner_blood.exec();
             ite_p += 1;
-            if (ite_p % 500 == 0)
+            if (ite_p % 100 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
                 write_shell_to_vtp.writeToFile(ite_p);
@@ -501,6 +505,12 @@ int main(int ac, char *av[])
         outlet01_particles_detection.exec();
         shell_body.updateCellLinkedListWithParticleSort(100);
         outlet02_particles_detection.exec();
+        shell_body.updateCellLinkedListWithParticleSort(100);
+        outlet03_particles_detection.exec();
+        shell_body.updateCellLinkedListWithParticleSort(100);
+        outlet04_particles_detection.exec();
+        shell_body.updateCellLinkedListWithParticleSort(100);
+        outlet05_particles_detection.exec();
         shell_body.updateCellLinkedListWithParticleSort(100);
 
         write_all_bodies_to_vtp.writeToFile(ite_p);
@@ -521,6 +531,7 @@ int main(int ac, char *av[])
     ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_body}, {false});
     //ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
     ShellInnerRelationWithContactKernel shell_curvature_inner(shell_body, water_block);
+    ContactRelation velocity_observer_contact(velocity_observer, {&water_block});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.
@@ -543,9 +554,6 @@ int main(int ac, char *av[])
     //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
     // fluid dynamics
-    TimeDependentAcceleration time_dependent_acceleration(Vecd::Zero());
-    SimpleDynamics<GravityForce> apply_initial_force(water_block, time_dependent_acceleration);
-
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_shell_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
@@ -556,26 +564,42 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_shell_contact);
 
     // add buffers
-    BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_half));
-    fluid_dynamics::NonPrescribedPressureBidirectionalBuffer left_emitter_inflow_injection(left_emitter, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell right_up_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_buffer_translation)), outlet_up_half));
-    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_up_emitter_inflow_injection(right_up_emitter, in_outlet_particle_buffer);
-    BodyAlignedBoxByCell right_down_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_buffer_translation)), outlet_down_half));
-    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_down_emitter_inflow_injection(right_down_emitter, in_outlet_particle_buffer);
+    // disposer
+    BodyAlignedCylinderByCell inlet_disposer(water_block, makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation), Vec3d(inlet_buffer_translation)), inlet_half[1], inlet_half[0]));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionArb<AlignedCylinderShape>> inlet_disposer_outflow_deletion(inlet_disposer);
+    BodyAlignedBoxByCell disposer_1(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_1_disposer_rotation), Vec3d(outlet_1_buffer_translation)), outlet_1_half));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_1(disposer_1, "out01");
+    BodyAlignedBoxByCell disposer_2(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_2_disposer_rotation), Vec3d(outlet_2_buffer_translation)), outlet_2_half));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_2(disposer_2, "out02");
+    BodyAlignedBoxByCell disposer_3(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_3_disposer_rotation), Vec3d(outlet_3_buffer_translation)), outlet_3_half));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_3(disposer_3, "out03");
+    BodyAlignedBoxByCell disposer_4(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_4_disposer_rotation), Vec3d(outlet_4_buffer_translation)), outlet_4_half));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_4(disposer_4, "out04");
+    BodyAlignedBoxByCell disposer_5(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_5_disposer_rotation), Vec3d(outlet_5_buffer_translation)), outlet_5_half));
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionWithWindkessel> disposer_outflow_deletion_5(disposer_5, "out05");
 
-    BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_disposer_rotation),Vec3d(inlet_buffer_translation)), inlet_half));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
-    BodyAlignedBoxByCell right_up_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_disposer_rotation), Vec3d(outlet_up_buffer_translation)), outlet_up_half));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_up_disposer_outflow_deletion(right_up_disposer);
-    BodyAlignedBoxByCell right_down_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_disposer_rotation), Vec3d(outlet_down_buffer_translation)), outlet_down_half));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_down_disposer_outflow_deletion(right_down_disposer);
+    // bidirectional buffer
+    BodyAlignedCylinderByCell inlet_emitter(water_block, makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_half[1], inlet_half[0]));
+    fluid_dynamics::NonPrescribedPressureBidirectionalBufferArb<AlignedCylinderShape> inlet_emitter_inflow_injection(inlet_emitter, in_outlet_particle_buffer);
+    BodyAlignedBoxByCell outflow_emitter_1(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_1_emitter_rotation), Vec3d(outlet_1_buffer_translation)), outlet_1_half));
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer outflow_injection_1(outflow_emitter_1, "out01", in_outlet_particle_buffer);
+    BodyAlignedBoxByCell outflow_emitter_2(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_2_emitter_rotation), Vec3d(outlet_2_buffer_translation)), outlet_2_half));
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer outflow_injection_2(outflow_emitter_2, "out02", in_outlet_particle_buffer);
+    BodyAlignedBoxByCell outflow_emitter_3(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_3_emitter_rotation), Vec3d(outlet_3_buffer_translation)), outlet_3_half));
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer outflow_injection_3(outflow_emitter_3, "out03", in_outlet_particle_buffer);
+    BodyAlignedBoxByCell outflow_emitter_4(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_4_emitter_rotation), Vec3d(outlet_4_buffer_translation)), outlet_4_half));
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer outflow_injection_4(outflow_emitter_4, "out04", in_outlet_particle_buffer);
+    BodyAlignedBoxByCell outflow_emitter_5(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_5_emitter_rotation), Vec3d(outlet_5_buffer_translation)), outlet_5_half));
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer outflow_injection_5(outflow_emitter_5, "out05", in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
-    SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_up_inflow_pressure_condition(right_up_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_down_inflow_pressure_condition(right_down_emitter);
-    SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
-
+    SimpleDynamics<fluid_dynamics::InflowVelocityConditionArb<InflowVelocity, AlignedCylinderShape>> emitter_buffer_inflow_condition(inlet_emitter);
+    SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> outflow_pressure_condition1(outflow_emitter_1, "out01");
+    SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> outflow_pressure_condition2(outflow_emitter_2, "out02");
+    SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> outflow_pressure_condition3(outflow_emitter_3, "out03");
+    SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> outflow_pressure_condition4(outflow_emitter_4, "out04");
+    SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> outflow_pressure_condition5(outflow_emitter_5, "out05");
+    
     // FSI
     /*InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
@@ -593,6 +617,10 @@ int main(int ac, char *av[])
     //body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
+    
+    /*RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
+        write_centerline_velocity("Velocity", velocity_observer_contact);*/
+    ObservedQuantityRecording<Vecd> write_centerline_velocity("Velocity", velocity_observer_contact);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -605,17 +633,20 @@ int main(int ac, char *av[])
     water_block_complex.updateConfiguration();
     //shell_water_contact.updateConfiguration();
     boundary_indicator.exec();
-    left_emitter_inflow_injection.tag_buffer_particles.exec();
-    right_up_emitter_inflow_injection.tag_buffer_particles.exec();
-    right_down_emitter_inflow_injection.tag_buffer_particles.exec();
+    inlet_emitter_inflow_injection.tag_buffer_particles.exec();
+    outflow_injection_1.tag_buffer_particles.exec();
+    outflow_injection_2.tag_buffer_particles.exec();
+    outflow_injection_3.tag_buffer_particles.exec();
+    outflow_injection_4.tag_buffer_particles.exec();
+    outflow_injection_5.tag_buffer_particles.exec();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 2.5;   /**< End time. */
-    Real Output_Time = end_time/250; /**< Time stamps for output of body states. */
+    Real end_time = 2.0;   /**< End time. */
+    Real Output_Time = end_time/200; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
@@ -627,10 +658,24 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
+    Real accumulated_time = 0.006;
+    int updateP_n = 0;
+
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile();
+    write_centerline_velocity.writeToFile(number_of_iterations);
+
+    //----------------------------------------------------------------------
+    //	Windkessel parameters.
+    //----------------------------------------------------------------------
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, accumulated_time, 0.0000098);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 1.63E9, 8.74E-10, accumulated_time, 0.00001);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, accumulated_time, 0.0000068);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 1.52E9, 9.34E-10, accumulated_time, 0.0000118);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 2.95E8, 4.82E-9, accumulated_time, 0.000096);
+
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -641,7 +686,6 @@ int main(int ac, char *av[])
         while (integration_time < Output_Time)
         {
             time_instance = TickCount::now();
-            apply_initial_force.exec();
 
             Real Dt = get_fluid_advection_time_step_size.exec();
             //std::cout << "Dt = " << Dt << std::endl;
@@ -664,10 +708,24 @@ int main(int ac, char *av[])
                 //pressure_force_on_shell.exec();
 
                 kernel_summation.exec();
-                left_inflow_pressure_condition.exec(dt);
-                right_up_inflow_pressure_condition.exec(dt);
-                right_down_inflow_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();
+                emitter_buffer_inflow_condition.exec();
+
+                // windkessel model implementation
+                if (GlobalStaticVariables::physical_time_ >= updateP_n * accumulated_time)
+                {
+                    outflow_pressure_condition1.getTargetPressure()->updateNextPressure();
+                    outflow_pressure_condition2.getTargetPressure()->updateNextPressure();
+                    outflow_pressure_condition3.getTargetPressure()->updateNextPressure();
+                    outflow_pressure_condition4.getTargetPressure()->updateNextPressure();
+                    outflow_pressure_condition5.getTargetPressure()->updateNextPressure();
+
+                    ++updateP_n;
+                }
+                outflow_pressure_condition1.exec(dt);
+                outflow_pressure_condition2.exec(dt);
+                outflow_pressure_condition3.exec(dt);
+                outflow_pressure_condition4.exec(dt);
+                outflow_pressure_condition5.exec(dt);    
 
                 density_relaxation.exec(dt);
 
@@ -698,17 +756,29 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
+            
+                if (number_of_iterations % observation_sample_interval == 0 && number_of_iterations != sph_system.RestartStep())
+                {
+                    write_centerline_velocity.writeToFile(number_of_iterations);
+                }
+            
             }
             number_of_iterations++;
 
             time_instance = TickCount::now();
-
-            left_emitter_inflow_injection.injection.exec();
-            right_up_emitter_inflow_injection.injection.exec();
-            right_down_emitter_inflow_injection.injection.exec();
-            left_disposer_outflow_deletion.exec();
-            right_up_disposer_outflow_deletion.exec();
-            right_down_disposer_outflow_deletion.exec();
+            /** Water block configuration and periodic condition. */
+            inlet_emitter_inflow_injection.injection.exec();
+            outflow_injection_1.injection.exec();
+            outflow_injection_2.injection.exec();
+            outflow_injection_3.injection.exec();
+            outflow_injection_4.injection.exec();
+            outflow_injection_5.injection.exec();
+            inlet_disposer_outflow_deletion.exec();
+            disposer_outflow_deletion_1.exec();
+            disposer_outflow_deletion_2.exec();
+            disposer_outflow_deletion_3.exec();
+            disposer_outflow_deletion_4.exec();
+            disposer_outflow_deletion_5.exec();
 
             water_block.updateCellLinkedListWithParticleSort(100);
             //shell_update_normal.exec();
@@ -721,9 +791,12 @@ int main(int ac, char *av[])
             interval_updating_configuration += TickCount::now() - time_instance;
             boundary_indicator.exec();
 
-            left_emitter_inflow_injection.tag_buffer_particles.exec();
-            right_up_emitter_inflow_injection.tag_buffer_particles.exec();
-            right_down_emitter_inflow_injection.tag_buffer_particles.exec();
+            inlet_emitter_inflow_injection.tag_buffer_particles.exec();
+            outflow_injection_1.tag_buffer_particles.exec();
+            outflow_injection_2.tag_buffer_particles.exec();
+            outflow_injection_3.tag_buffer_particles.exec();
+            outflow_injection_4.tag_buffer_particles.exec();
+            outflow_injection_5.tag_buffer_particles.exec();
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();

@@ -285,7 +285,7 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 Real rho0_f = 1060 / rho0; /**< Reference density of fluid. */
 Real U_f = 0.5 / U0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in / (DW_out_up + DW_out_down));
+Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in * DW_in / (DW_out_up * DW_out_up + DW_out_down * DW_out_down));
 Real mu_f = 0.00355 / (rho0 * U0 * L0); /**< Dynamics viscosity. */
 Real Outlet_pressure = 0 / (rho0 * pow(U0, 2));
 
