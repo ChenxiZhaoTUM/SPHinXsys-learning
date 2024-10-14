@@ -333,7 +333,8 @@ Real Outlet_pressure = 0;
 Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
-//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */
+Real physical_viscosity = 2000;
+//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 15.0 * scaling; /** physical damping */
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -364,6 +365,50 @@ struct InflowVelocity
 
         return target_velocity;
     }
+};
+
+class BoundaryGeometry : public BodyPartByParticle
+{
+  public:
+    BoundaryGeometry(SPHBody &body, const std::string &body_part_name)
+        : BodyPartByParticle(body, body_part_name)
+    {
+        TaggingParticleMethod tagging_particle_method = std::bind(&BoundaryGeometry::tagManually, this, _1);
+        tagParticles(tagging_particle_method);
+    };
+    virtual ~BoundaryGeometry(){};
+
+  private:
+    void tagManually(size_t index_i)
+    {
+        const Vecd &pos = base_particles_.ParticlePositions()[index_i];
+
+        Vecd relative_position_inlet = pos - inlet_center;
+        Vecd relative_position_outlet_1 = pos - outlet_1_center;
+        Vecd relative_position_outlet_2 = pos - outlet_2_center;
+        Vecd relative_position_outlet_3 = pos - outlet_3_center;
+        Vecd relative_position_outlet_4 = pos - outlet_4_center;
+        Vecd relative_position_outlet_5 = pos - outlet_5_center;
+
+
+        Real projection_distance_inlet = relative_position_inlet.dot(inlet_normal);
+        Real projection_distance_outlet_1 = relative_position_outlet_1.dot(-outlet_1_normal);
+        Real projection_distance_outlet_2 = relative_position_outlet_2.dot(-outlet_2_normal);
+        Real projection_distance_outlet_3 = relative_position_outlet_3.dot(-outlet_3_normal);
+        Real projection_distance_outlet_4 = relative_position_outlet_4.dot(-outlet_4_normal);
+        Real projection_distance_outlet_5 = relative_position_outlet_5.dot(-outlet_5_normal);
+
+
+        if (ABS(projection_distance_inlet) < 4 * dp_0
+            || ABS(projection_distance_outlet_1) < 4 * dp_0
+            || ABS(projection_distance_outlet_2) < 4 * dp_0
+            || ABS(projection_distance_outlet_3) < 4 * dp_0 
+            || ABS(projection_distance_outlet_4) < 4 * dp_0
+            || ABS(projection_distance_outlet_5) < 4 * dp_0 )
+        {
+            body_part_particles_.push_back(index_i);
+        }
+    };
 };
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
@@ -529,7 +574,7 @@ int main(int ac, char *av[])
     InnerRelation water_block_inner(water_block);
     InnerRelation shell_inner(shell_body);
     ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_body}, {false});
-    //ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
+    ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
     ShellInnerRelationWithContactKernel shell_curvature_inner(shell_body, water_block);
     ContactRelation velocity_observer_contact(velocity_observer, {&water_block});
     //----------------------------------------------------------------------
@@ -542,16 +587,19 @@ int main(int ac, char *av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     // shell dynamics
-    //InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
-    //Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
-    //Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
-    //ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
+    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
+    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
+    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
+    ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
-    //SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
-
-    ///** Exert constrain on shell. */
-    //BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
-    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_velocity_damping(0.2, shell_inner, "Velocity", physical_viscosity);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_rotation_damping(0.2, shell_inner, "AngularVelocity", physical_viscosity);
+    /** Exert constrain on shell. */
+    BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
     // fluid dynamics
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_shell_contact);
@@ -601,9 +649,9 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> outflow_pressure_condition5(outflow_emitter_5, "out05");
     
     // FSI
-    /*InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
+    InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
-    solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);*/
+    solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -614,6 +662,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
+    body_states_recording.addToWrite<Matd>(shell_body, "MidSurfaceCauchyStress");
     //body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
@@ -627,11 +676,11 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
-    //shell_corrected_configuration.exec();
+    shell_corrected_configuration.exec();
     shell_average_curvature.exec();
-    //constrain_holder.exec();
+    constrain_holder.exec();
     water_block_complex.updateConfiguration();
-    //shell_water_contact.updateConfiguration();
+    shell_water_contact.updateConfiguration();
     boundary_indicator.exec();
     inlet_emitter_inflow_injection.tag_buffer_particles.exec();
     outflow_injection_1.tag_buffer_particles.exec();
@@ -693,7 +742,7 @@ int main(int ac, char *av[])
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
             /** FSI for viscous force. */
-            //viscous_force_on_shell.exec();
+            viscous_force_on_shell.exec();
 
             interval_computing_time_step += TickCount::now() - time_instance;
             time_instance = TickCount::now();
@@ -705,7 +754,7 @@ int main(int ac, char *av[])
 
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
-                //pressure_force_on_shell.exec();
+                pressure_force_on_shell.exec();
 
                 kernel_summation.exec();
                 emitter_buffer_inflow_condition.exec();
@@ -729,7 +778,7 @@ int main(int ac, char *av[])
 
                 density_relaxation.exec(dt);
 
-                /*Real dt_s_sum = 0.0;
+                Real dt_s_sum = 0.0;
                 average_velocity_and_acceleration.initialize_displacement_.exec();
                 while (dt_s_sum < dt)
                 {
@@ -743,7 +792,7 @@ int main(int ac, char *av[])
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;
                 }
-                average_velocity_and_acceleration.update_averages_.exec(dt);*/
+                average_velocity_and_acceleration.update_averages_.exec(dt);
 
                 relaxation_time += dt;
                 integration_time += dt;
@@ -781,11 +830,11 @@ int main(int ac, char *av[])
             disposer_outflow_deletion_5.exec();
 
             water_block.updateCellLinkedListWithParticleSort(100);
-            //shell_update_normal.exec();
-            //shell_body.updateCellLinkedList();
-            //shell_curvature_inner.updateConfiguration();
-            //shell_average_curvature.exec();
-            //shell_water_contact.updateConfiguration();
+            shell_update_normal.exec();
+            shell_body.updateCellLinkedList();
+            shell_curvature_inner.updateConfiguration();
+            shell_average_curvature.exec();
+            shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
 
             interval_updating_configuration += TickCount::now() - time_instance;
