@@ -324,11 +324,10 @@ Rotation3d outlet_5_emitter_rotation(outlet_5_rotation_result.angle + Pi, outlet
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 0.5;    /**< Characteristic velocity. */
+Real U_f = 2.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), A_in / (A_out1 + A_out2 + A_out3 + A_out4 + A_out5));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real Outlet_pressure = 0;
 
 Real rho0_s = 1120;                /** Normalized density. */
 Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
@@ -529,16 +528,20 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 2000)
+        while (ite_p < 5000)
         {
             relaxation_step_inner.exec();
             relaxation_step_inner_blood.exec();
             ite_p += 1;
-            if (ite_p % 500 == 0)
+            if (ite_p % 100 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
-                write_shell_to_vtp.writeToFile(ite_p);
-                write_blood_to_vtp.writeToFile(ite_p);
+
+                if (ite_p % 1000 == 0)
+                {
+                    write_shell_to_vtp.writeToFile(ite_p);
+                    write_blood_to_vtp.writeToFile(ite_p);
+                }
             }
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
@@ -849,6 +852,7 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
+        velocity_observer_contact.updateConfiguration();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }

@@ -31,7 +31,7 @@ std::string inlet_flow_rate_file_path = "./input/scaled_pulse_flow_rate.dat";
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
-Real scaling = 0.03935;
+Real scaling = 0.03935;  // multiply 0.01 (simvascular: cm)
 Vec3d domain_lower_bound(-375.0 * scaling, 100.0 * scaling, -340 * scaling);
 Vec3d domain_upper_bound(-100.0 * scaling, 360.0 * scaling, 0.0 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);

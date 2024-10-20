@@ -253,9 +253,9 @@ Real A_in = 5.9765 * scaling * scaling;
 Vec3d inlet_half = Vec3d(2.0 * dp_0, 1.8 * scaling, 1.8 * scaling);
 Vec3d inlet_vector(0.1000, 0.1665, 0.9810);
 Vec3d inlet_normal = inlet_vector.normalized();
-Vec3d inlet_center = Vec3d(-0.9768, 4.6112, 3.0052) * scaling - inlet_normal * (2.0 * dp_0);
-Vec3d inlet_cut_translation = inlet_center - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d inlet_buffer_translation = inlet_center + inlet_normal * 2.0 * dp_0;
+Vec3d inlet_center = Vec3d(-0.9768, 4.6112, 3.0052) * scaling - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d inlet_cut_translation = inlet_center - inlet_normal * (2.5 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d inlet_buffer_translation = inlet_center + inlet_normal * (2.0 * dp_0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
@@ -267,7 +267,7 @@ Vec3d outlet_1_vector(0.6420, 0.4110, 0.6472);
 Vec3d outlet_1_normal = outlet_1_vector.normalized();
 Vec3d outlet_1_center = Vec3d(-1.2562, 4.4252, 10.0148) * scaling + outlet_1_normal * (2.0 * dp_0);
 Vec3d outlet_1_cut_translation = outlet_1_center + outlet_1_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_1_buffer_translation = outlet_1_center - outlet_1_normal * 2.0 * dp_0;
+Vec3d outlet_1_buffer_translation = outlet_1_center - outlet_1_normal * (2.0 * dp_0);
 RotationResult outlet_1_rotation_result = RotationCalculator(outlet_1_normal, standard_direction);
 Rotation3d outlet_1_disposer_rotation(outlet_1_rotation_result.angle, outlet_1_rotation_result.axis);
 Rotation3d outlet_1_emitter_rotation(outlet_1_rotation_result.angle + Pi, outlet_1_rotation_result.axis);
@@ -279,7 +279,7 @@ Vec3d outlet_2_vector(-0.0988, 0.0485, 0.9939);
 Vec3d outlet_2_normal = outlet_2_vector.normalized();
 Vec3d outlet_2_center = Vec3d(-2.6303, 3.0594, 10.6919) * scaling + outlet_2_normal * (2.0 * dp_0);
 Vec3d outlet_2_cut_translation = outlet_2_center + outlet_2_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_2_buffer_translation = outlet_2_center - outlet_2_normal * 2.0 * dp_0;
+Vec3d outlet_2_buffer_translation = outlet_2_center - outlet_2_normal * (2.0 * dp_0);
 RotationResult outlet_2_rotation_result = RotationCalculator(outlet_2_normal, standard_direction);
 Rotation3d outlet_2_disposer_rotation(outlet_2_rotation_result.angle, outlet_2_rotation_result.axis);
 Rotation3d outlet_2_emitter_rotation(outlet_2_rotation_result.angle + Pi, outlet_2_rotation_result.axis);
@@ -291,7 +291,7 @@ Vec3d outlet_3_vector(-0.1471, -0.1813, 0.9724);
 Vec3d outlet_3_normal = outlet_3_vector.normalized();
 Vec3d outlet_3_center = Vec3d(-2.8585, 1.8357, 9.8034) * scaling + outlet_3_normal * (2.0 * dp_0);
 Vec3d outlet_3_cut_translation = outlet_3_center + outlet_3_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_3_buffer_translation = outlet_3_center - outlet_3_normal * 2.0 * dp_0;
+Vec3d outlet_3_buffer_translation = outlet_3_center - outlet_3_normal * (2.0 * dp_0);
 RotationResult outlet_3_rotation_result = RotationCalculator(outlet_3_normal, standard_direction);
 Rotation3d outlet_3_disposer_rotation(outlet_3_rotation_result.angle, outlet_3_rotation_result.axis);
 Rotation3d outlet_3_emitter_rotation(outlet_3_rotation_result.angle + Pi, outlet_3_rotation_result.axis);
@@ -303,7 +303,7 @@ Vec3d outlet_4_vector(0.5675, 0.4280, 0.7034);
 Vec3d outlet_4_normal = outlet_4_vector.normalized();
 Vec3d outlet_4_center = Vec3d(-1.0946, 1.0386, 9.5016) * scaling + outlet_4_normal * (2.0 * dp_0);
 Vec3d outlet_4_cut_translation = outlet_4_center + outlet_4_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_4_buffer_translation = outlet_4_center - outlet_4_normal * 2.0 * dp_0;
+Vec3d outlet_4_buffer_translation = outlet_4_center - outlet_4_normal * (2.0 * dp_0);
 RotationResult outlet_4_rotation_result = RotationCalculator(outlet_4_normal, standard_direction);
 Rotation3d outlet_4_disposer_rotation(outlet_4_rotation_result.angle, outlet_4_rotation_result.axis);
 Rotation3d outlet_4_emitter_rotation(outlet_4_rotation_result.angle + Pi, outlet_4_rotation_result.axis);
@@ -315,7 +315,7 @@ Vec3d outlet_5_vector(-0.0327, 0.0729, -0.9968);
 Vec3d outlet_5_normal = outlet_5_vector.normalized();
 Vec3d outlet_5_center = Vec3d(-1.6791, -0.8069, 0.5017) * scaling + outlet_5_normal * (2.0 * dp_0);
 Vec3d outlet_5_cut_translation = outlet_5_center + outlet_5_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_5_buffer_translation = outlet_5_center - outlet_5_normal * 2.0 * dp_0;
+Vec3d outlet_5_buffer_translation = outlet_5_center - outlet_5_normal * (2.0 * dp_0);
 RotationResult outlet_5_rotation_result = RotationCalculator(outlet_5_normal, standard_direction);
 Rotation3d outlet_5_disposer_rotation(outlet_5_rotation_result.angle, outlet_5_rotation_result.axis);
 Rotation3d outlet_5_emitter_rotation(outlet_5_rotation_result.angle + Pi, outlet_5_rotation_result.axis);
@@ -324,15 +324,14 @@ Rotation3d outlet_5_emitter_rotation(outlet_5_rotation_result.angle + Pi, outlet
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 0.5;    /**< Characteristic velocity. */
+Real U_f = 2.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), A_in / (A_out1 + A_out2 + A_out3 + A_out4 + A_out5));
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real Outlet_pressure = 0;
 
-Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
+//Real rho0_s = 1120;                /** Normalized density. */
+//Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
+//Real poisson = 0.49;               /** Poisson ratio. */
 //Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */
 //----------------------------------------------------------------------
 //	Inflow velocity
@@ -484,16 +483,20 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 2000)
+        while (ite_p < 5000)
         {
             relaxation_step_inner.exec();
             relaxation_step_inner_blood.exec();
             ite_p += 1;
-            if (ite_p % 500 == 0)
+            if (ite_p % 100 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the imported model N = " << ite_p << "\n";
-                write_shell_to_vtp.writeToFile(ite_p);
-                write_blood_to_vtp.writeToFile(ite_p);
+
+                if (ite_p % 1000 == 0)
+                {
+                    write_shell_to_vtp.writeToFile(ite_p);
+                    write_blood_to_vtp.writeToFile(ite_p);
+                }
             }
         }
         std::cout << "The physics relaxation process of imported model finish !" << std::endl;
@@ -800,6 +803,7 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
+        velocity_observer_contact.updateConfiguration();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
