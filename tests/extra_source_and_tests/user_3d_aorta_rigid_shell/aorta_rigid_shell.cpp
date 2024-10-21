@@ -25,8 +25,8 @@ Vec3d translation(0.0, 0.0, 0.0);
 Real scaling = 1.0E-2;
 BoundingBox system_domain_bounds(Vecd(-6.0, -4.0, -2.0)*scaling, Vecd(3.0, 10.0, 15.0)*scaling);
 Real dp_0 = 0.06 * scaling;
-//Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/
-Real shell_resolution = dp_0;  /*thickness = 1.0 * shell_resolution*/
+Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/
+//Real shell_resolution = dp_0;  /*thickness = 1.0 * shell_resolution*/
 StdVec<Vecd> observer_location = {Vecd(-1.24, 4.41, 5.18) * scaling};
 //----------------------------------------------------------------------
 //	define the imported model.
@@ -254,7 +254,7 @@ Vec3d inlet_half = Vec3d(2.0 * dp_0, 1.8 * scaling, 1.8 * scaling);
 Vec3d inlet_vector(0.1000, 0.1665, 0.9810);
 Vec3d inlet_normal = inlet_vector.normalized();
 Vec3d inlet_center = Vec3d(-0.9768, 4.6112, 3.0052) * scaling - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d inlet_cut_translation = inlet_center - inlet_normal * (2.5 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d inlet_cut_translation = inlet_center - inlet_normal * (2.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
 Vec3d inlet_buffer_translation = inlet_center + inlet_normal * (2.0 * dp_0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
@@ -266,7 +266,7 @@ Vec3d outlet_1_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
 Vec3d outlet_1_vector(0.6420, 0.4110, 0.6472);
 Vec3d outlet_1_normal = outlet_1_vector.normalized();
 Vec3d outlet_1_center = Vec3d(-1.2562, 4.4252, 10.0148) * scaling + outlet_1_normal * (2.0 * dp_0);
-Vec3d outlet_1_cut_translation = outlet_1_center + outlet_1_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_1_cut_translation = outlet_1_center + outlet_1_normal * (0.5 * dp_0 + 1.0 * (dp_0 - shell_resolution));
 Vec3d outlet_1_buffer_translation = outlet_1_center - outlet_1_normal * (2.0 * dp_0);
 RotationResult outlet_1_rotation_result = RotationCalculator(outlet_1_normal, standard_direction);
 Rotation3d outlet_1_disposer_rotation(outlet_1_rotation_result.angle, outlet_1_rotation_result.axis);
@@ -302,7 +302,7 @@ Vec3d outlet_4_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
 Vec3d outlet_4_vector(0.5675, 0.4280, 0.7034);
 Vec3d outlet_4_normal = outlet_4_vector.normalized();
 Vec3d outlet_4_center = Vec3d(-1.0946, 1.0386, 9.5016) * scaling + outlet_4_normal * (2.0 * dp_0);
-Vec3d outlet_4_cut_translation = outlet_4_center + outlet_4_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_4_cut_translation = outlet_4_center + outlet_4_normal * (0.5 * dp_0 + 1.0 * (dp_0 - shell_resolution));
 Vec3d outlet_4_buffer_translation = outlet_4_center - outlet_4_normal * (2.0 * dp_0);
 RotationResult outlet_4_rotation_result = RotationCalculator(outlet_4_normal, standard_direction);
 Rotation3d outlet_4_disposer_rotation(outlet_4_rotation_result.angle, outlet_4_rotation_result.axis);
@@ -326,7 +326,8 @@ Rotation3d outlet_5_emitter_rotation(outlet_5_rotation_result.angle + Pi, outlet
 Real rho0_f = 1060; /**< Reference density of fluid. */
 Real U_f = 2.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), A_in / (A_out1 + A_out2 + A_out3 + A_out4 + A_out5));
+//Real c_f = 10.0 * U_f * SMAX(Real(1), A_in / (A_out1 + A_out2 + A_out3 + A_out4 + A_out5));
+Real c_f = 10.0 * U_f;
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
 
 //Real rho0_s = 1120;                /** Normalized density. */
@@ -667,18 +668,23 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
-    body_states_recording.writeToFile();
+    //body_states_recording.writeToFile();
     write_centerline_velocity.writeToFile(number_of_iterations);
 
     //----------------------------------------------------------------------
     //	Windkessel parameters.
     //----------------------------------------------------------------------
-    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, accumulated_time, 0.0000098);
-    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 1.63E9, 8.74E-10, accumulated_time, 0.00001);
-    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, accumulated_time, 0.0000068);
-    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 1.52E9, 9.34E-10, accumulated_time, 0.0000118);
-    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 2.95E8, 4.82E-9, accumulated_time, 0.000096);
+    //outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, accumulated_time, 0.0000098);
+    //outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 1.63E9, 8.74E-10, accumulated_time, 0.00001);
+    //outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, accumulated_time, 0.0000068);
+    //outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 1.52E9, 9.34E-10, accumulated_time, 0.0000118);
+    //outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 2.95E8, 4.82E-9, accumulated_time, 0.000096);
 
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, accumulated_time, 0);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 1.63E9, 8.74E-10, accumulated_time, 0);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, accumulated_time, 0);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 1.52E9, 9.34E-10, accumulated_time, 0);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 2.95E8, 4.82E-9, accumulated_time, 0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -802,7 +808,7 @@ int main(int ac, char *av[])
             outflow_injection_5.tag_buffer_particles.exec();
         }
         TickCount t2 = TickCount::now();
-        body_states_recording.writeToFile();
+        //body_states_recording.writeToFile();
         velocity_observer_contact.updateConfiguration();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
