@@ -325,7 +325,7 @@ Rotation3d outlet_mca_right_disposer_rotation(outlet_mca_right_rotation_result.a
 
 // outlet pca R=1.008, (-26.781, -9.985, -4.945), (0.852, 0.000, 0.523)
 Real DW_out_pca = 1.008 * 2 * scaling;
-Vec3d outlet_pca_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
+Vec3d outlet_pca_half = Vec3d(2.0 * dp_0, 1.2 * scaling, 1.2 * scaling);
 
 Vec3d outlet_pca_left_center = Vec3d(-26.781, -9.985, -4.945) * scaling;
 Vec3d outlet_pca_left_normal(-0.852, -0.000, -0.523);
