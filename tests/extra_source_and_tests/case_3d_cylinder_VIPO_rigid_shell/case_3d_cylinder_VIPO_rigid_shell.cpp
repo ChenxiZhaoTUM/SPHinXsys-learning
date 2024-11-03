@@ -154,17 +154,6 @@ struct InflowVelocity
 //----------------------------------------------------------------------
 //	Pressure boundary condition.
 //----------------------------------------------------------------------
-struct LeftInflowPressure
-{
-    template <class BoundaryConditionType>
-    LeftInflowPressure(BoundaryConditionType &boundary_condition) {}
-
-    Real operator()(Real p, Real physical_time)
-    {
-        return p;
-    }
-};
-
 struct RightOutflowPressure
 {
     template <class BoundaryConditionType>
@@ -193,6 +182,11 @@ int main(int ac, char *av[])
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, resolution_ref);
+    system.setRunParticleRelaxation(false);   // Tag for run particle relaxation for body-fitted distribution
+    system.setReloadParticles(true);       // Tag for computation with save particles distribution
+#ifdef BOOST_AVAILABLE
+    system.handleCommandlineOptions(ac, av); // handle command line arguments
+#endif
     IOEnvironment io_environment(system);
 
     //----------------------------------------------------------------------
@@ -201,7 +195,10 @@ int main(int ac, char *av[])
     FluidBody water_block(system, water_block_shape);
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
+    water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(system);
+    (!system.RunParticleRelaxation() && system.ReloadParticles())
+        ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
+        : water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
 
     SolidBody shell_boundary(system, makeShared<DefaultShape>("Shell"));
     shell_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_shell);
@@ -212,6 +209,46 @@ int main(int ac, char *av[])
     observer_axial.generateParticles<ObserverParticles>(createAxialObservationPoints(full_length));
     ObserverBody observer_radial(system, "fluid_observer_radial");
     observer_radial.generateParticles<ObserverParticles>(createRadialObservationPoints(full_length, diameter, number_of_particles));
+    //----------------------------------------------------------------------
+    //	SPH Particle relaxation section
+    //----------------------------------------------------------------------
+    /** check whether run particle relaxation for body fitted particle distribution. */
+    if (system.RunParticleRelaxation() && !system.ReloadParticles())
+    {
+        InnerRelation water_inner(water_block);
+        using namespace relax_dynamics;
+        SimpleDynamics<RandomizeParticlePosition> random_particles(water_block);
+        RelaxationStepInner relaxation_step_inner(water_inner);
+        //----------------------------------------------------------------------
+        //	Relaxation output
+        //----------------------------------------------------------------------
+        BodyStatesRecordingToVtp write_body_state_to_vtp({water_block});
+        ReloadParticleIO write_particle_reload_files(water_block);
+        //----------------------------------------------------------------------
+        //	Physics relaxation starts here.
+        //----------------------------------------------------------------------
+        random_particles.exec(0.25);
+        relaxation_step_inner.SurfaceBounding().exec();
+        write_body_state_to_vtp.writeToFile(0.0);
+        //----------------------------------------------------------------------
+        // From here the time stepping begins.
+        //----------------------------------------------------------------------
+        int ite = 0;
+        int relax_step = 1000;
+        while (ite < relax_step)
+        {
+            relaxation_step_inner.exec();
+            ite++;
+            if (ite % 250 == 0)
+            {
+                std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite << "\n";
+                write_body_state_to_vtp.writeToFile(ite);
+            }
+        }
+        write_particle_reload_files.writeToFile(0);
+        std::cout << "The physics relaxation process of imported model finish !" << std::endl;
+        return 0;
+    }
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -257,12 +294,12 @@ int main(int ac, char *av[])
     //	Boundary conditions.
     //----------------------------------------------------------------------
     BodyAlignedBoxByCell left_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
-    fluid_dynamics::BidirectionalBuffer<LeftInflowPressure> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
+    fluid_dynamics::BidirectionalBuffer<fluid_dynamics::NonPrescribedPressure> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(disposer_translation)), disposer_halfsize));
     fluid_dynamics::BidirectionalBuffer<RightOutflowPressure> right_bidirection_buffer(right_buffer, in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
-    SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_pressure_condition(left_buffer);
+    SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_pressure_condition(left_buffer);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightOutflowPressure>> right_pressure_condition(right_buffer);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
     //----------------------------------------------------------------------
@@ -346,9 +383,10 @@ int main(int ac, char *av[])
 
                 // boundary condition implementation
                 kernel_summation.exec();
-                left_pressure_condition.exec(dt);
-                right_pressure_condition.exec(dt);
+                //left_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
+                right_pressure_condition.exec(dt);
+                
                 density_relaxation.exec(dt);
 
                 relaxation_time += dt;

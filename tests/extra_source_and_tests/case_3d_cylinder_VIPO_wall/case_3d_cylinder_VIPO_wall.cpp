@@ -116,17 +116,6 @@ struct InflowVelocity
 //----------------------------------------------------------------------
 //	Pressure boundary condition.
 //----------------------------------------------------------------------
-struct LeftInflowPressure
-{
-    template <class BoundaryConditionType>
-    LeftInflowPressure(BoundaryConditionType &boundary_condition) {}
-
-    Real operator()(Real p, Real physical_time)
-    {
-        return p;
-    }
-};
-
 struct RightOutflowPressure
 {
     template <class BoundaryConditionType>
@@ -152,10 +141,10 @@ int main(int ac, char *av[])
                                                       translation_fluid);
     auto wall_shape = makeShared<ComplexShape>("WallBody");
     wall_shape->add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius + wall_thickness,
-                                               full_length * 0.5 + wall_thickness, SimTK_resolution,
+                                               full_length * 0.5, SimTK_resolution,
                                                       translation_fluid);
     wall_shape->subtract<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius,
-                                               full_length, SimTK_resolution,
+                                               full_length * 0.7, SimTK_resolution,
                                                translation_fluid);
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
@@ -173,11 +162,14 @@ int main(int ac, char *av[])
     FluidBody water_block(system, water_block_shape);
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
-    water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
+    water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(system);
+    (!system.RunParticleRelaxation() && system.ReloadParticles())
+        ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
+        : water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
 
     SolidBody wall_boundary(system, wall_shape);
     wall_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_wall);
-    wall_boundary.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(system);
+    wall_boundary.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(system);
     wall_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
     (!system.RunParticleRelaxation() && system.ReloadParticles())
         ? wall_boundary.generateParticles<BaseParticles, Reload>("WallBody")
@@ -193,19 +185,24 @@ int main(int ac, char *av[])
     /** check whether run particle relaxation for body fitted particle distribution. */
     if (system.RunParticleRelaxation() && !system.ReloadParticles())
     {
+        InnerRelation water_block_inner(water_block);
         InnerRelation wall_boundary_inner(wall_boundary);
         using namespace relax_dynamics;
+        SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
         SimpleDynamics<RandomizeParticlePosition> random_particles(wall_boundary);
+        RelaxationStepInner relaxation_step_water_inner(water_block_inner);
         RelaxationStepInner relaxation_step_inner(wall_boundary_inner);
         //----------------------------------------------------------------------
         //	Relaxation output
         //----------------------------------------------------------------------
-        BodyStatesRecordingToVtp write_body_state_to_vtp({wall_boundary});
-        ReloadParticleIO write_particle_reload_files(wall_boundary);
+        BodyStatesRecordingToVtp write_body_state_to_vtp(system);
+        ReloadParticleIO write_particle_reload_files({ &water_block, &wall_boundary });
         //----------------------------------------------------------------------
         //	Physics relaxation starts here.
         //----------------------------------------------------------------------
+        random_water_particles.exec(0.25);
         random_particles.exec(0.25);
+        relaxation_step_water_inner.SurfaceBounding().exec();
         relaxation_step_inner.SurfaceBounding().exec();
         write_body_state_to_vtp.writeToFile(0.0);
         //----------------------------------------------------------------------
@@ -215,6 +212,7 @@ int main(int ac, char *av[])
         int relax_step = 1000;
         while (ite < relax_step)
         {
+            relaxation_step_water_inner.exec();
             relaxation_step_inner.exec();
             ite++;
             if (ite % 250 == 0)
@@ -267,12 +265,12 @@ int main(int ac, char *av[])
     //	Boundary conditions.
     //----------------------------------------------------------------------
     BodyAlignedBoxByCell left_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
-    fluid_dynamics::BidirectionalBuffer<LeftInflowPressure> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
+    fluid_dynamics::BidirectionalBuffer<fluid_dynamics::NonPrescribedPressure> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(disposer_translation)), disposer_halfsize));
     fluid_dynamics::BidirectionalBuffer<RightOutflowPressure> right_bidirection_buffer(right_buffer, in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
-    SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressure>> left_pressure_condition(left_buffer);
+    SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_pressure_condition(left_buffer);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightOutflowPressure>> right_pressure_condition(right_buffer);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
     //----------------------------------------------------------------------
