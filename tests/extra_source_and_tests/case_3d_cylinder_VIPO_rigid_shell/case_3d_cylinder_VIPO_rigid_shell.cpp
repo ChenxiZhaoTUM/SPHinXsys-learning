@@ -22,7 +22,7 @@ Real full_length = 10 * fluid_radius;
 //----------------------------------------------------------------------
 //	Geometry parameters for shell.
 //----------------------------------------------------------------------
-int number_of_particles = 10;
+int number_of_particles = 20;
 Real resolution_ref = diameter / number_of_particles;
 Real resolution_shell = 0.5 * resolution_ref;
 Real shell_thickness = 0.5 * resolution_shell;
@@ -147,7 +147,7 @@ struct InflowVelocity
     {
         Vec3d target_velocity = Vec3d(0, 0, 0);
         target_velocity[0] = SMAX(2.0 * U_f * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
-                                  0.0);
+                                  1.0e-2);
         return target_velocity;
     }
 };
@@ -182,7 +182,7 @@ int main(int ac, char *av[])
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, resolution_ref);
-    system.setRunParticleRelaxation(false);   // Tag for run particle relaxation for body-fitted distribution
+    system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
     system.setReloadParticles(true);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     system.handleCommandlineOptions(ac, av); // handle command line arguments
@@ -202,7 +202,8 @@ int main(int ac, char *av[])
 
     SolidBody shell_boundary(system, makeShared<DefaultShape>("Shell"));
     shell_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_shell);
-    shell_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
+    //shell_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
+    shell_boundary.defineMaterial<Solid>();
     shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, wall_thickness, shell_thickness);
 
     ObserverBody observer_axial(system, "fluid_observer_axial");
