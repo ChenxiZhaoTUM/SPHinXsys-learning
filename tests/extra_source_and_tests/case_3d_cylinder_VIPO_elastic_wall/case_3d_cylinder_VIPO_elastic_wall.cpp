@@ -54,9 +54,12 @@ Real U_f = Re * mu_f / rho0_f / diameter;
 Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
-Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e5;    /** Normalized Youngs Modulus. */
-Real poisson = 0.3;               /** Poisson ratio. */
+//Real rho0_s = 1000;                /** Normalized density. */
+//Real Youngs_modulus = 7.5e5;    /** Normalized Youngs Modulus. */
+//Real poisson = 0.3;               /** Poisson ratio. */
+Real rho0_s = 1000;             /** Normalized density. */
+Real Youngs_modulus = 1.0e6;    /** Normalized Youngs Modulus. */
+Real poisson = 0.35;             /** Poisson ratio. */
 //Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
 Real physical_viscosity = 200;
 
@@ -109,10 +112,8 @@ struct InflowVelocity
     Vec3d operator()(Vec3d &position, Vec3d &velocity, Real current_time)
     {
         Vec3d target_velocity = Vec3d(0, 0, 0);
-        target_velocity[0] = SMAX(2.0 * U_f *
-                                      (1.0 - (position[1] * position[1] + position[2] * position[2]) /
-                                                 fluid_radius / fluid_radius),
-                                  0.0);
+        target_velocity[0] = SMAX(2.0 * U_f * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
+                                  1.0e-2);
         return target_velocity;
     }
 };
@@ -179,7 +180,7 @@ int main(int ac, char *av[])
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, resolution_ref);
-    system.setRunParticleRelaxation(false);   // Tag for run particle relaxation for body-fitted distribution
+    system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
     system.setReloadParticles(true);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     system.handleCommandlineOptions(ac, av); // handle command line arguments
@@ -199,8 +200,8 @@ int main(int ac, char *av[])
     SolidBody wall_boundary(system, wall_shape);
     wall_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_wall);
     wall_boundary.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(system);
-    wall_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
-    //wall_boundary.defineMaterial<NeoHookeanSolid>(rho0_s, Youngs_modulus, poisson);
+    //wall_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
+    wall_boundary.defineMaterial<NeoHookeanSolid>(rho0_s, Youngs_modulus, poisson);
     (!system.RunParticleRelaxation() && system.ReloadParticles())
         ? wall_boundary.generateParticles<BaseParticles, Reload>("WallBody")
         : wall_boundary.generateParticles<BaseParticles, Lattice>();
@@ -335,7 +336,6 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "NormalDirection");
-    body_states_recording.addToWrite<Real>(wall_boundary, "VonMisesStress");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_radial("Velocity", observer_contact_radial);
     //----------------------------------------------------------------------

@@ -58,8 +58,8 @@ Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
 Real rho0_s = 1000;                /** Normalized density. */
-Real Youngs_modulus = 7.5e5;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
+Real Youngs_modulus = 1.0e6;    /** Normalized Youngs Modulus. */
+Real poisson = 0.35;               /** Poisson ratio. */
 //Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
 Real physical_viscosity = 200;
 
@@ -153,7 +153,7 @@ struct InflowVelocity
     {
         Vec3d target_velocity = Vec3d(0, 0, 0);
         target_velocity[0] = SMAX(2.0 * U_f * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
-                                  1.0e-3);
+                                  1.0e-2);
         return target_velocity;
     }
 };
