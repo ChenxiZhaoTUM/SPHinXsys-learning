@@ -40,6 +40,11 @@ void ShellNormalDirectionPrediction::exec(Real dt)
     smoothing_normal_.exec();
 }
 //=================================================================================================//
+void ShellNormalDirectionPrediction::smoothing_normal_exec(Real dt)
+{
+    smoothing_normal_.exec();
+}
+//=================================================================================================//
 void ShellNormalDirectionPrediction::predictNormalDirection()
 {
     bool prediction_convergence = false;
