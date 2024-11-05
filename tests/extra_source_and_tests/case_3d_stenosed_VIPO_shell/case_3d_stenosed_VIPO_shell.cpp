@@ -1,5 +1,5 @@
 /**
- * @file 	case_3d_stenosed_VIPO_rigid_shell.cpp
+ * @file 	case_3d_cylinder_VIPO_shell.cpp
  * @brief 
  * @details
  * @author 
@@ -77,11 +77,17 @@ public:
 Real Outlet_pressure = 0;
 Real rho0_f = 1060.0; /**< Reference density of fluid. */
 Real mu_f = 0.00355;   /**< Viscosity. */
-Real Re = 2100;
+Real Re = 2100;  // u = 1.17
 /**< Characteristic velocity. Average velocity */
 Real U_f = Re * mu_f / rho0_f / diameter;
 Real U_max = 2 * U_f;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
+
+Real rho0_s = 1000;                /** Normalized density. */
+Real Youngs_modulus = 4.07e5;    /** Normalized Youngs Modulus. */
+Real poisson = 0.49;               /** Poisson ratio. */
+//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
+Real physical_viscosity = 200;
 
 StdVec<Vecd> createAxialObservationPoints(
     double full_length, Vec3d translation = Vec3d(0.0, 0.0, 0.0))
@@ -115,7 +121,6 @@ StdVec<Vecd> createRadialObservationPoints(
     return observation_points;
 };
 
-
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -124,25 +129,26 @@ struct InflowVelocity
     Real u_ave;
 
     template <class BoundaryConditionType>
-    InflowVelocity(BoundaryConditionType &boundary_condition)
+    InflowVelocity(BoundaryConditionType& boundary_condition)
         : u_ave(0.0) {}
 
-    Vecd operator()(Vecd &position, Vecd &velocity, Real current_time)
+    Vecd operator()(Vecd& position, Vecd& velocity, Real current_time)
     {
         Vecd target_velocity = velocity;
 
         u_ave = 0.2339;
-        Real a[8] = {-0.0176, -0.0657, -0.0280, 0.0068, 0.0075, 0.0115, 0.0040, 0.0035};
-        Real b[8] = {0.1205, 0.0171, -0.0384, -0.0152, -0.0122, 0.0002, 0.0033, 0.0060};
+        Real a[8] = { -0.0176, -0.0657, -0.0280, 0.0068, 0.0075, 0.0115, 0.0040, 0.0035 };
+        Real b[8] = { 0.1205, 0.0171, -0.0384, -0.0152, -0.0122, 0.0002, 0.0033, 0.0060 };
         Real w = 2 * Pi / 1;
         for (size_t i = 0; i < 8; i++)
         {
             u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * current_time) + b[i] * sin(w * (i + 1) * current_time),
-                        0.0);
+                0.0);
         }
-            
+
         target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
-                                  1.0e-2);
+            1.0e-2);
+        //target_velocity[0] = 0.2;
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 
@@ -164,6 +170,32 @@ struct RightOutflowPressure
         return pressure;
     }
 };
+//----------------------------------------------------------------------
+//	Boundary constrain
+//----------------------------------------------------------------------
+class BoundaryGeometry : public BodyPartByParticle
+{
+  public:
+    BoundaryGeometry(SPHBody &body, const std::string &body_part_name, Real constrain_len)
+        : BodyPartByParticle(body, body_part_name), constrain_len_(constrain_len)
+    {
+        TaggingParticleMethod tagging_particle_method = std::bind(&BoundaryGeometry::tagManually, this, _1);
+        tagParticles(tagging_particle_method);
+    };
+    virtual ~BoundaryGeometry(){};
+
+  private:
+      Real constrain_len_;
+
+    void tagManually(size_t index_i)
+    {
+        if (base_particles_.ParticlePositions()[index_i][0] < constrain_len_ 
+            || base_particles_.ParticlePositions()[index_i][0] > full_length - constrain_len_)
+        {
+            body_part_particles_.push_back(index_i);
+        }
+    };
+};
 
 int main(int ac, char *av[])
 {
@@ -171,7 +203,7 @@ int main(int ac, char *av[])
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, resolution_ref);
-    system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    system.setRunParticleRelaxation(false);   // Tag for run particle relaxation for body-fitted distribution
     system.setReloadParticles(true);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     system.handleCommandlineOptions(ac, av); // handle command line arguments
@@ -195,7 +227,7 @@ int main(int ac, char *av[])
     SolidBody shell_boundary(system, makeShared<ShellShape>("ShellBody"));
     shell_boundary.defineAdaptation<SPHAdaptation>(1.15, resolution_ref/shell_resolution);
     shell_boundary.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(system);
-    shell_boundary.defineMaterial<Solid>();
+    shell_boundary.defineMaterial<NeoHookeanSolid>(rho0_s, Youngs_modulus, poisson);
     (!system.RunParticleRelaxation() && system.ReloadParticles())
         ? shell_boundary.generateParticles<SurfaceParticles, Reload>(shell_boundary.getName())
         : shell_boundary.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
@@ -299,6 +331,7 @@ int main(int ac, char *av[])
     // shell normal should point from fluid to shell
     // normal corrector set to false if shell normal is already pointing from fluid to shell
     ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_boundary}, {false});
+    ContactRelationFromFluidToShell shell_water_contact(shell_boundary, {&water_block}, {false});
     ContactRelation observer_contact_axial(observer_axial, {&water_block});
     ContactRelation observer_contact_radial(observer_radial, {&water_block});
     //----------------------------------------------------------------------
@@ -316,9 +349,24 @@ int main(int ac, char *av[])
     // Finally, the auxillary models such as time step estimator, initial condition,
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
-    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> wall_corrected_configuration(shell_boundary_inner);
-    SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(wall_curvature_inner);
+    // shell dynamics
+    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_boundary_inner);
+    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_boundary_inner, 3, true);
+    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_boundary_inner);
+    ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_boundary);
+    SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(shell_boundary_inner);
+    SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_boundary);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_velocity_damping(0.5, shell_boundary_inner, "Velocity", physical_viscosity);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_rotation_damping(0.5, shell_boundary_inner, "AngularVelocity", physical_viscosity);  // or 0.5?
 
+    /** Exert constrain on shell. */
+    BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
+    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
+
+    // fluid dynamics
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_shell_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
@@ -340,6 +388,11 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_pressure_condition(left_buffer);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightOutflowPressure>> right_pressure_condition(right_buffer);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
+
+    // FSI
+    InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
+    InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
+    solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_boundary);
     //----------------------------------------------------------------------
     //	Define the configuration related particles dynamics.
     //----------------------------------------------------------------------
@@ -353,6 +406,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_boundary, "NormalDirection");
+    body_states_recording.addToWrite<Matd>(shell_boundary, "MidSurfaceCauchyStress");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);
@@ -363,9 +417,10 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     system.initializeSystemCellLinkedLists();
     system.initializeSystemConfigurations();
-    wall_corrected_configuration.exec();
+    shell_corrected_configuration.exec();
     shell_curvature.exec();
     water_block_complex.updateConfiguration();
+    shell_water_contact.updateConfiguration();
     boundary_indicator.exec();
     left_bidirection_buffer.tag_buffer_particles.exec();
     right_bidirection_buffer.tag_buffer_particles.exec();
@@ -378,7 +433,7 @@ int main(int ac, char *av[])
     Real end_time = 2.0;               /**< End time. */
     Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-
+    Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -409,6 +464,9 @@ int main(int ac, char *av[])
             update_fluid_density.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
+            /** FSI for viscous force. */
+            viscous_force_on_shell.exec();
+
             interval_computing_time_step += TickCount::now() - time_instance;
             /** Dynamics including pressure relaxation. */
             time_instance = TickCount::now();
@@ -418,6 +476,8 @@ int main(int ac, char *av[])
                 dt = SMIN(get_fluid_time_step_size.exec(),
                           Dt - relaxation_time);
                 pressure_relaxation.exec(dt);
+                /** FSI for pressure force. */
+                pressure_force_on_shell.exec();
 
                 // boundary condition implementation
                 kernel_summation.exec();
@@ -426,6 +486,26 @@ int main(int ac, char *av[])
                 right_pressure_condition.exec(dt);
                 
                 density_relaxation.exec(dt);
+
+                Real dt_s_sum = 0.0;
+                average_velocity_and_acceleration.initialize_displacement_.exec();
+                while (dt_s_sum < dt)
+                {
+                    dt_s = shell_time_step_size.exec();
+                    if (dt - dt_s_sum < dt_s)
+                        dt_s = dt - dt_s_sum;
+                    //std::cout << "dt/dt_s = " << dt / dt_s << std::endl;
+                    shell_stress_relaxation_first.exec(dt_s);
+
+                    constrain_holder.exec();
+                    shell_velocity_damping.exec(dt_s);
+                    shell_rotation_damping.exec(dt_s);
+                    constrain_holder.exec();
+
+                    shell_stress_relaxation_second.exec(dt_s);
+                    dt_s_sum += dt_s;  
+                }
+                average_velocity_and_acceleration.update_averages_.exec(dt);
 
                 relaxation_time += dt;
                 integration_time += dt;
@@ -438,7 +518,7 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9)
                           << "N=" << number_of_iterations
                           << "	Time = " << physical_time
-                          << "	Dt = " << Dt << "	dt = " << dt << "\n";
+                          << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
             }
             number_of_iterations++;
 
@@ -455,7 +535,13 @@ int main(int ac, char *av[])
                 particle_sorting.exec();
             }
             water_block.updateCellLinkedList();
+            shell_update_normal.exec();
+            shell_boundary.updateCellLinkedList();
+            shell_boundary_inner.updateConfiguration();
+            shell_curvature.exec();
+            shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
+
             interval_updating_configuration += TickCount::now() - time_instance;
             boundary_indicator.exec();
 

@@ -13,7 +13,7 @@ ParticlesInAlignedBoxDetectionByCell::
 void ParticlesInAlignedBoxDetectionByCell::update(size_t index_i, Real dt)
 {
     mutex_switch_to_buffer_.lock();
-    while (aligned_box_.checkUpperBound(pos_[index_i]) && index_i < particles_->TotalRealParticles())
+    while (aligned_box_.checkInBounds(pos_[index_i]) && index_i < particles_->TotalRealParticles())
     {
         particles_->switchToBufferParticle(index_i);
     }
