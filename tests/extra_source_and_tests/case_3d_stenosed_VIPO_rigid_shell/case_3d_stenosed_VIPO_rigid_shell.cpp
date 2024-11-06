@@ -12,6 +12,7 @@
 #include "kernel_summation.hpp"
 #include "pressure_boundary.h"
 #include "particle_generation_and_detection.h"
+#include "windkessel_bc.h"
 
 using namespace SPH;
 //----------------------------------------------------------------------
@@ -332,14 +333,18 @@ int main(int ac, char *av[])
     //	Boundary conditions.
     //----------------------------------------------------------------------
     BodyAlignedBoxByCell left_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
+    //fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::NonPrescribedPressureForFlowRate> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
     fluid_dynamics::BidirectionalBuffer<fluid_dynamics::NonPrescribedPressure> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(disposer_translation)), disposer_halfsize));
     fluid_dynamics::BidirectionalBuffer<RightOutflowPressure> right_bidirection_buffer(right_buffer, in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_shell_contact);
+    //SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressureForFlowRate>> left_pressure_condition(left_buffer);
     SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_pressure_condition(left_buffer);
     SimpleDynamics<fluid_dynamics::PressureCondition<RightOutflowPressure>> right_pressure_condition(right_buffer);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
+
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_transient_flow_rate(left_buffer, Pi*fluid_radius*fluid_radius);
     //----------------------------------------------------------------------
     //	Define the configuration related particles dynamics.
     //----------------------------------------------------------------------
@@ -388,12 +393,12 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-
+    Real accumulated_time = 0.001;
+    int updateP_n = 0;
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -430,6 +435,15 @@ int main(int ac, char *av[])
                 relaxation_time += dt;
                 integration_time += dt;
                 physical_time += dt;
+
+                /*if (physical_time >= updateP_n * accumulated_time)
+                {
+                    left_pressure_condition.getTargetPressure()->writeInletFlowRate(accumulated_time);
+                   
+                    ++updateP_n;
+                }*/
+
+                
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
             
@@ -439,6 +453,8 @@ int main(int ac, char *av[])
                           << "N=" << number_of_iterations
                           << "	Time = " << physical_time
                           << "	Dt = " << Dt << "	dt = " << dt << "\n";
+
+                compute_transient_flow_rate.exec();
             }
             number_of_iterations++;
 
