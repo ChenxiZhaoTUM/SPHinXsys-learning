@@ -46,11 +46,13 @@ class PressureCondition : public BaseFlowBoundaryCondition
           aligned_box_(aligned_box_part.getAlignedBoxShape()),
           alignment_axis_(aligned_box_.AlignmentAxis()),
           transform_(aligned_box_.getTransform()),
-          target_pressure_(*this),
+          target_pressure_(TargetPressure(aligned_box_part)),
           kernel_sum_(particles_->getVariableDataByName<Vecd>("KernelSummation")),
           physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")){};
     virtual ~PressureCondition(){};
     AlignedBoxShape &getAlignedBox() { return aligned_box_; };
+
+    TargetPressure *getTargetPressure() { return &target_pressure_; }
 
     void update(size_t index_i, Real dt = 0.0)
     {
