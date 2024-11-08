@@ -136,7 +136,7 @@ struct InflowVelocity
         }
             
         target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
-                                  1.0e-2);
+                                  0.);
 
         //target_velocity[0] = 0.1;
         target_velocity[1] = 0.0;
