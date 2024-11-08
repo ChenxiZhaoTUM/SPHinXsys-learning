@@ -108,7 +108,7 @@ struct InflowVelocity
         for (size_t i = 0; i < 8; i++)
         {
             u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * current_time) + b[i] * sin(w * (i + 1) * current_time),
-                        0.0);
+                        1.0e-2);
         }
             
         target_velocity[0] = u_ave;
