@@ -85,4 +85,71 @@ BoundingBox GeometricShapeBall::findBounds()
     return BoundingBox(center_ - shift, center_ + shift);
 }
 //=================================================================================================//
+GeometricShapeCylinder::
+    GeometricShapeCylinder(const Real &radius, const Real &halflength, const std::string &shape_name)
+    : GeometricShape(shape_name), cylinder_(radius), halflength_(halflength), radius_(radius)
+{
+    contact_geometry_ = &cylinder_;
+    // default center (0, 0, 0), default axis direction (1, 0, 0)
+}
+//=================================================================================================//
+bool GeometricShapeCylinder::checkContain(const Vec3d &probe_point, bool BOUNDARY_INCLUDED)
+{
+    Vec3d radial_vector = Vec3d(0, probe_point[1], probe_point[2]);
+    Real radial_distance = radial_vector.norm();
+    Real axial_distance = ABS(probe_point[0]);
+
+    return (radial_distance < cylinder_.getRadius() && axial_distance < halflength_);
+}
+//=================================================================================================//
+Vec3d GeometricShapeCylinder::findClosestPoint(const Vec3d &probe_point)
+{
+    bool ptWasInside = checkContain(probe_point, true);
+    Real axial_distance = probe_point[0];
+    Real radial_distance = sqrt(probe_point[1] * probe_point[1] + probe_point[2] * probe_point[2]);
+    Vecd closest_point = probe_point;
+
+    Real distance_to_caps = halflength_ - ABS(axial_distance); // Distance to the nearest end cap
+    Real distance_to_side = cylinder_.getRadius() - radial_distance; // Distance to the cylindrical surface
+
+    if (!ptWasInside)
+    {
+        if (distance_to_caps < 0)
+        {
+            closest_point[0] = (axial_distance < 0) ? -halflength_ : halflength_;  // Set to nearest end cap
+        }
+
+        if (distance_to_side < 0)
+        {
+            Real scaling_factor = cylinder_.getRadius() / (radial_distance + TinyReal); // Scale the radial vector to lie on the surface
+            closest_point[1] = probe_point[1] * scaling_factor;
+            closest_point[2] = probe_point[2] * scaling_factor;
+        }
+    }
+    else
+    {
+        if (distance_to_side < distance_to_caps)
+        {
+            // Closer to the cylindrical surface, project onto the surface
+            Real scaling_factor = cylinder_.getRadius() / (radial_distance + TinyReal);
+            closest_point[1] = probe_point[1] * scaling_factor;
+            closest_point[2] = probe_point[2] * scaling_factor;
+        }
+        else
+        {
+            // Closer to the flat ends, project onto the nearest cap
+            closest_point[0] = (axial_distance < 0) ? -halflength_ : halflength_;
+        }
+    }
+
+    return closest_point;
+}
+//=================================================================================================//
+BoundingBox GeometricShapeCylinder::findBounds()
+{
+    Vecd lower_bound(-halflength_, -cylinder_.getRadius(), -cylinder_.getRadius());
+    Vecd upper_bound(halflength_, cylinder_.getRadius(), cylinder_.getRadius());
+    return BoundingBox(lower_bound, upper_bound);
+}
+//=================================================================================================//
 } // namespace SPH

@@ -168,6 +168,24 @@ private:
     }
 };
 
+template <class BodyRegionType, typename AlignedShapeType>
+class BaseAlignedRegion : public BodyRegionType
+{
+public:
+    BaseAlignedRegion(RealBody &real_body, AlignedShapeType &aligned_shape)
+        : BodyRegionType(real_body, aligned_shape), aligned_shape_(aligned_shape){};
+    BaseAlignedRegion(RealBody& real_body, SharedPtr<AlignedShapeType> aligned_shape_ptr)
+        : BodyRegionType(real_body, aligned_shape_ptr), aligned_shape_(*aligned_shape_ptr.get()){};
+    virtual ~BaseAlignedRegion(){};
+    AlignedShapeType &getAlignedShape() { return aligned_shape_; };
+
+protected:
+    AlignedShapeType &aligned_shape_;
+};
+
+template <typename AlignedShapeType>
+using BodyAlignedRegionByCell = BaseAlignedRegion<BodyRegionByCell, AlignedShapeType>;
+
 namespace relax_dynamics
 {
 /**
@@ -187,6 +205,34 @@ class ParticlesInAlignedBoxDetectionByCell : public BaseLocalDynamics<BodyPartBy
     Vecd *pos_;
     AlignedBoxShape &aligned_box_;
 };
+
+template <typename AlignedShapeType>
+class ParticlesInAlignedRegionDetectionByCell : public BaseLocalDynamics<BodyPartByCell>
+{
+  public:
+      ParticlesInAlignedRegionDetectionByCell(BaseAlignedRegion<BodyRegionByCell, AlignedShapeType>& aligned_region_part)
+          : BaseLocalDynamics<BodyPartByCell>(aligned_region_part),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          aligned_shape_(aligned_region_part.getAlignedShape()) {};
+    virtual ~ParticlesInAlignedRegionDetectionByCell(){};
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        mutex_switch_to_ghost_.lock();
+        while (aligned_shape_.checkInBounds(pos_[index_i]) && index_i < particles_->TotalRealParticles())
+        {
+            particles_->switchToBufferParticle(index_i);
+        }
+        mutex_switch_to_ghost_.unlock();
+    }
+
+  protected:
+    std::mutex mutex_switch_to_ghost_; /**< mutex exclusion for memory conflict */
+    Vecd *pos_;
+    AlignedShapeType &aligned_shape_;
+};
+
+using DeleteParticlesInBox = ParticlesInAlignedRegionDetectionByCell<AlignedBoxShape>;
 
 class OnSurfaceBounding : public LocalDynamics
 {
@@ -217,5 +263,6 @@ class SurfaceRelaxationStep : public BaseDynamics<void>
     SimpleDynamics<OnSurfaceBounding> on_surface_bounding_;
 };
 } // namespace relax_dynamics
+
 } // namespace SPH
 #endif PARTICLE_GENERATION_AND_DETECTION_H
