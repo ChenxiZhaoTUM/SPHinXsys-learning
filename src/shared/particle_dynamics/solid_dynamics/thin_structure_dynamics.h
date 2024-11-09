@@ -59,6 +59,19 @@ class UpdateShellNormalDirection : public LocalDynamics, public DataDelegateSimp
     void update(size_t index_i, Real dt = 0.0);
 };
 
+class UpdateShellThickness : public LocalDynamics, public DataDelegateSimple
+{
+  protected:
+    StdLargeVec<Real> &thickness_;
+    Real spacing_ref_;
+
+  public:
+    explicit UpdateShellThickness(SPHBody &sph_body);
+    virtual ~UpdateShellThickness(){};
+
+    void update(size_t index_i, Real dt = 0.0);
+};
+
 /**
  * @class ShellAcousticTimeStepSize
  * @brief Computing the acoustic time step size for shell

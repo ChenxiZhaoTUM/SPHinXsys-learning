@@ -19,6 +19,16 @@ void UpdateShellNormalDirection::update(size_t index_i, Real dt)
     n_[index_i] = transformation_matrix0_[index_i].transpose() * getNormalFromDeformationGradientTensor(F_[index_i]);
 }
 //=================================================================================================//
+UpdateShellThickness::UpdateShellThickness(SPHBody &sph_body)
+    : LocalDynamics(sph_body), DataDelegateSimple(sph_body),
+      thickness_(*particles_->getVariableDataByName<Real>("Thickness")),
+      spacing_ref_(sph_body_.sph_adaptation_->ReferenceSpacing()) {}
+//=========================================================================================//
+void UpdateShellThickness::update(size_t index_i, Real dt)
+{
+    thickness_[index_i] = 4.0 * spacing_ref_;
+}
+//=================================================================================================//
 ShellAcousticTimeStepSize::ShellAcousticTimeStepSize(SPHBody &sph_body, Real CFL)
     : LocalDynamicsReduce<ReduceMin>(sph_body),
       DataDelegateSimple(sph_body), CFL_(CFL),
