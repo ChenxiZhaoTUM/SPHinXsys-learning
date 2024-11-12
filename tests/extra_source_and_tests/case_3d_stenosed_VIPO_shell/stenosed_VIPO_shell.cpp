@@ -1,5 +1,5 @@
 /**
- * @file 	case_3d_cylinder_VIPO_shell.cpp
+ * @file 	case_3d_stenosed_VIPO_rigid_shell.cpp
  * @brief 
  * @details
  * @author 
@@ -27,15 +27,15 @@ Real full_length = 100 * scale;
 int number_of_particles = 10;
 Real resolution_ref = diameter / number_of_particles;
 Real shell_resolution = 0.5 * resolution_ref;
-Real shell_thickness = 1.0 * shell_resolution;
+Real shell_thickness = 4.0 * shell_resolution;
 Vec3d translation_fluid(0., 0., 0.);
 //----------------------------------------------------------------------
 //	Geometry parameters for boundary condition.
 //----------------------------------------------------------------------
 Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
-Vec3d emitter_translation(resolution_ref * 2 + shell_resolution/2, 0., 0.);
+Vec3d emitter_translation(resolution_ref * 2 + shell_resolution * 2, 0., 0.);
 Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
-Vec3d disposer_translation(full_length - disposer_halfsize[0] - shell_resolution/2, 0., 0.);
+Vec3d disposer_translation(full_length - disposer_halfsize[0] - shell_resolution * 2, 0., 0.);
 //----------------------------------------------------------------------
 //	Domain bounds of the system.
 //----------------------------------------------------------------------
@@ -76,17 +76,16 @@ public:
 Real Outlet_pressure = 0;
 Real rho0_f = 1060.0; /**< Reference density of fluid. */
 Real mu_f = 0.00355;   /**< Viscosity. */
-Real Re = 2100;  // u = 1.17
+Real Re = 2100;
 /**< Characteristic velocity. Average velocity */
 Real U_f = Re * mu_f / rho0_f / diameter;
-Real U_max = 2 * U_f;
+Real U_max = 3 * U_f;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
 Real rho0_s = 1000;                /** Normalized density. */
-Real Youngs_modulus = 4.07e5;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
-//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
-Real physical_viscosity = 200;
+Real Youngs_modulus = 1.0e7;    /** Normalized Youngs Modulus. */
+Real poisson = 0.35;               /** Poisson ratio. */
+Real physical_viscosity = 2000;
 
 StdVec<Vecd> createAxialObservationPoints(
     double full_length, Vec3d translation = Vec3d(0.0, 0.0, 0.0))
@@ -120,6 +119,7 @@ StdVec<Vecd> createRadialObservationPoints(
     return observation_points;
 };
 
+
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -128,27 +128,26 @@ struct InflowVelocity
     Real u_ave;
 
     template <class BoundaryConditionType>
-    InflowVelocity(BoundaryConditionType& boundary_condition)
+    InflowVelocity(BoundaryConditionType &boundary_condition)
         : u_ave(0.0) {}
 
-    Vecd operator()(Vecd& position, Vecd& velocity)
+    Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
 
         u_ave = 0.2339;
-        Real a[8] = { -0.0176, -0.0657, -0.0280, 0.0068, 0.0075, 0.0115, 0.0040, 0.0035 };
-        Real b[8] = { 0.1205, 0.0171, -0.0384, -0.0152, -0.0122, 0.0002, 0.0033, 0.0060 };
+        Real a[8] = {-0.0176, -0.0657, -0.0280, 0.0068, 0.0075, 0.0115, 0.0040, 0.0035};
+        Real b[8] = {0.1205, 0.0171, -0.0384, -0.0152, -0.0122, 0.0002, 0.0033, 0.0060};
         Real w = 2 * Pi / 1;
         for (size_t i = 0; i < 8; i++)
         {
             u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * run_time) + b[i] * sin(w * (i + 1) * run_time),
-                0.0);
+                        0.0);
         }
-
+            
         target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
-                                  0.0);
-
+                                  1.0e-2);
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 
@@ -171,32 +170,6 @@ struct RightOutflowPressure
     }
 };
 //----------------------------------------------------------------------
-//	Boundary constrain
-//----------------------------------------------------------------------
-class BoundaryGeometry : public BodyPartByParticle
-{
-  public:
-    BoundaryGeometry(SPHBody &body, const std::string &body_part_name, Real constrain_len)
-        : BodyPartByParticle(body, body_part_name), constrain_len_(constrain_len)
-    {
-        TaggingParticleMethod tagging_particle_method = std::bind(&BoundaryGeometry::tagManually, this, _1);
-        tagParticles(tagging_particle_method);
-    };
-    virtual ~BoundaryGeometry(){};
-
-  private:
-      Real constrain_len_;
-
-    void tagManually(size_t index_i)
-    {
-        if (base_particles_.ParticlePositions()[index_i][0] < constrain_len_ 
-            || base_particles_.ParticlePositions()[index_i][0] > full_length - constrain_len_)
-        {
-            body_part_particles_.push_back(index_i);
-        }
-    };
-};
-//----------------------------------------------------------------------
 //	Shell particle generator.
 //----------------------------------------------------------------------
 class FromSTLFile;
@@ -213,11 +186,11 @@ class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerato
     Shape &initial_shape_;
 
 public:
-    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape) 
+    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape, Real shell_thickness) 
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
         mesh_total_area_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
-        thickness_(particle_spacing_),
+        thickness_(shell_thickness),
         avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
         planned_number_of_particles_(0),
         mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
@@ -349,13 +322,40 @@ private:
     }
 };
 
+//----------------------------------------------------------------------
+//	Boundary constrain
+//----------------------------------------------------------------------
+class BoundaryGeometry : public BodyPartByParticle
+{
+  public:
+    BoundaryGeometry(SPHBody &body, const std::string &body_part_name, Real constrain_len)
+        : BodyPartByParticle(body, body_part_name), constrain_len_(constrain_len)
+    {
+        TaggingParticleMethod tagging_particle_method = std::bind(&BoundaryGeometry::tagManually, this, _1);
+        tagParticles(tagging_particle_method);
+    };
+    virtual ~BoundaryGeometry(){};
+
+  private:
+      Real constrain_len_;
+
+    void tagManually(size_t index_i)
+    {
+        if (base_particles_.ParticlePositions()[index_i][0] < constrain_len_ 
+            || base_particles_.ParticlePositions()[index_i][0] > full_length - constrain_len_)
+        {
+            body_part_particles_.push_back(index_i);
+        }
+    };
+};
+
 int main(int ac, char *av[])
 {
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, resolution_ref);
-    system.setRunParticleRelaxation(false);   // Tag for run particle relaxation for body-fitted distribution
+    system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
     system.setReloadParticles(true);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     system.handleCommandlineOptions(ac, av); // handle command line arguments
@@ -379,10 +379,10 @@ int main(int ac, char *av[])
     SolidBody shell_boundary(system, makeShared<ShellShape>("ShellBody"));
     shell_boundary.defineAdaptation<SPHAdaptation>(1.15, resolution_ref/shell_resolution);
     shell_boundary.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(system);
-    shell_boundary.defineMaterial<NeoHookeanSolid>(rho0_s, Youngs_modulus, poisson);
+    shell_boundary.defineMaterial<LinearElasticSolid>(rho0_s, Youngs_modulus, poisson);
     (!system.RunParticleRelaxation() && system.ReloadParticles())
         ? shell_boundary.generateParticles<SurfaceParticles, Reload>(shell_boundary.getName())
-        : shell_boundary.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
+        : shell_boundary.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, shell_thickness);
 
     ObserverBody observer_axial(system, "fluid_observer_axial");
     observer_axial.generateParticles<ObserverParticles>(createAxialObservationPoints(full_length));
@@ -403,7 +403,7 @@ int main(int ac, char *av[])
                                                 makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(full_length + disposer_halfsize[0] - shell_resolution/2, 0., 0.)), disposer_halfsize));
 
         RealBody test_body_in(
-        system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(-emitter_halfsize[0] + shell_resolution/2, 0., 0.)), emitter_halfsize, "TestBodyIn"));
+        system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(-emitter_halfsize[0]+ shell_resolution/2, 0., 0.)), emitter_halfsize, "TestBodyIn"));
         test_body_in.generateParticles<BaseParticles, Lattice>();
 
         RealBody test_body_out(
@@ -500,7 +500,6 @@ int main(int ac, char *av[])
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
     // shell dynamics
-    SimpleDynamics<thin_structure_dynamics::UpdateShellThickness> shell_update_thickness(shell_boundary);
     InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_boundary_inner);
     Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_boundary_inner, 3, true);
     Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_boundary_inner);
@@ -510,7 +509,7 @@ int main(int ac, char *av[])
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
         shell_velocity_damping(0.5, shell_boundary_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_rotation_damping(0.5, shell_boundary_inner, "AngularVelocity", physical_viscosity);  // or 0.5?
+        shell_rotation_damping(0.5, shell_boundary_inner, "AngularVelocity", physical_viscosity);
 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
@@ -561,6 +560,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Matd>(shell_boundary, "MidSurfaceCauchyStress");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
+    body_states_recording.addToWrite<Real>(shell_boundary, "Thickness");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_radial("Velocity", observer_contact_radial);
     //----------------------------------------------------------------------
@@ -569,7 +569,6 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     system.initializeSystemCellLinkedLists();
     system.initializeSystemConfigurations();
-    shell_update_thickness.exec();
     shell_corrected_configuration.exec();
     shell_curvature.exec();
     water_block_complex.updateConfiguration();
@@ -600,7 +599,6 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -646,7 +644,6 @@ int main(int ac, char *av[])
                     dt_s = shell_time_step_size.exec();
                     if (dt - dt_s_sum < dt_s)
                         dt_s = dt - dt_s_sum;
-                    //std::cout << "dt/dt_s = " << dt / dt_s << std::endl;
                     shell_stress_relaxation_first.exec(dt_s);
 
                     constrain_holder.exec();
@@ -662,6 +659,8 @@ int main(int ac, char *av[])
                 relaxation_time += dt;
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
+
+                body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
             

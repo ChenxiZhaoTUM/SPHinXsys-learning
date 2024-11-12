@@ -26,7 +26,7 @@ int number_of_particles = 10;
 //int number_of_particles = 20;
 Real resolution_ref = diameter / number_of_particles;
 Real resolution_shell = 0.5 * resolution_ref;
-Real shell_thickness = 1.0 * resolution_shell;
+Real shell_thickness = 4.0 * resolution_shell;
 Real wall_thickness = resolution_shell;
 int SimTK_resolution = 20;
 Vec3d translation_fluid(full_length * 0.5, 0., 0.);
@@ -56,12 +56,12 @@ Real U_f = Re * mu_f / rho0_f / diameter;  // U_f = 0.052741
 Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
-Real rho0_s = 1000;                /** Normalized density. */
-Real Youngs_modulus = 7.5e5;    /** Normalized Youngs Modulus. */
-Real poisson = 0.3;               /** Poisson ratio. */
 //Real rho0_s = 1000;                /** Normalized density. */
-//Real Youngs_modulus = 1.0e6;    /** Normalized Youngs Modulus. */
-//Real poisson = 0.35;               /** Poisson ratio. */
+//Real Youngs_modulus = 7.5e5;    /** Normalized Youngs Modulus. */
+//Real poisson = 0.3;               /** Poisson ratio. */
+Real rho0_s = 1000;                /** Normalized density. */
+Real Youngs_modulus = 1.0e6;    /** Normalized Youngs Modulus. */
+Real poisson = 0.35;               /** Poisson ratio. */
 //Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
 Real physical_viscosity = 2000;
 
@@ -156,7 +156,7 @@ struct InflowVelocity
         Real run_time = GlobalStaticVariables::physical_time_;
 
         target_velocity[0] = SMAX(2.0 * U_f * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
-                                  0.);
+                                  0.01);
 
         return target_velocity;
     }
@@ -320,8 +320,6 @@ int main(int ac, char *av[])
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
     // shell dynamics
-    //	modify shell thickness
-    SimpleDynamics<thin_structure_dynamics::UpdateShellThickness> shell_update_thickness(shell_boundary);
     InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_boundary_inner);
     Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_boundary_inner, 3, true);
     Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_boundary_inner);
@@ -391,7 +389,6 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     system.initializeSystemCellLinkedLists();
     system.initializeSystemConfigurations();
-    shell_update_thickness.exec();
     shell_corrected_configuration.exec();
     shell_curvature.exec();
     water_block_complex.updateConfiguration();
