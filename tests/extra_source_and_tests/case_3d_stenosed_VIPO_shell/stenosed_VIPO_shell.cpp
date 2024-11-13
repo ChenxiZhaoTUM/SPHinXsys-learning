@@ -27,7 +27,7 @@ Real full_length = 100 * scale;
 int number_of_particles = 10;
 Real resolution_ref = diameter / number_of_particles;
 Real shell_resolution = 0.5 * resolution_ref;
-Real shell_thickness = 4.0 * shell_resolution;
+Real shell_thickness = 1.0 * shell_resolution;
 Vec3d translation_fluid(0., 0., 0.);
 //----------------------------------------------------------------------
 //	Geometry parameters for boundary condition.
@@ -79,11 +79,11 @@ Real mu_f = 0.00355;   /**< Viscosity. */
 Real Re = 2100;
 /**< Characteristic velocity. Average velocity */
 Real U_f = Re * mu_f / rho0_f / diameter;
-Real U_max = 3 * U_f;
+Real U_max = 2.0 * U_f;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
-Real rho0_s = 1000;                /** Normalized density. */
-Real Youngs_modulus = 1.0e7;    /** Normalized Youngs Modulus. */
+Real rho0_s = 1000;               /** Normalized density. */
+Real Youngs_modulus = 1.0e6;      /** Normalized Youngs Modulus. */
 Real poisson = 0.35;               /** Poisson ratio. */
 Real physical_viscosity = 2000;
 
@@ -211,7 +211,6 @@ public:
 
     virtual void prepareGeometricData() override
     {
-        
         // Preload vertex positions
         std::vector<std::array<Real, 3>> vertex_positions;
         int num_vertices = mesh_shape_->getTriangleMesh()->getNumVertices();

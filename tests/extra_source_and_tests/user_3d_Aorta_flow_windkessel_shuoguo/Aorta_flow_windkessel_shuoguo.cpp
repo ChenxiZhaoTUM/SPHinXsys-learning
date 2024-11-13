@@ -209,13 +209,23 @@ class OutflowPressure : public FlowPressureBuffer
         if (write_data_)
         {
             std::string output_folder = "./output";
-            //std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
-            std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
-            //std::string filefullpath = output_folder + "/" + body_part_name_ + "_accumulated_flow_vol.dat";
+            std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
             std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-            //out_file << GlobalStaticVariables::physical_time_ << "   " << p_outlet_next_ <<  "\n";
+            out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ <<  "\n";
+            out_file.close();
+            
+            write_data_ = false; // Reset the flag after writing
+        }
+    }
+
+    void writeOutletFlowRateData()
+    {
+        if (write_data_)
+        {
+            std::string output_folder = "./output";
+            std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
+            std::ofstream out_file(filefullpath.c_str(), std::ios::app);
             out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ <<  "\n";
-            //out_file << GlobalStaticVariables::physical_time_ << "   " << current_flow_rate_ <<  "\n";
             out_file.close();
             
             write_data_ = false; // Reset the flag after writing
@@ -513,10 +523,15 @@ int main(int ac, char *av[])
                 if (GlobalStaticVariables::physical_time_ >= record_n * 0.006)
                 {
                     outflow_pressure_condition1.writeOutletPressureData();
+                    outflow_pressure_condition1.writeOutletFlowRateData();
                     outflow_pressure_condition2.writeOutletPressureData();
+                    outflow_pressure_condition2.writeOutletFlowRateData();
                     outflow_pressure_condition3.writeOutletPressureData();
+                    outflow_pressure_condition3.writeOutletFlowRateData();
                     outflow_pressure_condition4.writeOutletPressureData();
+                    outflow_pressure_condition4.writeOutletFlowRateData();
                     outflow_pressure_condition5.writeOutletPressureData();
+                    outflow_pressure_condition5.writeOutletFlowRateData();
 
                     ++record_n;
                 }

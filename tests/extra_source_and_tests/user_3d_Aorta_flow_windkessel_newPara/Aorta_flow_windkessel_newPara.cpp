@@ -349,7 +349,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time = 0.006;
+    Real accumulated_time = 0.01;
     int updateP_n = 0;
 
     /** Output the start states of bodies. */
@@ -357,17 +357,17 @@ int main(int ac, char *av[])
     write_centerline_velocity.writeToFile(number_of_iterations);
 
     // why -average_Q??
-    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(4.0E8, 4.05E9, 3.0E-10, accumulated_time, 2.8E-6);
-    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(5.35E8, 5.41E9, 2.25E-10, accumulated_time, 2.09E-6);
-    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.1E8, 2.12E9, 5.73E-10, accumulated_time, 5.33E-6);
-    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(1.45E8, 1.46E9, 8.31E-10, accumulated_time, 7.74E-6);
-    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.76E7, 1.78E8, 6.83E-9, accumulated_time, 6.36E-5);
+    //outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(4.0E8, 4.05E9, 3.0E-10, accumulated_time, 2.8E-6);
+    //outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(5.35E8, 5.41E9, 2.25E-10, accumulated_time, 2.09E-6);
+    //outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.1E8, 2.12E9, 5.73E-10, accumulated_time, 5.33E-6);
+    //outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(1.45E8, 1.46E9, 8.31E-10, accumulated_time, 7.74E-6);
+    //outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.76E7, 1.78E8, 6.83E-9, accumulated_time, 6.36E-5);
 
-    //outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(4.0E8, 4.05E9, 3.0E-10, accumulated_time, 0);
-    //outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(5.35E8, 5.41E9, 2.25E-10, accumulated_time, 0);
-    //outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.1E8, 2.12E9, 5.73E-10, accumulated_time, 0);
-    //outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(1.45E8, 1.46E9, 8.31E-10, accumulated_time, 0);
-    //outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.76E7, 1.78E8, 6.83E-9, accumulated_time, 0);
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(4.0E8, 4.05E9, 3.0E-10, accumulated_time, 0);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(5.35E8, 5.41E9, 2.25E-10, accumulated_time, 0);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.1E8, 2.12E9, 5.73E-10, accumulated_time, 0);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(1.45E8, 1.46E9, 8.31E-10, accumulated_time, 0);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.76E7, 1.78E8, 6.83E-9, accumulated_time, 0);
     /**
      * @brief 	Main loop starts here.
     */

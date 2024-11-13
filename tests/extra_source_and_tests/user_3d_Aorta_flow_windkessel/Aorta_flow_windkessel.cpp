@@ -351,7 +351,7 @@ int main(int ac, char *av[])
     int updateP_n = 0;
 
     /** Output the start states of bodies. */
-    //body_states_recording.writeToFile(0);
+    body_states_recording.writeToFile(0);
     write_centerline_velocity.writeToFile(number_of_iterations);
 
     // why -average_Q??
@@ -454,7 +454,7 @@ int main(int ac, char *av[])
             outflow_injection_5.tag_buffer_particles.exec();
         }
         TickCount t2 = TickCount::now();
-        //body_states_recording.writeToFile();  
+        body_states_recording.writeToFile();  
         velocity_observer_contact.updateConfiguration();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
