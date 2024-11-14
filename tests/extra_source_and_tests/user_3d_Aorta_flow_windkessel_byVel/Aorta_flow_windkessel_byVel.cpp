@@ -359,11 +359,11 @@ int main(int ac, char *av[])
     //body_states_recording.writeToFile(0);
     write_centerline_velocity.writeToFile(number_of_iterations);
 
-    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, 0.0000098);
-    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 1.63E9, 8.74E-10, 0.00001);
-    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 1.84E9, 7.7E-10, 0.0000068);
-    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 1.52E9, 9.34E-10, 0.0000118);
-    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 2.95E8, 4.82E-9, 0.000096);
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, 0.0000098);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 8.74E-10, 1.63E9, 0.00001);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, 0.0000068);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 9.34E-10, 1.52E9, 0.0000118);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 4.82E-9, 2.95E8, 0.000096);
 
     /**
      * @brief 	Main loop starts here.

@@ -90,24 +90,26 @@ class WallBoundary : public ComplexShape
 
 struct InflowVelocity
 {
-    Real u_ave;
+    Real u_ave, t_ref_, interval_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ave(0.0) {}
+        : u_ave(0.0), t_ref_(0.812), interval_(1.0)  {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
+        int n = static_cast<int>(run_time / interval_);
+        Real t_in_cycle = run_time - n * interval_;
 
         u_ave = 0.1502;
         Real a[8] = {0.1743, 0.0008, -0.0899, -0.0824, -0.0699, -0.0414, -0.011, 0.0044};
         Real b[8] = {0.1234, 0.1041, 0.0126, -0.005, 0.0289, 0.0415, 0.0246, 0.0122};
-        Real w = 2 * Pi / 0.812;
+        Real w = 2 * Pi / 1.0;
         for (size_t i = 0; i < 8; i++)
         {
-            u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * run_time) + b[i] * sin(w * (i + 1) * run_time),
+            u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * t_in_cycle) + b[i] * sin(w * (i + 1) * t_in_cycle),
                         0.0);
         }
             
@@ -357,17 +359,17 @@ int main(int ac, char *av[])
     write_centerline_velocity.writeToFile(number_of_iterations);
 
     // why -average_Q??
-    //outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(4.0E8, 4.05E9, 3.0E-10, accumulated_time, 2.8E-6);
-    //outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(5.35E8, 5.41E9, 2.25E-10, accumulated_time, 2.09E-6);
-    //outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.1E8, 2.12E9, 5.73E-10, accumulated_time, 5.33E-6);
-    //outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(1.45E8, 1.46E9, 8.31E-10, accumulated_time, 7.74E-6);
-    //outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.76E7, 1.78E8, 6.83E-9, accumulated_time, 6.36E-5);
+    //outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(4.0E8, 3.0E-10, 4.05E9, accumulated_time, 2.8E-6);
+    //outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(5.35E8, 2.25E-10, 5.41E9, accumulated_time, 2.09E-6);
+    //outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.1E8, 5.73E-10, 2.12E9, accumulated_time, 5.33E-6);
+    //outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(1.45E8, 8.31E-10, 1.46E9, accumulated_time, 7.74E-6);
+    //outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.76E7, 6.83E-9, 1.78E8, accumulated_time, 6.36E-5);
 
-    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(4.0E8, 4.05E9, 3.0E-10, accumulated_time, 0);
-    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(5.35E8, 5.41E9, 2.25E-10, accumulated_time, 0);
-    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.1E8, 2.12E9, 5.73E-10, accumulated_time, 0);
-    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(1.45E8, 1.46E9, 8.31E-10, accumulated_time, 0);
-    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.76E7, 1.78E8, 6.83E-9, accumulated_time, 0);
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(4.0E8, 3.0E-10, 4.05E9, accumulated_time, 0);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(5.35E8, 2.25E-10,  5.41E9,accumulated_time, 0);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.1E8, 5.73E-10,  2.12E9,accumulated_time, 0);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(1.45E8, 8.31E-10, 1.46E9, accumulated_time, 0);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.76E7, 6.83E-9, 1.78E8, accumulated_time, 0);
     /**
      * @brief 	Main loop starts here.
     */

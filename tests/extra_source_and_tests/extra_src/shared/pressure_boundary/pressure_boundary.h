@@ -215,11 +215,11 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>,
           current_flow_rate_(0.0), previous_flow_rate_(0.0) {};
     virtual ~TargetOutletPressureWindkessel(){};
 
-    void setWindkesselParams(Real R1, Real R2, Real C, Real dt, Real Q_ave)
+    void setWindkesselParams(Real R1, Real C, Real R2, Real dt, Real Q_ave)
     {
         R1_ = R1;
-        R2_ = R2;
         C_ = C;
+        R2_ = R2;
         Q_ave_ = Q_ave;
         delta_t_ = dt;
     }

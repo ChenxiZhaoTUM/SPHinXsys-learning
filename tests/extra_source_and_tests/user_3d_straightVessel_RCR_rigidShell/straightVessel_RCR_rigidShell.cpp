@@ -362,9 +362,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
 
-    //outflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, R2, C, accumulated_time, 0);//0.000065
-    //outflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, R2, C, 0.2*Pi*pow(fluid_radius, 2));//0.000065
-    outflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, R2, C, 0.625E-4);//0.000065
+    //outflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, C, R2, accumulated_time, 0);//0.000065
+    //outflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, C, R2, 0.2*Pi*pow(fluid_radius, 2));//0.000065
+    outflow_pressure_condition.getTargetPressure()->setWindkesselParams(R1, C, R2, 0.625E-4);//0.000065
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------

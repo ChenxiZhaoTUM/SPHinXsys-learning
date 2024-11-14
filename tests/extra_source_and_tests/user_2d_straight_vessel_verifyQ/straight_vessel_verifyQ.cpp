@@ -226,7 +226,7 @@ int main(int ac, char *av[])
     Real accumulated_time = 0.006;
     int updateP_n = 0;
     body_states_recording.writeToFile();
-    windkessel_model.setWindkesselParams(R1, R2, C, accumulated_time, 0);
+    windkessel_model.setWindkesselParams(R1, C, R2, accumulated_time, 0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------

@@ -28,7 +28,7 @@ std::string full_path_to_file = "./input/aorta_0093_0001.stl";
 BoundingBox system_domain_bounds(Vecd(-6.0E-2, -5.0E-2, -4.0E-2), Vecd(6.0E-2, 3.0E-2, 20.0E-2));
 
 Real rho0_f = 1060.0;                   
-Real mu_f = 0.00355;
+Real mu_f = 0.004;
 Real U_f = 2.0;
 Real c_f = 10.0*U_f;
 
@@ -77,12 +77,13 @@ Vecd standard_direction(1, 0, 0);
 
 // inlet (-0.684, 1.795, 7.219), (0.649, -0.020, 0.761), 0.868
 Real A_in = 2.4143 * scaling * scaling;
+Real radius_inlet = 0.868 * scaling;
 Vec3d inlet_half = Vec3d(2.0 * dp_0, 1.5 * scaling, 1.5 * scaling);
 Vec3d inlet_vector(0.649, -0.020, 0.761);
 Vec3d inlet_normal = inlet_vector.normalized();
 Vec3d inlet_center = Vec3d(-0.684, 1.795, 7.219) * scaling;
 Vec3d inlet_cut_translation = inlet_center - inlet_normal * (2.0 * dp_0);
-Vec3d inlet_buffer_translation = inlet_center + inlet_normal * (2.0 * dp_0 + 0.5 * dp_0);
+Vec3d inlet_buffer_translation = inlet_center + inlet_normal * (2.0 * dp_0 + 1.0 * dp_0);
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
@@ -94,43 +95,43 @@ Vec3d outlet_1_vector(0.850, 0.506, -0.144);
 Vec3d outlet_1_normal = outlet_1_vector.normalized();
 Vec3d outlet_1_center = Vec3d(4.766, -0.216, 16.391) * scaling;
 Vec3d outlet_1_cut_translation = outlet_1_center + outlet_1_normal * (2.0 * dp_0);
-Vec3d outlet_1_buffer_translation = outlet_1_center - outlet_1_normal * (2.0 * dp_0);
+Vec3d outlet_1_buffer_translation = outlet_1_center - outlet_1_normal * (2.0 * dp_0 + 1.0 * dp_0);
 RotationResult outlet_1_rotation_result = RotationCalculator(outlet_1_normal, standard_direction);
 Rotation3d outlet_1_disposer_rotation(outlet_1_rotation_result.angle, outlet_1_rotation_result.axis);
 Rotation3d outlet_1_emitter_rotation(outlet_1_rotation_result.angle + Pi, outlet_1_rotation_result.axis);
 
-// outlet2 (0.799, -1.585, 18.020), (-0.149, 0.370, -0.917), 0.229
+// outlet2 (0.799, -1.585, 18.020), (0.149, -0.370, 0.917), 0.229
 Real A_out2 = 0.229*0.229*Pi * scaling * scaling;
 Vec3d outlet_2_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
-Vec3d outlet_2_vector(-0.149, 0.370, -0.917);
+Vec3d outlet_2_vector(0.149, -0.370, 0.917);
 Vec3d outlet_2_normal = outlet_2_vector.normalized();
 Vec3d outlet_2_center = Vec3d(0.799, -1.585, 18.020) * scaling;
 Vec3d outlet_2_cut_translation = outlet_2_center + outlet_2_normal * (2.0 * dp_0);
-Vec3d outlet_2_buffer_translation = outlet_2_center - outlet_2_normal * (2.0 * dp_0);
+Vec3d outlet_2_buffer_translation = outlet_2_center - outlet_2_normal * (2.0 * dp_0 + 1.0 * dp_0);
 RotationResult outlet_2_rotation_result = RotationCalculator(outlet_2_normal, standard_direction);
 Rotation3d outlet_2_disposer_rotation(outlet_2_rotation_result.angle, outlet_2_rotation_result.axis);
 Rotation3d outlet_2_emitter_rotation(outlet_2_rotation_result.angle + Pi, outlet_2_rotation_result.axis);
 
-// outlet3 (-1.880, -1.500, 17.711), (0.084, 0.071, -0.994), 0.210
+// outlet3 (-1.880, -1.500, 17.711), (-0.084, -0.071, 0.994), 0.210
 Real A_out3 = 0.210*0.210*Pi * scaling * scaling;
 Vec3d outlet_3_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
-Vec3d outlet_3_vector(0.084, 0.071, -0.994);
+Vec3d outlet_3_vector(-0.084, -0.071, 0.994);
 Vec3d outlet_3_normal = outlet_3_vector.normalized();
 Vec3d outlet_3_center = Vec3d(-1.880, -1.500, 17.711) * scaling;
 Vec3d outlet_3_cut_translation = outlet_3_center + outlet_3_normal * (2.0 * dp_0);
-Vec3d outlet_3_buffer_translation = outlet_3_center - outlet_3_normal * (2.0 * dp_0);
+Vec3d outlet_3_buffer_translation = outlet_3_center - outlet_3_normal * (2.0 * dp_0 + 1.0 * dp_0);
 RotationResult outlet_3_rotation_result = RotationCalculator(outlet_3_normal, standard_direction);
 Rotation3d outlet_3_disposer_rotation(outlet_3_rotation_result.angle, outlet_3_rotation_result.axis);
 Rotation3d outlet_3_emitter_rotation(outlet_3_rotation_result.angle + Pi, outlet_3_rotation_result.axis);
 
-// outlet4 (-5.431, -0.647, 15.779), (0.952, -0.307, -0.016), 0.228
+// outlet4 (-5.431, -0.647, 15.779), (-0.952, 0.307, 0.016), 0.228
 Real A_out4 = 0.228*0.228*Pi * scaling * scaling;
 Vec3d outlet_4_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
-Vec3d outlet_4_vector(-5.431, -0.647, 15.779);
+Vec3d outlet_4_vector(-0.952, 0.307, 0.016);
 Vec3d outlet_4_normal = outlet_4_vector.normalized();
-Vec3d outlet_4_center = Vec3d(0.952, -0.307, -0.016) * scaling;
+Vec3d outlet_4_center = Vec3d(-5.431, -0.647, 15.779) * scaling;
 Vec3d outlet_4_cut_translation = outlet_4_center + outlet_4_normal * (2.0 * dp_0);
-Vec3d outlet_4_buffer_translation = outlet_4_center - outlet_4_normal * (2.0 * dp_0);
+Vec3d outlet_4_buffer_translation = outlet_4_center - outlet_4_normal * (2.0 * dp_0 + 1.0 * dp_0);
 RotationResult outlet_4_rotation_result = RotationCalculator(outlet_4_normal, standard_direction);
 Rotation3d outlet_4_disposer_rotation(outlet_4_rotation_result.angle, outlet_4_rotation_result.axis);
 Rotation3d outlet_4_emitter_rotation(outlet_4_rotation_result.angle + Pi, outlet_4_rotation_result.axis);
@@ -142,7 +143,7 @@ Vec3d outlet_5_vector(-0.019, 0.087, -0.996);
 Vec3d outlet_5_normal = outlet_5_vector.normalized();
 Vec3d outlet_5_center = Vec3d(-0.288, -2.622, -2.564) * scaling;
 Vec3d outlet_5_cut_translation = outlet_5_center + outlet_5_normal * (2.0 * dp_0);
-Vec3d outlet_5_buffer_translation = outlet_5_center - outlet_5_normal * (2.0 * dp_0);
+Vec3d outlet_5_buffer_translation = outlet_5_center - outlet_5_normal * (2.0 * dp_0 + 1.0 * dp_0);
 RotationResult outlet_5_rotation_result = RotationCalculator(outlet_5_normal, standard_direction);
 Rotation3d outlet_5_disposer_rotation(outlet_5_rotation_result.angle, outlet_5_rotation_result.axis);
 Rotation3d outlet_5_emitter_rotation(outlet_5_rotation_result.angle + Pi, outlet_5_rotation_result.axis);
@@ -171,26 +172,30 @@ class WallBoundary : public ComplexShape
 
 struct InflowVelocity
 {
-    Real u_ave;
+    Real u_ave, t_ref_, interval_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ave(0.0) {}
+        : u_ave(0.0), t_ref_(0.57), interval_(1.0) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
         Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
+        int n = static_cast<int>(run_time / interval_);
+        Real t_in_cycle = run_time - n * interval_;
 
-        u_ave = 0.3782;
-        Real a[8] = {-0.1812,0.1276,-0.08981,0.04347,-0.05412,0.02642,0.008946,-0.009005};
-        Real b[8] = {-0.07725,0.01466,0.004295,-0.06679,0.05679,-0.01878,0.01869,-0.01888};
+        u_ave = 21.1233;
+        Real a[8] = {4.2027, -31.9462, -7.3733, 13.3651, 3.9947, -2.6104, -0.7966, 0.0966};
+        Real b[8] = {-39.1211, -6.5303, 22.6276, 6.1544, -6.6726, -2.0953, 0.7220, 0.1821};
+        Real w = 2 * Pi / 1.0;
         for (size_t i = 0; i < 8; i++)
         {
-            u_ave = u_ave + a[i] * cos(8.302 * (i + 1) * run_time) + b[i] * sin(8.302 * (i + 1) * run_time);
+            u_ave = u_ave + a[i] * cos(w * (i + 1) * t_in_cycle) + b[i] * sin(w * (i + 1) * t_in_cycle);
         }
             
-        target_velocity[0] = u_ave;
+        target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet),
+                                  1.0e-2);
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 
@@ -228,7 +233,7 @@ int main(int ac, char *av[])
      * @brief 	Particle and body creation of wall boundary.
      */
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("Wall"));
-    wall_boundary.defineAdaptationRatios(1.15, 2.0);
+    wall_boundary.defineAdaptationRatios(1.15, 1.0);
     wall_boundary.defineBodyLevelSetShape()->writeLevelSet(sph_system);
     //wall_boundary.defineBodyLevelSetShape();
     wall_boundary.defineMaterial<Solid>();
@@ -318,12 +323,12 @@ int main(int ac, char *av[])
         //	Relax particles of the insert body.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 200)
+        while (ite_p < 3000)
         {
             water_block_relaxation_step_inner.exec();
             wall_boundary_relaxation_step_inner.exec();
             ite_p += 1;
-            if (ite_p % 100 == 0)
+            if (ite_p % 500 == 0)
             {
                 std::cout << std::fixed << std::setprecision(9) << "Relaxation steps for the inserted body N = " << ite_p << "\n";
                 water_block_write_inserted_body_to_vtp.writeToFile(ite_p);
@@ -462,18 +467,12 @@ int main(int ac, char *av[])
     /** Output the start states of bodies. */
     body_states_recording.writeToFile(0);
 
-    // why -average_Q??
-    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, accumulated_time, 0.0000098);
-    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 8.74E-10, 1.63E9, accumulated_time, 0.00001);
-    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, accumulated_time, 0.0000068);
-    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 9.34E-10, 1.52E9, accumulated_time, 0.0000118);
-    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 4.82E-9, 2.95E8, accumulated_time, 0.000096);
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.223E8, 3.734E-10, 2.061E9, accumulated_time, 0);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.944E8, 2.349E-10, 3.2764E9, accumulated_time, 0);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.944E8, 2.349E-10, 3.2764E9, accumulated_time, 0);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(2.271E8, 2.01E-10, 3.8289E9, accumulated_time, 0);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.54E7, 2.9558E-9, 2.604E8, accumulated_time, 0);
 
-    //outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, accumulated_time, 0);
-    //outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 8.74E-10, 1.63E9, accumulated_time, 0);
-    //outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, accumulated_time, 0);
-    //outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 9.34E-10, 1.52E9, accumulated_time, 0);
-    //outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 4.82E-9, 2.95E8, accumulated_time, 0);
     /**
      * @brief 	Main loop starts here.
     */
