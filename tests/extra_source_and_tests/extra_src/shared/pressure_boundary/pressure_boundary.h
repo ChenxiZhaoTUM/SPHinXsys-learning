@@ -283,7 +283,78 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>,
 
 using WindkesselBoundaryCondition = PressureCondition<TargetOutletPressureWindkessel>;
 
+//-------------------------------------------------------------------------------
+//	Resistance BC.
+//-------------------------------------------------------------------------------
+class ResistanceBCPressure : public BaseLocalDynamics<BodyPartByCell>, public DataDelegateSimple
+{
+  public:
+    explicit ResistanceBCPressure(BodyAlignedBoxByCell &aligned_box_part, const std::string &body_part_name)
+        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+          DataDelegateSimple(aligned_box_part.getSPHBody()),
+          body_part_name_(body_part_name),
+          R_(0.0), delta_t_(0.0),
+          Q_n_(0.0), p_n_(0.0), p_0_(0.0),
+          flow_rate_(*particles_->getSingleVariableByName<Real>(body_part_name + "FlowRate")),
+          current_flow_rate_(0.0), previous_flow_rate_(0.0){};
+    virtual ~ResistanceBCPressure(){};
 
+    void setWindkesselParams(Real R, Real dt, Real p0)
+    {
+        R_ = R;
+        delta_t_ = dt;
+        p_0_ = p0;
+    }
+
+    void updateNextPressure()
+    {
+        getFlowRate();
+
+        Q_n_ = current_flow_rate_ / delta_t_;
+        p_n_ = p_0_ + R_ * Q_n_;
+
+        writeOutletPressureData();
+        writeOutletFlowRateData();
+    }
+
+    Real operator()(Real &p_current)
+    {
+        return p_n_;
+    }
+
+  protected:
+    std::string body_part_name_;
+    Real R_, delta_t_;
+    Real Q_n_;
+    Real p_n_, p_0_;
+    Real &flow_rate_, current_flow_rate_, previous_flow_rate_;
+
+    void getFlowRate()
+    {
+        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
+        previous_flow_rate_ = flow_rate_;
+    }
+
+    void writeOutletPressureData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_outlet_pressure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << p_n_ << "\n";
+        out_file.close();
+    }
+
+    void writeOutletFlowRateData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + body_part_name_ + "_flow_rate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << GlobalStaticVariables::physical_time_ << "   " << Q_n_ << "\n";
+        out_file.close();
+    }
+};
+
+using ResistanceBoundaryCondition = PressureCondition<ResistanceBCPressure>;
 //-------------------------------------------------------------------------------
 //	Calculate flow rate by velocity times area.
 //-------------------------------------------------------------------------------
