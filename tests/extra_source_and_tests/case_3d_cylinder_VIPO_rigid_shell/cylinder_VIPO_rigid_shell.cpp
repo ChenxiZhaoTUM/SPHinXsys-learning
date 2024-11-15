@@ -145,7 +145,6 @@ struct InflowVelocity
     Vec3d operator()(Vecd &position, Vecd &velocity)
     {
         Vec3d target_velocity = Vec3d(0, 0, 0);
-        Real run_time = GlobalStaticVariables::physical_time_;
 
         target_velocity[0] = SMAX(2.0 * U_f * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
                                   0.);

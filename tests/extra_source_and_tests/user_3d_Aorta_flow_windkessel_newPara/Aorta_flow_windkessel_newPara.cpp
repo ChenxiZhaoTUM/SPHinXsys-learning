@@ -37,6 +37,7 @@ Real scaling = 1.0E-2;
 Vecd translation(0.0, 0.0, 0.0);
 StdVec<Vecd> observer_location = {Vecd(-1.24E-2, 4.41E-2, 5.18E-2)};
 
+Real radius_inlet = 1.38 * scaling;
 Vecd buffer_halfsize_inlet = Vecd(2.1 * resolution_ref, 3.0E-2, 3.0E-2);
 Vecd buffer_translation_inlet = Vecd(-0.9768E-2, 4.6112E-2, 3.0052E-2);
 Vecd normal_vector_inlet = Vecd(0.1000, 0.1665, 0.9810);
@@ -90,11 +91,11 @@ class WallBoundary : public ComplexShape
 
 struct InflowVelocity
 {
-    Real u_ave, t_ref_, interval_;
+    Real u_ave, interval_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ave(0.0), t_ref_(0.812), interval_(1.0)  {}
+        : u_ave(0.0), interval_(0.812)  {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
@@ -113,7 +114,8 @@ struct InflowVelocity
                         0.0);
         }
             
-        target_velocity[0] = u_ave;
+        target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet),
+                            1.0e-2);
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 

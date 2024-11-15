@@ -29,7 +29,7 @@ BoundingBox system_domain_bounds(Vecd(-6.0E-2, -5.0E-2, -4.0E-2), Vecd(6.0E-2, 3
 
 Real rho0_f = 1060.0;                   
 Real mu_f = 0.004;
-Real U_f = 2.0;
+Real U_f = 3.0;
 Real c_f = 10.0*U_f;
 
 Real dp_0 = 0.06E-2;
@@ -172,11 +172,11 @@ class WallBoundary : public ComplexShape
 
 struct InflowVelocity
 {
-    Real u_ave, t_ref_, interval_;
+    Real u_ave, interval_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ave(0.0), t_ref_(0.57), interval_(1.0) {}
+        : u_ave(0.0), interval_(0.57) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity)
     {
@@ -213,9 +213,9 @@ int main(int ac, char *av[])
      */
     SPHSystem sph_system(system_domain_bounds, dp_0);
     /** Tag for run particle relaxation for the initial body fitted distribution. */
-    sph_system.setRunParticleRelaxation(true);
+    sph_system.setRunParticleRelaxation(false);
     /** Tag for computation start with relaxed body fitted particles distribution. */
-    sph_system.setReloadParticles(false);
+    sph_system.setReloadParticles(true);
     /** handle command line arguments. */
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     /**
@@ -461,7 +461,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time = 0.006;
+    Real accumulated_time = 0.003;
     int updateP_n = 0;
 
     /** Output the start states of bodies. */
