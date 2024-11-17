@@ -25,8 +25,7 @@ Real full_length = 10 * fluid_radius;
 int number_of_particles = 10;
 Real resolution_ref = diameter / number_of_particles;
 Real resolution_wall = 0.5 * resolution_ref;
-Real inflow_length = resolution_ref * 10.0; // Inflow region
-Real wall_thickness = resolution_wall * 4.0;
+Real wall_thickness = resolution_wall * 1.0;
 int SimTK_resolution = 20;
 Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 
@@ -35,8 +34,6 @@ Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 //----------------------------------------------------------------------
 Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
 Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
-Vec3d emitter_buffer_halfsize(inflow_length * 0.5, fluid_radius, fluid_radius);
-Vec3d emitter_buffer_translation(inflow_length * 0.5 - 2 * resolution_ref, 0., 0.);
 Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
 Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
 
@@ -51,9 +48,8 @@ BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter) - Ve
 Real Outlet_pressure = 0;
 Real rho0_f = 1060.0; /**< Reference density of fluid. */
 Real mu_f = 0.00355;   /**< Viscosity. */
-Real Re = 100;
 /**< Characteristic velocity. Average velocity */
-Real U_f = Re * mu_f / rho0_f / diameter;
+Real U_f = 0.5;
 Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
@@ -93,40 +89,33 @@ StdVec<Vecd> createRadialObservationPoints(
 //----------------------------------------------------------------------
 struct InflowVelocity
 {
-    Real u_ref_, t_ref_;
-    AlignedBoxShape &aligned_box_;
-    Vec3d halfsize_;
+    Real u_ave;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(U_f), t_ref_(1.0),
-          aligned_box_(boundary_condition.getAlignedBox()),
-          halfsize_(aligned_box_.HalfSize()) {}
+        : u_ave(0.0) {}
 
-    Vec3d operator()(Vecd &position, Vecd &velocity)
+    Vecd operator()(Vecd &position, Vecd &velocity)
     {
-        Vec3d target_velocity = Vec3d(0, 0, 0);
+        Vecd target_velocity = velocity;
         Real run_time = GlobalStaticVariables::physical_time_;
 
-        target_velocity[0] = SMAX(2.0 * U_f * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
-                                  0.);
+        u_ave = 0.2339;
+        Real a[8] = {-0.0176, -0.0657, -0.0280, 0.0068, 0.0075, 0.0115, 0.0040, 0.0035};
+        Real b[8] = {0.1205, 0.0171, -0.0384, -0.0152, -0.0122, 0.0002, 0.0033, 0.0060};
+        Real w = 2 * Pi / 1;
+        for (size_t i = 0; i < 8; i++)
+        {
+            u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * run_time) + b[i] * sin(w * (i + 1) * run_time),
+                         0.0);
+        }
+
+        target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
+                                  1.0e-2);
+        target_velocity[1] = 0.0;
+        target_velocity[2] = 0.0;
 
         return target_velocity;
-    }
-};
-//----------------------------------------------------------------------
-//	Pressure boundary condition.
-//----------------------------------------------------------------------
-struct RightOutflowPressure
-{
-    template <class BoundaryConditionType>
-    RightOutflowPressure(BoundaryConditionType &boundary_condition) {}
-
-    Real operator()(Real &p_)
-    {
-        /*constant pressure*/
-        Real pressure = Outlet_pressure;
-        return pressure;
     }
 };
 
@@ -254,6 +243,7 @@ int main(int ac, char *av[])
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
+    InteractionWithUpdate<LinearGradientCorrectionMatrixInner> wall_corrected_configuration(wall_boundary_inner);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_block_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
@@ -269,16 +259,16 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell left_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(emitter_translation)), emitter_halfsize));
     SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> left_disposer_outflow_deletion(left_disposer);
     BodyAlignedBoxByCell right_disposer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(disposer_translation)), disposer_halfsize));
-    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> right_disposer_outflow_deletion(right_disposer);
+    SimpleDynamics<fluid_dynamics::DisposerOutflowDeletionWithWindkessel> right_disposer_outflow_deletion(right_disposer, "outlet");
 
     BodyAlignedBoxByCell left_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     fluid_dynamics::BidirectionalBuffer<fluid_dynamics::NonPrescribedPressure> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(disposer_translation)), disposer_halfsize));
-    fluid_dynamics::BidirectionalBuffer<RightOutflowPressure> right_bidirection_buffer(right_buffer, in_outlet_particle_buffer);
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer right_bidirection_buffer(right_buffer, "outlet", in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_pressure_condition(left_buffer);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightOutflowPressure>> right_pressure_condition(right_buffer);
+    SimpleDynamics<fluid_dynamics::ResistanceBoundaryCondition> right_pressure_condition(right_buffer, "outlet");
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
@@ -297,11 +287,12 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     system.initializeSystemCellLinkedLists();
     system.initializeSystemConfigurations();
-    water_block_complex.updateConfiguration();
     boundary_indicator.exec();
     left_bidirection_buffer.tag_buffer_particles.exec();
     right_bidirection_buffer.tag_buffer_particles.exec();
     wall_boundary_normal_direction.exec();
+    wall_corrected_configuration.exec();
+    water_block_complex.updateConfiguration();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
@@ -320,12 +311,13 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-
+    Real accumulated_time = 0.02;
+    int updateP_n = 0;
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-
+    right_pressure_condition.getTargetPressure()->setWindkesselParams(2.05E8, accumulated_time, 0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -353,9 +345,16 @@ int main(int ac, char *av[])
 
                 // boundary condition implementation
                 kernel_summation.exec();
-                left_pressure_condition.exec(dt);
-                right_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
+
+                if (GlobalStaticVariables::physical_time_ >= updateP_n * accumulated_time)
+                {
+                    right_pressure_condition.getTargetPressure()->updateNextPressure();
+
+                    ++updateP_n;
+                }
+                right_pressure_condition.exec(dt);
+
                 density_relaxation.exec(dt);
 
                 relaxation_time += dt;

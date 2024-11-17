@@ -26,7 +26,6 @@ int number_of_particles = 10;
 Real resolution_ref = diameter / number_of_particles;
 Real resolution_shell = 0.5 * resolution_ref;
 Real shell_thickness = 1.0 * resolution_shell;
-Real inflow_length = resolution_ref * 10.0; // Inflow region
 //Real wall_thickness = resolution_ref * 4.0;
 Real wall_thickness = resolution_shell;
 int SimTK_resolution = 20;
@@ -160,7 +159,6 @@ struct InflowVelocity
         return target_velocity;
     }
 };
-;
 
 int main(int ac, char *av[])
 {
@@ -351,7 +349,7 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-    right_pressure_condition.getTargetPressure()->setWindkesselParams(2.05E5, accumulated_time, 0);
+    right_pressure_condition.getTargetPressure()->setWindkesselParams(2.05E8, accumulated_time, 0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
