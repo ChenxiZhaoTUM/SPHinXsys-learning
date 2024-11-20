@@ -56,9 +56,15 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 //Real rho0_s = 1000;                /** Normalized density. */
 //Real Youngs_modulus = 7.5e5;    /** Normalized Youngs Modulus. */
 //Real poisson = 0.3;               /** Poisson ratio. */
+//Real rho0_s = 1000;                /** Normalized density. */
+//Real Youngs_modulus = 5.0e7;    /** Normalized Youngs Modulus. */
+//Real poisson = 0.3;               /** Poisson ratio. */
+////Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
+//Real physical_viscosity = 10000;
+
 Real rho0_s = 1000;                /** Normalized density. */
 Real Youngs_modulus = 5.0e7;    /** Normalized Youngs Modulus. */
-Real poisson = 0.3;               /** Poisson ratio. */
+Real poisson = 0.45;               /** Poisson ratio. */
 //Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * full_length * scale;
 Real physical_viscosity = 10000;
 
