@@ -27,7 +27,7 @@ std::string full_path_to_file = "./input/aorta_blood_domain.stl";
 /** Domain bounds of the system. */
 BoundingBox system_domain_bounds(Vecd(-6.0E-2, -4.0E-2, -2.0E-2), Vecd(3.0E-2, 10.0E-2, 15.0E-2));
 
-Real rho0_f = 1060.0;                   
+Real rho0_f = 1060.0;
 Real mu_f = 0.00355;
 Real U_f = 2.0;
 Real c_f = 10.0*U_f;

@@ -114,8 +114,9 @@ struct InflowVelocity
                         0.0);
         }
             
-        target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet),
-                            1.0e-2);
+        //target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet),
+        //                    1.0e-2);
+        target_velocity[0] = u_ave;
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 
@@ -353,7 +354,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time = 0.01;
+    Real accumulated_time = 0.007;
     int updateP_n = 0;
 
     /** Output the start states of bodies. */
@@ -399,7 +400,6 @@ int main(int ac, char *av[])
                 emitter_buffer_inflow_condition.exec();  
 
                 // windkessel model implementation
-
                 if (GlobalStaticVariables::physical_time_ >= updateP_n * accumulated_time)
                 {
                     outflow_pressure_condition1.getTargetPressure()->updateNextPressure();
