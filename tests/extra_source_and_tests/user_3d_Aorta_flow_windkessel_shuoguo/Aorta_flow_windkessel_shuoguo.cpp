@@ -29,7 +29,8 @@ Real Inlet_pressure = 0.0;
 Real Outlet_pressure = 0.0;
 Real rho0_f = 1060.0;                   
 Real mu_f = 0.00355;
-Real U_f = 2.0;
+//Real U_f = 2.0;
+Real U_f = 3.0;  // 100mmHg => Qref
 Real c_f = 10.0*U_f;
 
 Real resolution_ref = 0.06E-2;
@@ -420,16 +421,29 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> emitter_buffer_inflow_condition(inflow_emitter);
 
+    //SimpleDynamics<OutflowPressure> outflow_pressure_condition1(outflow_emitter_1, "out01", disposer_outflow_deletion_1,
+    //    1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000098);
+    //SimpleDynamics<OutflowPressure> outflow_pressure_condition2(outflow_emitter_2, "out02", disposer_outflow_deletion_2, 
+    //    1.04E8, 1.63E9, 8.74E-10, 0.006, 0.00001);
+    //SimpleDynamics<OutflowPressure> outflow_pressure_condition3(outflow_emitter_3, "out03", disposer_outflow_deletion_3, 
+    //    1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000068);
+    //SimpleDynamics<OutflowPressure> outflow_pressure_condition4(outflow_emitter_4, "out04", disposer_outflow_deletion_4, 
+    //    9.7E7, 1.52E9, 9.34E-10, 0.006, 0.0000118);
+    //SimpleDynamics<OutflowPressure> outflow_pressure_condition5(outflow_emitter_5, "out05", disposer_outflow_deletion_5, 
+    //    1.88E7, 2.95E8, 4.82E-9, 0.006, 0.000096);
+
+    // 100mmHg => Qref
     SimpleDynamics<OutflowPressure> outflow_pressure_condition1(outflow_emitter_1, "out01", disposer_outflow_deletion_1,
-        1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000098);
+        1.18E8, 1.84E9, 7.7E-10, 0.006, 6.81E-06);
     SimpleDynamics<OutflowPressure> outflow_pressure_condition2(outflow_emitter_2, "out02", disposer_outflow_deletion_2, 
-        1.04E8, 1.63E9, 8.74E-10, 0.006, 0.00001);
+        1.04E8, 1.63E9, 8.74E-10, 0.006, 7.69E-06);
     SimpleDynamics<OutflowPressure> outflow_pressure_condition3(outflow_emitter_3, "out03", disposer_outflow_deletion_3, 
-        1.18E8, 1.84E9, 7.7E-10, 0.006, 0.0000068);
+        1.18E8, 1.84E9, 7.7E-10, 0.006, 6.81E-06);
     SimpleDynamics<OutflowPressure> outflow_pressure_condition4(outflow_emitter_4, "out04", disposer_outflow_deletion_4, 
-        9.7E7, 1.52E9, 9.34E-10, 0.006, 0.0000118);
+        9.7E7, 1.52E9, 9.34E-10, 0.006, 8.25E-06);
     SimpleDynamics<OutflowPressure> outflow_pressure_condition5(outflow_emitter_5, "out05", disposer_outflow_deletion_5, 
-        1.88E7, 2.95E8, 4.82E-9, 0.006, 0.000096);
+        1.88E7, 2.95E8, 4.82E-9, 0.006, 4.25E-05);
+
     /**
      * @brief Output.
      */
@@ -437,6 +451,7 @@ int main(int ac, char *av[])
     /** Output the body states. */
     BodyStatesRecordingToVtp body_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
+    body_states_recording.addToWrite<Real>(water_block, "DensityChangeRate");
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "PositionDivergence");
     body_states_recording.addToWrite<Real>(water_block, "Density");
@@ -465,7 +480,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0.0;
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 1.0;   /**< End time. */
+    Real end_time = 3.0;   /**< End time. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     /** statistics for computing CPU time. */
