@@ -194,8 +194,11 @@ struct InflowVelocity
             u_ave = u_ave + a[i] * cos(w * (i + 1) * t_in_cycle) + b[i] * sin(w * (i + 1) * t_in_cycle);
         }
             
-        target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet),
-                                  1.0e-2);
+        //target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet),
+        //                          1.0e-2);
+
+        target_velocity[0] = 2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet);
+
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 
@@ -363,11 +366,12 @@ int main(int ac, char *av[])
      * @brief 	Methods used for time stepping.
      */
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
+    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> kernel_correction_complex(water_block_inner, water_block_contact);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex>
         free_stream_surface_indicator(water_block_inner, water_block_contact);
     /** Pressure relaxation algorithm without Riemann solver for viscous flows. */
-    Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
+    Dynamics1Level<fluid_dynamics::Integration1stHalfCorrectionWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
     /** Pressure relaxation algorithm by using position verlet time stepping. */
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> density_relaxation(water_block_inner, water_block_contact);
     /* Time step size without considering sound wave speed. */
@@ -425,6 +429,7 @@ int main(int ac, char *av[])
     /** Output the body states. */
     BodyStatesRecordingToVtp body_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
+    body_states_recording.addToWrite<Real>(water_block, "DensityChangeRate");
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "PositionDivergence");
     body_states_recording.addToWrite<Real>(water_block, "Density");
@@ -442,8 +447,8 @@ int main(int ac, char *av[])
     outflow_injection_3.tag_buffer_particles.exec();
     outflow_injection_4.tag_buffer_particles.exec();
     outflow_injection_5.tag_buffer_particles.exec();
-
     wall_boundary_normal_direction.exec();
+    kernel_correction_complex.exec();
     
     /**
      * @brief 	Basic parameters.
@@ -461,17 +466,24 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time = 0.003;
+    Real accumulated_time = 0.006;
     int updateP_n = 0;
 
     /** Output the start states of bodies. */
     body_states_recording.writeToFile(0);
 
-    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.223E8, 3.734E-10, 2.061E9, accumulated_time, 0);
-    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.944E8, 2.349E-10, 3.2764E9, accumulated_time, 0);
-    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.944E8, 2.349E-10, 3.2764E9, accumulated_time, 0);
-    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(2.271E8, 2.01E-10, 3.8289E9, accumulated_time, 0);
-    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.54E7, 2.9558E-9, 2.604E8, accumulated_time, 0);
+    //outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.223E8, 3.734E-10, 2.061E9, accumulated_time, 0);
+    //outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.944E8, 2.349E-10, 3.2764E9, accumulated_time, 0);
+    //outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.944E8, 2.349E-10, 3.2764E9, accumulated_time, 0);
+    //outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(2.271E8, 2.01E-10, 3.8289E9, accumulated_time, 0);
+    //outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.54E7, 2.9558E-9, 2.604E8, accumulated_time, 0);
+
+    // 100mmHg => Qref
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.223E8, 3.734E-10, 2.061E9, accumulated_time, 6.11E-06);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.944E8, 2.349E-10, 3.2764E9, accumulated_time, 3.84E-06);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.944E8, 2.349E-10, 3.2764E9, accumulated_time, 3.84E-06);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(2.271E8, 2.01E-10, 3.8289E9, accumulated_time, 3.29E-06);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.54E7, 2.9558E-9, 2.604E8, accumulated_time, 4.83E-05);
 
     /**
      * @brief 	Main loop starts here.
@@ -485,6 +497,7 @@ int main(int ac, char *av[])
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();          
             update_fluid_density.exec();
+            kernel_correction_complex.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
             interval_computing_time_step += TickCount::now() - time_instance;
