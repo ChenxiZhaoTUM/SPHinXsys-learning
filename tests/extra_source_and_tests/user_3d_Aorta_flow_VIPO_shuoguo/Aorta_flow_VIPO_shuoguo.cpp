@@ -109,7 +109,8 @@ struct InflowVelocity
             u_ave = u_ave + a[i] * cos(8.302 * (i + 1) * run_time) + b[i] * sin(8.302 * (i + 1) * run_time);
         }
             
-        target_velocity[0] = u_ave;
+        //target_velocity[0] = u_ave;
+        target_velocity[0] = 0.0;
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 

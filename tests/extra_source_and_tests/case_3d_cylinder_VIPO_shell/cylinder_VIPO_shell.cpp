@@ -431,11 +431,11 @@ int main(int ac, char *av[])
             /** Acceleration due to viscous force and gravity. */
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
-            update_fluid_density.exec();
-            viscous_acceleration.exec();
-            transport_velocity_correction.exec();
-            /** FSI for viscous force. */
-            viscous_force_on_shell.exec();
+            //update_fluid_density.exec();
+            //viscous_acceleration.exec();
+            //transport_velocity_correction.exec();
+            ///** FSI for viscous force. */
+            //viscous_force_on_shell.exec();
 
             interval_computing_time_step += TickCount::now() - time_instance;
             /** Dynamics including pressure relaxation. */
@@ -445,17 +445,17 @@ int main(int ac, char *av[])
             {
                 dt = SMIN(get_fluid_time_step_size.exec(),
                           Dt - relaxation_time);
-                pressure_relaxation.exec(dt);
-                /** FSI for pressure force. */
-                pressure_force_on_shell.exec();
+                //pressure_relaxation.exec(dt);
+                ///** FSI for pressure force. */
+                //pressure_force_on_shell.exec();
 
-                // boundary condition implementation
-                kernel_summation.exec();
-                left_pressure_condition.exec(dt);
-                right_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();
-                
-                density_relaxation.exec(dt);
+                //// boundary condition implementation
+                //kernel_summation.exec();
+                //left_pressure_condition.exec(dt);
+                //right_pressure_condition.exec(dt);
+                //inflow_velocity_condition.exec();
+                //
+                //density_relaxation.exec(dt);
 
                 Real dt_s_sum = 0.0;
                 average_velocity_and_acceleration.initialize_displacement_.exec();
@@ -489,6 +489,7 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
+                body_states_recording.writeToFile();
             }
             number_of_iterations++;
 

@@ -34,9 +34,9 @@ Vec3d translation_fluid(0., 0., 0.);
 //	Geometry parameters for boundary condition.
 //----------------------------------------------------------------------
 Vec3d emitter_halfsize(resolution_ref * 2, fluid_radius, fluid_radius);
-Vec3d emitter_translation(resolution_ref * 2, 0., 0.);
+Vec3d emitter_translation(resolution_ref * 2 + shell_resolution * 2 , 0., 0.);
 Vec3d disposer_halfsize(resolution_ref * 2, fluid_radius * 1.1, fluid_radius * 1.1);
-Vec3d disposer_translation(full_length - disposer_halfsize[0], 0., 0.);
+Vec3d disposer_translation(full_length - disposer_halfsize[0] - shell_resolution * 2, 0., 0.);
 
 //----------------------------------------------------------------------
 //	Domain bounds of the system.
@@ -81,7 +81,7 @@ Real mu_f = 0.00355;   /**< Viscosity. */
 Real Re = 2100;
 /**< Characteristic velocity. Average velocity */
 Real U_f = Re * mu_f / rho0_f / diameter;
-Real U_max = 2 * 10.0;
+Real U_max = 2 * U_f;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
 Real rho0_s = 1000;               /** Normalized density. */
@@ -511,6 +511,7 @@ int main(int ac, char *av[])
 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
+    //BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", full_length / 2);
     //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
     SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
     //SimpleDynamics<solid_dynamics::ConstrainSolidBodyMassCenter> constrain_mass_center(shell_boundary, Vecd(0.0, 1.0, 1.0));
@@ -610,11 +611,11 @@ int main(int ac, char *av[])
             /** Acceleration due to viscous force and gravity. */
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
-            update_fluid_density.exec();
-            viscous_acceleration.exec();
-            transport_velocity_correction.exec();
-            /** FSI for viscous force. */
-            viscous_force_on_shell.exec();
+            //update_fluid_density.exec();
+            //viscous_acceleration.exec();
+            //transport_velocity_correction.exec();
+            ///** FSI for viscous force. */
+            //viscous_force_on_shell.exec();
 
             interval_computing_time_step += TickCount::now() - time_instance;
             /** Dynamics including pressure relaxation. */
@@ -624,17 +625,17 @@ int main(int ac, char *av[])
             {
                 dt = SMIN(get_fluid_time_step_size.exec(),
                           Dt - relaxation_time);
-                pressure_relaxation.exec(dt);
-                /** FSI for pressure force. */
-                pressure_force_on_shell.exec();
+                //pressure_relaxation.exec(dt);
+                ///** FSI for pressure force. */
+                //pressure_force_on_shell.exec();
 
-                // boundary condition implementation
-                kernel_summation.exec();
-                left_pressure_condition.exec(dt);
-                right_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();
-                
-                density_relaxation.exec(dt);
+                //// boundary condition implementation
+                //kernel_summation.exec();
+                //left_pressure_condition.exec(dt);
+                //right_pressure_condition.exec(dt);
+                //inflow_velocity_condition.exec();
+                //
+                //density_relaxation.exec(dt);
 
                 Real dt_s_sum = 0.0;
                 average_velocity_and_acceleration.initialize_displacement_.exec();
@@ -661,19 +662,21 @@ int main(int ac, char *av[])
                 integration_time += dt;
                 GlobalStaticVariables::physical_time_ += dt;
 
-                body_states_recording.writeToFile();
+                //body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
             
-            //if (number_of_iterations % screen_output_interval == 0)
-            //{
-            //    std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
-            //              << GlobalStaticVariables::physical_time_
-            //              << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
-            //}
-            std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
+            if (number_of_iterations % screen_output_interval == 0)
+            {
+                std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << GlobalStaticVariables::physical_time_
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
+
+                body_states_recording.writeToFile();
+            }
+            //std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
+            //              << GlobalStaticVariables::physical_time_
+            //              << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
             number_of_iterations++;
 
             time_instance = TickCount::now();
