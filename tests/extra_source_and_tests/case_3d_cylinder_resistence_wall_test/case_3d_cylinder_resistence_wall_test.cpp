@@ -50,12 +50,14 @@ BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter) - Ve
 //----------------------------------------------------------------------
 //	Material parameters.
 //----------------------------------------------------------------------
-Real Outlet_pressure = 0;
+Real base_pressure = (50 + 2 * 10) / 3 * 133.322;
+Real min_pressure = 10 * 133.322;
+//Real base_pressure = 0;
 Real rho0_f = 1060.0; /**< Reference density of fluid. */
 Real mu_f = 0.00355;   /**< Viscosity. */
-Real Re = 100;
 /**< Characteristic velocity. Average velocity */
-Real U_f = 0.1;
+//Real U_f = 0.1;
+Real U_f = 5;
 //Real U_f = Re * mu_f / rho0_f / diameter;
 Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
@@ -128,8 +130,8 @@ struct InflowVelocity
     Vecd operator()(Vecd &position, Vecd &velocity, Real current_time)
     {
         Vecd target_velocity = velocity;
-        int n = static_cast<int>(current_time / interval_);
-        Real t_in_cycle = current_time - n * interval_;
+        int n = static_cast<int>((current_time - 0.2) / interval_);
+        Real t_in_cycle = (current_time - 0.2) - n * interval_;
 
         u_ave = 5.0487;
         Real a[8] = {4.5287, -4.3509, -5.8551, -1.5063, 1.2800, 0.9012, 0.0855, -0.0480};
@@ -140,8 +142,6 @@ struct InflowVelocity
         {
             u_ave = u_ave + a[i] * cos(w * (i + 1) * t_in_cycle) + b[i] * sin(w * (i + 1) * t_in_cycle);
         }
-
-        u_ave = fabs(u_ave);
             
         //target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet),
         //                          1.0e-2);
@@ -159,16 +159,25 @@ struct InflowVelocity
 //----------------------------------------------------------------------
 //	Pressure boundary condition.
 //----------------------------------------------------------------------
-struct RightOutflowPressure
+struct LeftInflowPressureBegin
 {
     template <class BoundaryConditionType>
-    RightOutflowPressure(BoundaryConditionType &boundary_condition) {}
+    LeftInflowPressureBegin(BoundaryConditionType &boundary_condition) {}
 
-    Real operator()(Real p, Real curent_time)
+    Real operator()(Real p, Real current_time)
     {
-        /*constant pressure*/
-        Real pressure = Outlet_pressure;
-        return pressure;
+        return base_pressure;
+    }
+};
+
+struct RightInflowPressureBegin
+{
+    template <class BoundaryConditionType>
+    RightInflowPressureBegin(BoundaryConditionType &boundary_condition) {}
+
+    Real operator()(Real p, Real current_time)
+    {
+        return base_pressure;
     }
 };
 
@@ -310,11 +319,12 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell left_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     fluid_dynamics::BidirectionalBuffer<fluid_dynamics::NonPrescribedPressure> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(disposer_translation)), disposer_halfsize));
-    fluid_dynamics::BidirectionalBuffer<RightOutflowPressure> right_bidirection_buffer(right_buffer, in_outlet_particle_buffer);
+    fluid_dynamics::WindkesselOutletBidirectionalBuffer right_bidirection_buffer(right_buffer, in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
-    SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_pressure_condition(left_buffer);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightOutflowPressure>> right_pressure_condition(right_buffer);
+    SimpleDynamics<fluid_dynamics::PressureCondition<LeftInflowPressureBegin>> left_pressure_condition_begin(left_buffer);
+    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressureBegin>> right_pressure_condition_begin(right_buffer);
+    SimpleDynamics<fluid_dynamics::ResistanceBoundaryCondition> right_pressure_condition(right_buffer);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
 
     ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_transient_flow_rate(left_buffer, Pi*fluid_radius*fluid_radius);
@@ -350,7 +360,8 @@ int main(int ac, char *av[])
     Real end_time = 2.0;               /**< End time. */
     Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-
+    Real accumulated_time = 0.02;
+    int updateP_n = 0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -365,7 +376,7 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-
+    right_pressure_condition.getTargetPressure()->setWindkesselParams(5.0E7, accumulated_time, 0.0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -393,17 +404,33 @@ int main(int ac, char *av[])
 
                 // boundary condition implementation
                 kernel_summation.exec();
-                left_pressure_condition.exec(dt);
-                right_pressure_condition.exec(dt);
-                inflow_velocity_condition.exec();
+                if (physical_time < 0.2)
+                {
+                    left_pressure_condition_begin.exec(dt);
+                    right_pressure_condition_begin.exec(dt);
+                }
+                else
+                {
+                    inflow_velocity_condition.exec();
+                    if (physical_time - 0.2 >= updateP_n * accumulated_time)
+                    {
+                        right_pressure_condition.getTargetPressure()->updateNextPressure();
+
+                        ++updateP_n;
+                    }
+                
+                    right_pressure_condition.exec(dt);
+                }
+
+
                 density_relaxation.exec(dt);
 
                 relaxation_time += dt;
                 integration_time += dt;
                 physical_time += dt;
 
-                //body_states_recording.writeToFile();
                 compute_transient_flow_rate.exec();
+                //body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
             

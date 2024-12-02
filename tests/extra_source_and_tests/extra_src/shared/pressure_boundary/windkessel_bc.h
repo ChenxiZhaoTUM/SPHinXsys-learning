@@ -504,6 +504,80 @@ class BidirectionalBufferArb
     SimpleDynamics<Injection, ExecutionPolicy> injection;
     SimpleDynamics<Deletion, ExecutionPolicy> deletion;
 };
+
+//-------------------------------------------------------------------------------
+//	Resistance BC.
+//-------------------------------------------------------------------------------
+class ResistanceBCPressure : public BaseLocalDynamics<BodyPartByCell>
+{
+  public:
+    explicit ResistanceBCPressure(BodyAlignedBoxByCell &aligned_box_part)
+        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+          part_id_(aligned_box_part.getPartID()),
+          R_(0.0), delta_t_(0.0),
+          Q_n_(0.0), p_n_(0.0), p_0_(0.0),
+          flow_rate_(*(this->particles_->registerSingularVariable<Real>("FlowRate" + std::to_string(part_id_ - 1))->ValueAddress())),
+          current_flow_rate_(0.0), previous_flow_rate_(0.0),
+          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")) {};
+    virtual ~ResistanceBCPressure(){};
+
+    void setWindkesselParams(Real R, Real dt, Real p0)
+    {
+        R_ = R;
+        delta_t_ = dt;
+        p_0_ = p0;
+    }
+
+    void updateNextPressure()
+    {
+        getFlowRate();
+
+        Q_n_ = current_flow_rate_ / delta_t_;
+        p_n_ = p_0_ + R_ * Q_n_;
+
+        writeOutletPressureData();
+        writeOutletFlowRateData();
+    }
+
+    Real operator()(Real p, Real current_time)
+    {
+        return p_n_;
+    }
+
+  protected:
+    int part_id_;
+    Real R_, delta_t_;
+    Real Q_n_;
+    Real p_n_, p_0_;
+    Real &flow_rate_, current_flow_rate_, previous_flow_rate_;
+    Real *physical_time_;
+
+    void getFlowRate()
+    {
+        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
+        previous_flow_rate_ = flow_rate_;
+    }
+
+    void writeOutletPressureData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_outlet_pressure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << *physical_time_ << "   " << p_n_ <<  "\n";
+        out_file.close();
+    }
+
+    void writeOutletFlowRateData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_flow_rate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << *physical_time_ << "   " << Q_n_ <<  "\n";
+        out_file.close();
+    }
+};
+
+using ResistanceBoundaryCondition = PressureCondition<ResistanceBCPressure>;
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // WINDKESSEL_BC_H
