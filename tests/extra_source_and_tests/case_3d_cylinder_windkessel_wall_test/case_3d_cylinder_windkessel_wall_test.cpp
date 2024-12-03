@@ -322,6 +322,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
     body_states_recording.addToWrite<Real>(water_block, "Density");
+    body_states_recording.addToWrite<Real>(water_block, "DensityChangeRate");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "NormalDirection");
     ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", observer_contact_axial);
@@ -346,7 +347,7 @@ int main(int ac, char *av[])
     Real end_time = 2.0;               /**< End time. */
     Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-    Real accumulated_time = 0.006;
+    Real accumulated_time = 0.003;
     int updateP_n = 0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
@@ -362,7 +363,8 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-    right_pressure_condition.getTargetPressure()->setWindkesselParams(4.36E08, 5.71E-11, 4.36E09, accumulated_time, 0);
+    //right_pressure_condition.getTargetPressure()->setWindkesselParams(4.36E08, 5.71E-11, 4.36E09, accumulated_time, 0);
+    right_pressure_condition.getTargetPressure()->setWindkesselParams(4.36E06, 5.71E-11, 4.36E07, accumulated_time, 0);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------

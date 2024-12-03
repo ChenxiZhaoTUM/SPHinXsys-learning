@@ -148,6 +148,7 @@ struct InflowVelocity
 
         //target_velocity[0] = 2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet) * 5.9765 * scaling / 0.66;
 
+        u_ave = fabs(u_ave);
         target_velocity[0] = u_ave * 5.9765 * scaling / 0.66;
         
         target_velocity[1] = 0.0;
