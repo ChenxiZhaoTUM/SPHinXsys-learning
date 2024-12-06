@@ -73,6 +73,11 @@ void SigmaYY::update(size_t index_i, Real dt)
     
     derived_variable_[index_i] = sigmayy;
 }
+
+void SigmaZZ::update(size_t index_i, Real dt)
+{
+}
+
 void SigmaXY::update(size_t index_i, Real dt)
 {
     Real J = rho0_ / rho_[index_i];
@@ -83,6 +88,14 @@ void SigmaXY::update(size_t index_i, Real dt)
     Real sigmaxy = sigma(0, 1);
     
     derived_variable_[index_i] = sigmaxy;
+}
+
+void SigmaXZ::update(size_t index_i, Real dt)
+{
+}
+
+void SigmaYZ::update(size_t index_i, Real dt)
+{
 }
 //=============================================================================================//
 void MidSurfaceVonMisesStress::update(size_t index_i, Real dt)
