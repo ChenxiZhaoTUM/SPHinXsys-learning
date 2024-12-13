@@ -23,10 +23,9 @@ Real LW = DW;                       // liquid width
 Real resolution_ref_solid = BL/8.0;   /**< Initial reference particle spacing. */
 Real BW = resolution_ref_solid * 10.0; /**< Extending width for BCs. */
 
-Real particle_spacing_ref = resolution_ref_solid * 2.0;   /**< Initial reference particle spacing. */
-//Real particle_spacing_ref = resolution_ref_solid * 2.5;   /**< Initial reference particle spacing. */
+//Real particle_spacing_ref = resolution_ref_solid * 2.0;   /**< Initial reference particle spacing. */
 //Real particle_spacing_ref = resolution_ref_solid * 4;   /**< Initial reference particle spacing. */
-//Real particle_spacing_ref = resolution_ref_solid * 8;   /**< Initial reference particle spacing. */
+Real particle_spacing_ref = resolution_ref_solid * 8;   /**< Initial reference particle spacing. */
 
 /** Domain bounds of the system. */
 BoundingBox system_domain_bounds(Vecd(-0.5 * DL - BW, - BW, -0.5 * DW - BW), Vecd(0.5 * DL + BW, DH + BW, 0.5 * DW + BW));
