@@ -17,10 +17,10 @@ Real LH = BH * 1.25;                      /**< Liquid column height. */
 Real resolution_ref_solid = BL/8.0;   /**< Initial reference particle spacing. */
 Real BW = resolution_ref_solid * 10.0; /**< Extending width for BCs. */
 
-//Real particle_spacing_ref = resolution_ref_solid * 2.0;   /**< Initial reference particle spacing. */
+Real particle_spacing_ref = resolution_ref_solid * 2.0;   /**< Initial reference particle spacing. */
 //Real particle_spacing_ref = resolution_ref_solid * 2.5;   /**< Initial reference particle spacing. */
 //Real particle_spacing_ref = resolution_ref_solid * 4;   /**< Initial reference particle spacing. */
-Real particle_spacing_ref = resolution_ref_solid * 8;   /**< Initial reference particle spacing. */
+//Real particle_spacing_ref = resolution_ref_solid * 8;   /**< Initial reference particle spacing. */
 
 /** Domain bounds of the system. */
 BoundingBox system_domain_bounds(Vecd(-0.5 * DL - BW, - BW), Vecd(0.5 * DL + BW, DH + BW));
@@ -34,6 +34,11 @@ Real U_ref = 2.0 * sqrt(gravity_g * LH); /**< Characteristic velocity. */
 Real c_f = 10.0 * U_ref;                 /**< Reference sound speed. */
 Real mu_water = 653.9e-6;
 Real mu_air = 20.88e-6;
+
+Real rho0_s = 1250.0; /** Solid density*/
+Real poisson = 0.47;  /** Poisson ratio*/
+Real Youngs_modulus = 3.0e7;
+
 //----------------------------------------------------------------------
 //	Geometric elements used in shape modeling.
 //----------------------------------------------------------------------
@@ -176,14 +181,19 @@ public:
 	{
 		Vecd acceleration = Vecd::Zero();
 
-		if (physical_time < 0.1)
+		if (physical_time < 1.0)
 		{
-			acceleration[0] = A * omega * cos(omega * physical_time) / 0.1;
+			acceleration[0] = 0.0;
+			acceleration[1] = - gravity_g;
+		}
+        else if (physical_time >= 1.0 && physical_time <= 1.1)
+		{
+			acceleration[0] = A * omega * cos(omega * (physical_time - 1.0)) / 0.1;
 			acceleration[1] = - gravity_g;
 		}
 		else
 		{
-			acceleration[0] = - A * omega * omega * sin(omega * physical_time);
+			acceleration[0] = - A * omega * omega * sin(omega * (physical_time - 1.0));
 			acceleration[1] = - gravity_g;
 		}
 		
@@ -275,3 +285,24 @@ StdVec<Vecd> baffle_displacement_observation_location = {Vecd(0.0, 0.195), Vecd(
 //Real h_solid = 1.3 * resolution_ref_solid;
 //StdVec<Vecd> tank_pressure_observation_location = {Vecd(0.5 * DL + h_solid, 0.165), Vecd(0.5 * DL + h_solid, 0.220), Vecd(0.5 * BL - h_solid, 0.190)};
 //StdVec<Vecd> baffle_pressure_observation_location = {Vecd(0.5 * BL - h_solid, 0.190)};
+
+class BaffleConstrainGeometry : public BodyPartByParticle
+{
+  public:
+    BaffleConstrainGeometry(SPHBody &body, const std::string &body_part_name)
+        : BodyPartByParticle(body, body_part_name)
+    {
+        TaggingParticleMethod tagging_particle_method = std::bind(&BaffleConstrainGeometry::tagManually, this, _1);
+        tagParticles(tagging_particle_method);
+    };
+    virtual ~BaffleConstrainGeometry(){};
+
+  private:
+    void tagManually(size_t index_i)
+    {
+        if (base_particles_.ParticlePositions()[index_i][1] < 0.026)
+        {
+            body_part_particles_.push_back(index_i);
+        }
+    };
+};

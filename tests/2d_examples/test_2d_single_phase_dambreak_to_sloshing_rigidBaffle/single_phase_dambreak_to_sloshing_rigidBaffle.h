@@ -154,14 +154,19 @@ public:
 	{
 		Vecd acceleration = Vecd::Zero();
 
-		if (physical_time < 0.1)
+		if (physical_time < 1.0)
 		{
-			acceleration[0] = A * omega * cos(omega * physical_time) / 0.1;
+			acceleration[0] = 0.0;
+			acceleration[1] = - gravity_g;
+		}
+        else if (physical_time >= 1.0 && physical_time <= 1.1)
+		{
+			acceleration[0] = A * omega * cos(omega * (physical_time - 1.0)) / 0.1;
 			acceleration[1] = - gravity_g;
 		}
 		else
 		{
-			acceleration[0] = - A * omega * omega * sin(omega * physical_time);
+			acceleration[0] = - A * omega * omega * sin(omega * (physical_time - 1.0));
 			acceleration[1] = - gravity_g;
 		}
 		
