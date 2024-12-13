@@ -22,13 +22,18 @@ int main(int ac, char *av[])
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_water);
     water_block.generateParticles<BaseParticles, Lattice>();
-
-    FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
+	
+	FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
     air_block.defineMaterial<WeaklyCompressibleFluid>(rho0_a, c_f, mu_air);
     air_block.generateParticles<BaseParticles, Lattice>();
 
-    SolidBody wall_boundary(sph_system, makeShared<Tank>("WallBoundary"));
-    wall_boundary.defineAdaptationRatios(1.3, sph_system.resolution_ref_ / resolution_ref_solid);
+
+	SolidBody baffle_slot(sph_system, makeShared<BaffleBlock>("BaffleAndSlot"));
+    baffle_slot.defineAdaptationRatios(1.3, sph_system.resolution_ref_ / resolution_ref_solid);
+    baffle_slot.defineMaterial<Solid>();
+    baffle_slot.generateParticles<BaseParticles, Lattice>();
+
+	SolidBody wall_boundary(sph_system, makeShared<Tank>("WallBoundary"));
     wall_boundary.defineMaterial<Solid>();
     wall_boundary.generateParticles<BaseParticles, Lattice>();
 

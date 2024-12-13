@@ -23,10 +23,10 @@ Real LW = DW;                       // liquid width
 Real resolution_ref_solid = BL/8.0;   /**< Initial reference particle spacing. */
 Real BW = resolution_ref_solid * 10.0; /**< Extending width for BCs. */
 
-//Real particle_spacing_ref = resolution_ref_solid * 2.0;   /**< Initial reference particle spacing. */
+Real particle_spacing_ref = resolution_ref_solid * 2.0;   /**< Initial reference particle spacing. */
 //Real particle_spacing_ref = resolution_ref_solid * 2.5;   /**< Initial reference particle spacing. */
 //Real particle_spacing_ref = resolution_ref_solid * 4;   /**< Initial reference particle spacing. */
-Real particle_spacing_ref = resolution_ref_solid * 8;   /**< Initial reference particle spacing. */
+//Real particle_spacing_ref = resolution_ref_solid * 8;   /**< Initial reference particle spacing. */
 
 /** Domain bounds of the system. */
 BoundingBox system_domain_bounds(Vecd(-0.5 * DL - BW, - BW, -0.5 * DW - BW), Vecd(0.5 * DL + BW, DH + BW, 0.5 * DW + BW));
@@ -51,16 +51,12 @@ class BaffleBlock : public ComplexShape
         Vecd halfsize_baffle(0.5 * BL, 0.5 * BH, 0.5 * BaW);
         Transform translation_baffle(Vecd(0.0, 0.5 * BH, 0.0));
         add<TransformShape<GeometricShapeBox>>(Transform(translation_baffle), halfsize_baffle);
-    }
-};
 
-class SlotBlock : public ComplexShape
-{
-  public:
-    explicit SlotBlock(const std::string &shape_name = "SlotShape") : ComplexShape(shape_name)
-    {
-        Vecd slot_1(26.5e-3, 3.0e-3, 0.5 * BaW);
-        add<TransformShape<GeometricShapeBox>>(Transform(Vecd::Zero()), slot_1);
+        Vecd slot_1(11.75e-3, 3.0e-3, 0.5 * BaW);
+        Transform slot_1_left(Vecd(-14.75e-3, 3.0e-3, 0.0));
+        Transform slot_1_right(Vecd(14.75e-3, 3.0e-3, 0.0));
+        add<TransformShape<GeometricShapeBox>>(Transform(slot_1_left), slot_1);
+        add<TransformShape<GeometricShapeBox>>(Transform(slot_1_right), slot_1);
 
         Vecd slot_2(8.0e-3, 3.25e-3, 0.5 * BaW);
         Transform slot_2_left(Vecd(-11e-3, 9.25e-3, 0.0));
@@ -86,11 +82,6 @@ class Tank : public ComplexShape
         Transform translation_wall(Vecd(0.0, 0.5 * DH, 0.0));
         add<TransformShape<GeometricShapeBox>>(Transform(translation_wall), halfsize_outer, "OuterWall");
         subtract<TransformShape<GeometricShapeBox>>(Transform(translation_wall), halfsize_inner, "InnerWall");
-
-        BaffleBlock baffle_block;
-        SlotBlock slot_block;
-        add<BaffleBlock>(baffle_block);
-        add<SlotBlock>(slot_block);
     }
 };
 
@@ -108,19 +99,14 @@ class AirBlock : public ComplexShape
 class WaterBlock : public ComplexShape
 {
   public:
-    explicit WaterBlock(const std::string &shape_name= "WaterShape") : ComplexShape(shape_name)
+    explicit WaterBlock(const std::string &shape_name = "WaterShape") : ComplexShape(shape_name)
     {
         Vecd halfsize_inner(0.5 * DL, 0.5 * DH, 0.5 * DW);
         Transform translation_wall(Vecd(0.0, 0.5 * DH, 0.0));
         add<TransformShape<GeometricShapeBox>>(Transform(translation_wall), halfsize_inner);
 
-        AirBlock air_block;
-        BaffleBlock baffle_block;
-        SlotBlock slot_block;
-
-        subtract<AirBlock>(air_block);
-        subtract<BaffleBlock>(baffle_block);
-        subtract<SlotBlock>(slot_block);
+        subtract<AirBlock>();
+        subtract<BaffleBlock>();
     }
 };
 //----------------------------------------------------------------------
