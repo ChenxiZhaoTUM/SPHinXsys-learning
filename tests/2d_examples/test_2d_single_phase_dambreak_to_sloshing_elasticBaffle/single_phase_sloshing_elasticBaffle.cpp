@@ -5,7 +5,7 @@
  * 			understanding SPH method for multi-phase simulation.
  * @author 	Chi Zhang and Xiangyu Hu
  */
-#include "two_phase_dambreak_to_sloshing_elasticBaffle.h"
+#include "single_phase_dambreak_to_sloshing_elasticBaffle.h"
 #include "sphinxsys.h"
 using namespace SPH;
 
@@ -22,10 +22,6 @@ int main(int ac, char *av[])
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_water);
     water_block.generateParticles<BaseParticles, Lattice>();
-
-    FluidBody air_block(sph_system, makeShared<AirBlock>("AirBody"));
-    air_block.defineMaterial<WeaklyCompressibleFluid>(rho0_a, c_f, mu_air);
-    air_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineAdaptationRatios(1.3, sph_system.resolution_ref_ / resolution_ref_solid);
@@ -51,25 +47,17 @@ int main(int ac, char *av[])
     //  inner and contact relations.
     //----------------------------------------------------------------------
     InnerRelation water_inner(water_block);
-    ContactRelation water_air_contact(water_block, {&air_block});
     ContactRelation water_walls_contact(water_block, {&baffle_block, &wall_boundary});
-    ContactRelation water_contacts(water_block, {&air_block, &baffle_block, &wall_boundary});
-
-    InnerRelation air_inner(air_block);
-    ContactRelation air_water_contact(air_block, {&water_block});
-    ContactRelation air_walls_contact(air_block, {&baffle_block, &wall_boundary});
-    ContactRelation air_contacts(air_block, {&water_block, &baffle_block, &wall_boundary});
 
     InnerRelation baffle_inner(baffle_block);
-    ContactRelation baffle_contacts(baffle_block, {&water_block, &air_block});
+    ContactRelation baffle_contacts(baffle_block, {&water_block});
     ContactRelation baffle_observer_contact(baffle_displacement_observer, {&baffle_block});
 
     ContactRelation water_pressure_observer_contact(water_pressure_observer, RealBodyVector{&water_block});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     //----------------------------------------------------------------------
-    ComplexRelation water_complex(water_inner, {&water_air_contact, &water_walls_contact});
-    ComplexRelation air_complex(air_inner, {&air_water_contact, &air_walls_contact});
+    ComplexRelation water_complex(water_inner, {&water_walls_contact});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
@@ -81,41 +69,28 @@ int main(int ac, char *av[])
     SimpleDynamics<InitialDensity> initial_density_condition(water_block);
     VariableGravity variable_gravity;
     SimpleDynamics<GravityForce<VariableGravity>> initialize_a_water_step(water_block, variable_gravity);
-    SimpleDynamics<GravityForce<VariableGravity>> initialize_a_air_step(air_block, variable_gravity);
-    InteractionDynamics<fluid_dynamics::BoundingFromWall> air_near_wall_bounding(air_walls_contact);
 
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfWithWallRiemann>
-        water_pressure_relaxation(water_inner, water_air_contact, water_walls_contact);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
-        water_density_relaxation(water_inner, water_air_contact, water_walls_contact);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfWithWallRiemann>
-        air_pressure_relaxation(air_inner, air_water_contact, air_walls_contact);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
-        air_density_relaxation(air_inner, air_water_contact, air_walls_contact);
+    Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann>
+        water_pressure_relaxation(water_inner, water_walls_contact);
+    Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann>
+        water_density_relaxation(water_inner, water_walls_contact);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface>
         update_water_density_by_summation(water_inner, water_walls_contact);
-    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
-        update_air_density_by_summation(air_inner, air_water_contact, air_walls_contact);
-    InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
-        air_transport_correction(air_inner, air_water_contact, air_walls_contact);
-    InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
-        water_transport_correction(ConstructorArgs(water_inner, 0.02), water_air_contact, water_walls_contact);
 
-    InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> 
-		water_viscous_acceleration(water_inner, water_air_contact, water_walls_contact);
-    InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> 
-		air_viscous_acceleration(air_inner, air_water_contact, air_walls_contact);
+    InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex>
+        free_surface_indicator(water_inner, water_walls_contact);
+    InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>>
+        water_transport_correction(ConstructorArgs(water_inner, 0.02), water_walls_contact);
+
+    InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> 
+		water_viscous_acceleration(water_inner, water_walls_contact);
 
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> get_water_advection_time_step_size(water_block, U_ref);
-    ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> get_air_advection_time_step_size(air_block, U_ref);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> get_water_time_step_size(water_block);
-    ReduceDynamics<fluid_dynamics::AcousticTimeStep> get_air_time_step_size(air_block);
 
-    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> water_block_kernel_correction_matrix(water_inner, water_contacts);
+    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> water_block_kernel_correction_matrix(water_inner, water_walls_contact);
     InteractionDynamics<KernelGradientCorrectionInner> water_kernel_gradient_update(water_inner);
-    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> air_block_kernel_correction_matrix(air_inner, air_contacts);
-    InteractionDynamics<KernelGradientCorrectionInner> air_kernel_gradient_update(air_inner);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec2d, FixedDampingRate>>>
         fluid_damping(0.2, water_inner, "Velocity", mu_water);
     //----------------------------------------------------------------------
@@ -152,7 +127,6 @@ int main(int ac, char *av[])
     //	Define the configuration related particles dynamics.
     //----------------------------------------------------------------------
     ParticleSorting water_particle_sorting(water_block);
-    ParticleSorting air_particle_sorting(air_block);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -160,7 +134,6 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp body_states_recording(sph_system);
     body_states_recording.addToWrite<Vecd>(wall_boundary, "NormalDirection"); // output for debug
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
-    body_states_recording.addToWrite<Real>(air_block, "Pressure");
 
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalMechanicalEnergy>>
         write_water_mechanical_energy(water_block, variable_gravity);
@@ -176,8 +149,6 @@ int main(int ac, char *av[])
 
     water_block_kernel_correction_matrix.exec();
     water_kernel_gradient_update.exec();
-    air_block_kernel_correction_matrix.exec();
-    air_kernel_gradient_update.exec();
     baffle_corrected_configuration.exec();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
@@ -219,20 +190,14 @@ int main(int ac, char *av[])
             time_instance = TickCount::now();
 
             initialize_a_water_step.exec();
-			initialize_a_air_step.exec();
 
-            Real Dt_f = get_water_advection_time_step_size.exec();
-            Real Dt_a = get_air_advection_time_step_size.exec();
-            Real Dt = SMIN(Dt_f, Dt_a);
+            Real Dt = get_water_advection_time_step_size.exec();
 
             update_water_density_by_summation.exec();
-            update_air_density_by_summation.exec();
 
             water_viscous_acceleration.exec();
-			air_viscous_acceleration.exec();
 
-            air_transport_correction.exec();
-            air_near_wall_bounding.exec();
+            free_surface_indicator.exec();
             water_transport_correction.exec();
 
             /** FSI for viscous force. */
@@ -247,8 +212,7 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 Real dt_f = get_water_time_step_size.exec();
-                Real dt_a = get_air_time_step_size.exec();
-                dt = SMIN(SMIN(dt_f, dt_a), Dt);
+                dt = SMIN(dt_f, Dt);
 
                 if (physical_time < 1.0)
 				{
@@ -256,13 +220,11 @@ int main(int ac, char *av[])
 				}
 
                 water_pressure_relaxation.exec(dt);
-                air_pressure_relaxation.exec(dt);
 
                 /** FSI for pressure force. */
                 pressure_force_from_fluid.exec();
 
                 water_density_relaxation.exec(dt);
-                air_density_relaxation.exec(dt);
 
                 /** Solid dynamics. */
                 Real dt_s_sum = 0.0;
@@ -301,18 +263,12 @@ int main(int ac, char *av[])
             if (number_of_iterations % 100 == 0 && number_of_iterations != 1)
             {
                 water_particle_sorting.exec();
-                air_particle_sorting.exec();
             }
             water_block.updateCellLinkedList();
-            air_block.updateCellLinkedList();
             baffle_block.updateCellLinkedList();
 
             water_complex.updateConfiguration();
-            water_contacts.updateConfiguration();
 
-            air_complex.updateConfiguration();
-            air_contacts.updateConfiguration();
-            
             baffle_contacts.updateConfiguration();
 
             interval_updating_configuration += TickCount::now() - time_instance;
