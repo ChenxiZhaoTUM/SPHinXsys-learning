@@ -345,7 +345,7 @@ Rotation3d outlet_pca_right_disposer_rotation(outlet_pca_right_rotation_result.a
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 1.0;    /**< Characteristic velocity. */
+Real U_f = 10.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f;
 Real mu_f = 0.00355; /**< Dynamics viscosity. */
@@ -499,7 +499,38 @@ int main(int ac, char *av[])
         BodyAlignedBoxByCell outlet_pca_right_detection_box(shell_body,
                                              makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_pca_right_emitter_rotation), Vec3d(outlet_pca_right_cut_translation)), outlet_pca_half));
 
-        RealBody test_body_inlet_ica(
+        
+        BodyAlignedBoxByCell blood_inlet_ica_left_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_ica_left_emitter_rotation), Vec3d(inlet_ica_left_center)), inlet_ica_half));
+        
+        BodyAlignedBoxByCell blood_inlet_ica_right_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_ica_right_emitter_rotation), Vec3d(-inlet_ica_left_center[0], inlet_ica_left_center[1], inlet_ica_left_center[2])), inlet_ica_half));
+        
+        BodyAlignedBoxByCell blood_inlet_va_left_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_va_left_emitter_rotation), Vec3d(inlet_va_left_center)), inlet_va_half));
+        
+        BodyAlignedBoxByCell blood_inlet_va_right_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_va_right_emitter_rotation), Vec3d(-inlet_va_left_center[0], inlet_va_left_center[1], inlet_va_left_center[2])), inlet_va_half));
+
+        BodyAlignedBoxByCell blood_outlet_aca_left_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_aca_left_emitter_rotation), Vec3d(outlet_aca_left_center)), outlet_aca_half));
+        
+        BodyAlignedBoxByCell blood_outlet_aca_right_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_aca_right_emitter_rotation), Vec3d(-outlet_aca_left_center[0], outlet_aca_left_center[1], outlet_aca_left_center[2])), outlet_aca_half));
+        
+        BodyAlignedBoxByCell blood_outlet_mca_left_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_mca_left_emitter_rotation), Vec3d(outlet_mca_left_center)), outlet_mca_half));
+        
+        BodyAlignedBoxByCell blood_outlet_mca_right_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_mca_right_emitter_rotation), Vec3d(-outlet_mca_left_center[0], outlet_mca_left_center[1], outlet_mca_left_center[2])), outlet_mca_half));
+
+        BodyAlignedBoxByCell blood_outlet_pca_left_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_pca_left_emitter_rotation), Vec3d(outlet_pca_left_center)), outlet_pca_half));
+        
+        BodyAlignedBoxByCell blood_outlet_pca_right_detection_box(water_block,
+                                             makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_pca_right_emitter_rotation), Vec3d(-outlet_pca_left_center[0], outlet_pca_left_center[1], outlet_pca_left_center[2])), outlet_pca_half));
+        
+       /* RealBody test_body_inlet_ica(
         sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_ica_left_emitter_rotation), Vec3d(inlet_ica_left_cut_translation)), inlet_ica_half, "TestBodyInletICA"));
         test_body_inlet_ica.generateParticles<BaseParticles, Lattice>();
 
@@ -517,7 +548,7 @@ int main(int ac, char *av[])
 
         RealBody test_body_outlet_pca(
         sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_pca_left_emitter_rotation), Vec3d(outlet_pca_left_cut_translation)), outlet_pca_half, "TestBodyOutletPCA"));
-        test_body_outlet_pca.generateParticles<BaseParticles, Lattice>();
+        test_body_outlet_pca.generateParticles<BaseParticles, Lattice>();*/
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
@@ -540,6 +571,17 @@ int main(int ac, char *av[])
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_pca_left_particles_detection(outlet_pca_left_detection_box);
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_pca_right_particles_detection(outlet_pca_right_detection_box);
 
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_inlet_ica_left_particles_detection(blood_inlet_ica_left_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_inlet_ica_right_particles_detection(blood_inlet_ica_right_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_inlet_va_left_particles_detection(blood_inlet_va_left_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_inlet_va_right_particles_detection(blood_inlet_va_right_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_outlet_aca_left_particles_detection(blood_outlet_aca_left_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_outlet_aca_right_particles_detection(blood_outlet_aca_right_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_outlet_mca_left_particles_detection(blood_outlet_mca_left_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_outlet_mca_right_particles_detection(blood_outlet_mca_right_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_outlet_pca_left_particles_detection(blood_outlet_pca_left_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> blood_outlet_pca_right_particles_detection(blood_outlet_pca_right_detection_box);
+
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_shell_to_vtp({shell_body});
         write_shell_to_vtp.addToWrite<Vecd>(shell_body, "NormalDirection");
@@ -555,6 +597,7 @@ int main(int ac, char *av[])
         write_shell_to_vtp.writeToFile(0.0);
         write_blood_to_vtp.writeToFile(0.0);
         shell_body.updateCellLinkedList();
+        water_block.updateCellLinkedList();
         //----------------------------------------------------------------------
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
@@ -598,6 +641,27 @@ int main(int ac, char *av[])
         shell_body.updateCellLinkedListWithParticleSort(100);
         outlet_pca_right_particles_detection.exec();
         shell_body.updateCellLinkedListWithParticleSort(100);
+
+        blood_inlet_ica_left_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_inlet_ica_right_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_inlet_va_left_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_inlet_va_right_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_outlet_aca_left_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_outlet_aca_right_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_outlet_mca_left_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_outlet_mca_right_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_outlet_pca_left_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
+        blood_outlet_pca_right_particles_detection.exec();
+        water_block.updateCellLinkedListWithParticleSort(100);
 
         write_all_bodies_to_vtp.writeToFile(ite_p);
         write_particle_reload_files.writeToFile(0);
