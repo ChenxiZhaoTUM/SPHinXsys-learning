@@ -543,11 +543,11 @@ int main(int ac, char *av[])
     body_states_recording.writeToFile(0);
 
     // 100mmHg => Qref
-    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(3.29E07, 1.54E-07, 3.29E08, accumulated_time, 0);
-    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(4.50E07, 2.10E-07, 4.50E08, accumulated_time, 0);
-    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.47E07, 1.16E-07, 2.47E08, accumulated_time, 0);
-    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(2.01E07, 9.41E-08, 2.01E08, accumulated_time, 0);
-    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(3.44E06, 1.61E-08, 3.44E07, accumulated_time, 0);
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(3.29E07, 7.56E-10, 3.29E08, accumulated_time, 0);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(4.50E07, 5.52E-10, 4.50E08, accumulated_time, 0);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(2.47E07, 1.01E-09, 2.47E08, accumulated_time, 0);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(2.01E07, 1.23E-09, 2.01E08, accumulated_time, 0);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(3.44E06, 7.23E-09, 3.44E07, accumulated_time, 0);
 
     /**
      * @brief 	Main loop starts here.
