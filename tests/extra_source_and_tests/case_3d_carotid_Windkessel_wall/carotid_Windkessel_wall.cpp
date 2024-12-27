@@ -85,7 +85,7 @@ RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, 
 Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
 Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
 
-//outlet2 R=1.2760, (9.0465, 1.down552, 18.6363), (-0.0417, 0.0701, 0.9967)
+//outlet2 R=1.2760, (9.0465, 1.552, 18.6363), (-0.0417, 0.0701, 0.9967)
 Real DW_down = 1.2760 * 2 * length_scale;
 Vecd outlet_down_buffer_half = Vecd(2.0 * dp_0, 1.5 * length_scale, 1.5 * length_scale);
 Vecd outlet_down_normal(-0.0417, 0.0701, 0.9967);
@@ -157,33 +157,29 @@ struct InflowVelocity
 //----------------------------------------------------------------------
 //	Windkessel parameters.
 //----------------------------------------------------------------------
-//Real p_ref = 70 * 133.322;
-Real p_sys = 50 * 133.322;
-Real p_dia = 10 * 133.322;
-Real p_mean = (p_sys + 2 * p_dia) / 3;
+// ref 70 mmHg
+//Real Rp_up = 4.31E7;
+//Real C_up = 1.52E-09;
+//Real Rd_up = 4.31E8;
+//Real Rp_down = 9.84E7;
+//Real C_down = 6.67E-10;
+//Real Rd_down = 9.84E8;
 
-Real flow_integral = 0.2862 * 24.9579 * length_scale * length_scale;
-//Real flow_integral = 0.2862 * pow(2.9293 * length_scale, 2) * Pi;
-Real T = 2 * Pi / 8.302;
-Real Q_avg = flow_integral / T;
-
-Real R_tot = p_mean / Q_avg;
-Real Rp_tot = R_tot / 11 * 1;
-Real Rd_tot = R_tot / 11 * 10;
-Real C_tot = 2 / 3 * T / std::log(50 / 10) / R_tot;
-
-Real outlet_up_area = 11.9334 * length_scale * length_scale;
-Real outlet_down_area = 5.2272 * length_scale * length_scale;
-//Real outlet_up_area = pow(1.9416 * length_scale, 2) * Pi;
-//Real outlet_down_area = pow(1.2760 * length_scale, 2) * Pi;
-
-Real Rp_up = (outlet_up_area + outlet_down_area) / outlet_up_area * Rp_tot;
-Real C_up = outlet_up_area / (outlet_up_area + outlet_down_area) * C_tot;
-Real Rd_up = (outlet_up_area + outlet_down_area) / outlet_up_area * Rd_tot;
-
-Real Rp_down = (outlet_up_area + outlet_down_area) / outlet_down_area * Rp_tot;
-Real C_down = outlet_down_area / (outlet_up_area + outlet_down_area) * C_tot;
-Real Rd_down = (outlet_up_area + outlet_down_area) / outlet_down_area * Rd_tot;
+// ref 0 mmHg
+//Real Rp_up = 1.72E8;
+//Real C_up = 1.51E-9;
+//Real Rd_up = 1.72E9;
+//Real Rp_down = 3.93E8;
+//Real C_down = 6.62E-10;
+//Real Rd_down = 3.93E9;
+ 
+// ref 0 mmHg
+Real Rp_up = 3.45E8;
+Real C_up = 1.51E-9;
+Real Rd_up = 1.55E9;
+Real Rp_down = 7.87E8;
+Real C_down = 6.62E-10;
+Real Rd_down = 3.54E9;
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
 //-----------------------------------------------------------------------------------------------------------
@@ -338,8 +334,8 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 6.0;   /**< End time. */
-    Real Output_Time = end_time / 600; /**< Time stamps for output of body states. */
+    Real end_time = 20.0;   /**< End time. */
+    Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     //Real Output_Time = 0.001; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     //----------------------------------------------------------------------
