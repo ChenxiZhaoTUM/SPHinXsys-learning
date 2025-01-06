@@ -350,6 +350,73 @@ void AverageShellCurvature::update(size_t index_i, Real)
     k1_ave_[index_i] = k1;
     k2_ave_[index_i] = k2;
 }
+//=============================================================================================//
+FindShellSigedDistance::FindShellSigedDistance(SPHBody &sph_body)
+    : LocalDynamics(sph_body),
+      initial_shape_(sph_body.getInitialShape()),
+      pos_(particles_->getVariableDataByName<Vecd>("Position")),
+      phi_(particles_->registerStateVariable<Real>("SignedDistance")),
+      phi0_(particles_->registerStateVariable<Real>("InitialSignedDistance")) {}
+//=============================================================================================//
+void FindShellSigedDistance::update(size_t index_i, Real dt)
+{
+    Real signed_distance = initial_shape_.findSignedDistance(pos_[index_i]);
+    phi_[index_i] = signed_distance;
+    phi0_[index_i] = signed_distance;
+}
+//=================================================================================================//
+ShellWSSFromFluid::
+    ShellWSSFromFluid(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation)
+    : LocalDynamics(inner_relation.getSPHBody()),
+      DataDelegateInner(inner_relation), DataDelegateContact(contact_relation),
+      Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+      wall_shear_stress_(particles_->registerStateVariable<Matd>("ShellWallShearStress")),
+      total_wall_shear_stress_(particles_->registerStateVariable<Matd>("ShellTotalWallShearStress")),
+      WSS_magnitude_(particles_->registerStateVariable<Real>("WSSMagnitude"))
+{
+    for (size_t k = 0; k != contact_particles_.size(); ++k)
+    {
+        contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+        fluid_wall_shear_stress_.push_back(contact_particles_[k]->getVariableDataByName<Matd>("FluidWallShearStress"));
+    }
+}
+//=================================================================================================//
+void ShellWSSFromFluid::interaction(size_t index_i, Real dt)
+{
+    total_wall_shear_stress_[index_i] = Matd::Zero();
+    Real ttl_weight(0);
+
+    // interaction with first two layers of solid particles
+    const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+    for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+    {
+        size_t index_j = inner_neighborhood.j_[n];
+            
+        Real W_ij = inner_neighborhood.W_ij_[n];
+        Real weight_j = W_ij * Vol_[index_j];
+        ttl_weight += weight_j;
+        total_wall_shear_stress_[index_i] += wall_shear_stress_[index_j] * weight_j;
+    }
+
+    // interaction with fluid particles
+    for (size_t k = 0; k < contact_configuration_.size(); ++k)
+    {
+        Real *Vol_k = contact_Vol_[k];
+        Matd *fluid_WSS_k = fluid_wall_shear_stress_[k];
+        Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+        for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = contact_neighborhood.j_[n];
+            Real W_ij = contact_neighborhood.W_ij_[n];
+            Real weight_j = W_ij * Vol_k[index_j];
+            ttl_weight += weight_j;
+            total_wall_shear_stress_[index_i] += fluid_WSS_k[index_j] * weight_j;
+        }
+    }
+
+    wall_shear_stress_[index_i] = total_wall_shear_stress_[index_i] / (ttl_weight + TinyReal);
+    WSS_magnitude_[index_i] = getWSSMagnitudeFromMatrix(wall_shear_stress_[index_i]);
+}
 //=================================================================================================//
 } // namespace thin_structure_dynamics
 } // namespace SPH

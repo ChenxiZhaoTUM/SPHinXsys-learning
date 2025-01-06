@@ -404,6 +404,61 @@ class AverageShellCurvature : public LocalDynamics, public DataDelegateInner
     Real *k1_ave_; // first principle curvature
     Real *k2_ave_; // second principle curvature
 };
+
+class FindShellSigedDistance : public LocalDynamics
+{
+  public:
+    explicit FindShellSigedDistance(SPHBody &sph_body);
+    virtual ~FindShellSigedDistance(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Shape &initial_shape_;
+    Vecd *pos_;
+    Real *phi_, *phi0_;
+};
+
+class ShellWSSFromFluid : public LocalDynamics, public DataDelegateInner, public DataDelegateContact
+{
+  public:
+    explicit ShellWSSFromFluid(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation);
+    virtual ~ShellWSSFromFluid(){};
+
+    void interaction(size_t index_i, Real dt = 0.0);
+
+    Real getWSSMagnitudeFromMatrix(const Mat2d &sigma)
+    {
+        Real sigmaxx = sigma(0, 0);
+        Real sigmayy = sigma(1, 1);
+        Real sigmaxy = sigma(0, 1);
+
+        return sqrt(sigmaxx * sigmaxx + sigmayy * sigmayy - sigmaxx * sigmayy + 3.0 * sigmaxy * sigmaxy);
+    }
+
+    Real getWSSMagnitudeFromMatrix(const Mat3d &sigma)
+    {
+        Real sigmaxx = sigma(0, 0);
+        Real sigmayy = sigma(1, 1);
+        Real sigmazz = sigma(2, 2);
+        Real sigmaxy = sigma(0, 1);
+        Real sigmaxz = sigma(0, 2);
+        Real sigmayz = sigma(1, 2);
+
+        return sqrt(sigmaxx * sigmaxx + sigmayy * sigmayy + sigmazz * sigmazz -
+                    sigmaxx * sigmayy - sigmaxx * sigmazz - sigmayy * sigmazz +
+                    3.0 * (sigmaxy * sigmaxy + sigmaxz * sigmaxz + sigmayz * sigmayz));
+    }
+    // void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real *Vol_;
+    StdVec<Real *> contact_Vol_;
+    Matd *wall_shear_stress_;
+    StdVec<Matd *> fluid_wall_shear_stress_;
+    Matd *total_wall_shear_stress_;
+    Real *WSS_magnitude_;
+};
+
 } // namespace thin_structure_dynamics
 } // namespace SPH
 #endif // THIN_STRUCTURE_DYNAMICS_H

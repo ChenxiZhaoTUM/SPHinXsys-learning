@@ -298,7 +298,31 @@ class CorrectKernelWeightsSolidWSSFromFluid : public LocalDynamics, public DataD
         }
 
         wall_shear_stress_[index_i] = total_wall_shear_stress_[index_i] / (ttl_weight + TinyReal);
+        WSS_magnitude_[index_i] = getWSSMagnitudeFromMatrix(wall_shear_stress_[index_i]);
     };
+
+    Real getWSSMagnitudeFromMatrix(const Mat2d &sigma)
+    {
+        Real sigmaxx = sigma(0, 0);
+        Real sigmayy = sigma(1, 1);
+        Real sigmaxy = sigma(0, 1);
+
+        return sqrt(sigmaxx * sigmaxx + sigmayy * sigmayy - sigmaxx * sigmayy + 3.0 * sigmaxy * sigmaxy);
+    }
+
+    Real getWSSMagnitudeFromMatrix(const Mat3d &sigma)
+    {
+        Real sigmaxx = sigma(0, 0);
+        Real sigmayy = sigma(1, 1);
+        Real sigmazz = sigma(2, 2);
+        Real sigmaxy = sigma(0, 1);
+        Real sigmaxz = sigma(0, 2);
+        Real sigmayz = sigma(1, 2);
+
+        return sqrt(sigmaxx * sigmaxx + sigmayy * sigmayy + sigmazz * sigmazz -
+                    sigmaxx * sigmayy - sigmaxx * sigmazz - sigmayy * sigmazz +
+                    3.0 * (sigmaxy * sigmaxy + sigmaxz * sigmaxz + sigmayz * sigmayz));
+    }
 
   protected:
     int *solid_contact_indicator_;
@@ -307,6 +331,7 @@ class CorrectKernelWeightsSolidWSSFromFluid : public LocalDynamics, public DataD
     Matd *wall_shear_stress_;
     StdVec<Matd *> fluid_wall_shear_stress_;
     Matd *total_wall_shear_stress_;
+    Real *WSS_magnitude_;
 };
 } // namespace solid_dynamics
 } // namespace SPH

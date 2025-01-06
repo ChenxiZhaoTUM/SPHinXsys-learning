@@ -159,7 +159,8 @@ CorrectKernelWeightsSolidWSSFromFluid::
       solid_contact_indicator_(particles_->getVariableDataByName<int>("SolidTwoLayersIndicator")),
       Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
       wall_shear_stress_(particles_->registerStateVariable<Matd>("SolidWallShearStress")),
-      total_wall_shear_stress_(particles_->registerStateVariable<Matd>("SolidTotalWallShearStress"))
+      total_wall_shear_stress_(particles_->registerStateVariable<Matd>("SolidTotalWallShearStress")),
+      WSS_magnitude_(particles_->registerStateVariable<Real>("WSSMagnitude"))
 {
     for (size_t k = 0; k != contact_particles_.size(); ++k)
     {

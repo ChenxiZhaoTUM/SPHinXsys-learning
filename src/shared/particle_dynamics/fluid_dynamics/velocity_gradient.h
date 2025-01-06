@@ -99,7 +99,6 @@ class FluidWSS : public LocalDynamics
     Vecd *n_;
     Fluid &fluid_;
 };
-
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // VELOCITY_GRADIENT_H
