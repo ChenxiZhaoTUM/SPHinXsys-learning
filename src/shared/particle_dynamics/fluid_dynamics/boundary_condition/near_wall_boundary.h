@@ -65,6 +65,18 @@ class DistanceFromWall : public NearWallDistance
     Vecd *distance_from_wall_;
 };
 
+class TwoLayersFromWall : public DistanceFromWall
+{
+  public:
+    explicit TwoLayersFromWall(BaseContactRelation &wall_contact_relation);
+    virtual ~TwoLayersFromWall(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    int *two_layers_indicatior_;
+
+};
+
 class BoundingFromWall : public NearWallDistance
 {
   public:

@@ -33,5 +33,29 @@ void VelocityGradient<Contact<Wall>>::interaction(size_t index_i, Real dt)
     vel_grad_[index_i] += vel_grad;
 }
 //=================================================================================================//
+FluidWSS::FluidWSS(SPHBody &sph_body)
+    : LocalDynamics(sph_body),
+      two_layers_indicatior_(particles_->getVariableDataByName<int>("TwoLayersIndicator")),
+      vel_grad_(particles_->getVariableDataByName<Matd>("VelocityGradient")),
+      wall_shear_stress_(particles_->registerStateVariable<Matd>("FluidWallShearStress")),
+      n_(particles_->getVariableDataByName<Vecd>("NormalDirection")),
+      fluid_(DynamicCast<Fluid>(this, this->particles_->getBaseMaterial())) {}
+//=================================================================================================//
+void FluidWSS::update(size_t index_i, Real dt)
+{
+    wall_shear_stress_[index_i] = Matd::Zero();
+
+    if (two_layers_indicatior_[index_i] == 1)
+    {
+        Matd D = 0.5 * (vel_grad_[index_i] + vel_grad_[index_i].transpose());
+        Matd wss_total = 2 * fluid_.ReferenceViscosity() * D;
+
+        Vecd wss_normal_vector = wss_total * n_[index_i];
+        Vecd wss_normal = wss_normal_vector.dot(n_[index_i]) * n_[index_i]; 
+
+        wall_shear_stress_[index_i] = wss_total - wss_normal * n_[index_i].transpose();
+    }
+}
+//=================================================================================================//
 } // namespace fluid_dynamics
 } // namespace SPH

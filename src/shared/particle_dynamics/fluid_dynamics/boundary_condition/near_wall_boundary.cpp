@@ -55,6 +55,21 @@ void DistanceFromWall::interaction(size_t index_i, Real dt)
     distance_from_wall_[index_i] = (1.0 - limiter) * normal_distance + limiter * distance;
 }
 //=================================================================================================//
+TwoLayersFromWall::TwoLayersFromWall(BaseContactRelation &wall_contact_relation)
+    : DistanceFromWall(wall_contact_relation),
+      two_layers_indicatior_(this->particles_->template registerStateVariable<int>("TwoLayersIndicator")) {}
+//=================================================================================================//
+void TwoLayersFromWall::update(size_t index_i, Real dt)
+{
+    two_layers_indicatior_[index_i] = 0;
+
+    Real squared_threshold = pow(2.0 * spacing_ref_, 2);
+    if (distance_from_wall_[index_i].squaredNorm() <= squared_threshold)
+    {
+        two_layers_indicatior_[index_i] = 1;
+    }
+}
+//=================================================================================================//
 BoundingFromWall::BoundingFromWall(BaseContactRelation &wall_contact_relation)
     : NearWallDistance(wall_contact_relation),
       distance_min_(0.25 * spacing_ref_) {}

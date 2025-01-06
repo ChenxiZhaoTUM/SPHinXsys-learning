@@ -151,6 +151,163 @@ class AverageVelocityAndAcceleration
     explicit AverageVelocityAndAcceleration(SolidBody &solid_body);
     ~AverageVelocityAndAcceleration(){};
 };
+
+class TwoLayersFromFluid : public LocalDynamics
+{
+  public:
+    TwoLayersFromFluid(SPHBody &solid_body, SPHBody &fluid_body)
+        : LocalDynamics(solid_body),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          solid_contact_indicator_(this->particles_->template registerStateVariable<int>("SolidTwoLayersIndicator")),
+          fluid_body_(fluid_body),
+          spacing_ref_(sph_body_.sph_adaptation_->ReferenceSpacing()){};
+    virtual ~TwoLayersFromFluid(){};
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        Real phi = fluid_body_.getInitialShape().findSignedDistance(pos_[index_i]);
+        solid_contact_indicator_[index_i] = 1;
+        if (phi > 2.0 * 1.15 * spacing_ref_)
+            solid_contact_indicator_[index_i] = 0;
+    }
+
+  protected:
+    Vecd *pos_;
+    int *solid_contact_indicator_;
+    SPHBody &fluid_body_;
+    Real spacing_ref_;
+};
+
+class SolidWSSFromFluid : public LocalDynamics, public DataDelegateInner, public DataDelegateContact
+{
+  public:
+    explicit SolidWSSFromFluid(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation);
+    virtual ~SolidWSSFromFluid(){};
+
+    void interaction(size_t index_i, Real dt = 0.0);
+    
+    Real getWSSMagnitudeFromMatrix(const Mat2d &sigma)
+    {
+        Real sigmaxx = sigma(0, 0);
+        Real sigmayy = sigma(1, 1);
+        Real sigmaxy = sigma(0, 1);
+
+        return sqrt(sigmaxx * sigmaxx + sigmayy * sigmayy - sigmaxx * sigmayy + 3.0 * sigmaxy * sigmaxy);
+    }
+    
+    Real getWSSMagnitudeFromMatrix(const Mat3d &sigma)
+    {
+        Real sigmaxx = sigma(0, 0);
+        Real sigmayy = sigma(1, 1);
+        Real sigmazz = sigma(2, 2);
+        Real sigmaxy = sigma(0, 1);
+        Real sigmaxz = sigma(0, 2);
+        Real sigmayz = sigma(1, 2);
+
+        return sqrt(sigmaxx * sigmaxx + sigmayy * sigmayy + sigmazz * sigmazz -
+                    sigmaxx * sigmayy - sigmaxx * sigmazz - sigmayy * sigmazz +
+                    3.0 * (sigmaxy * sigmaxy + sigmaxz * sigmaxz + sigmayz * sigmayz));
+    }
+    //void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    int *solid_contact_indicator_;
+    Real *Vol_;
+    StdVec<Real *> contact_Vol_;
+    Matd *wall_shear_stress_;
+    StdVec<Matd *> fluid_wall_shear_stress_;
+    Matd *total_wall_shear_stress_;
+    Real *WSS_magnitude_;
+};
+
+class CorrectKernelWeightsSolidWSSFromFluid : public LocalDynamics, public DataDelegateInner, public DataDelegateContact
+{
+  public:
+    explicit CorrectKernelWeightsSolidWSSFromFluid(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation);
+    virtual ~CorrectKernelWeightsSolidWSSFromFluid(){};
+
+    inline void interaction(size_t index_i, Real dt = 0.0)
+    {
+        total_wall_shear_stress_[index_i] = Matd::Zero();
+        Real ttl_weight(0);
+
+        if (solid_contact_indicator_[index_i] == 1)
+        {
+            Vecd weight_correction = Vecd::Zero();
+            Matd local_configuration = Eps * Matd::Identity();
+
+            for (size_t k = 0; k < contact_configuration_.size(); ++k)
+            {
+                Real *Vol_k = contact_Vol_[k];
+                Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+                for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+                {
+                    size_t index_j = contact_neighborhood.j_[n];
+                    Real weight_j = contact_neighborhood.W_ij_[n] * Vol_k[index_j];
+                    Vecd r_ji = -contact_neighborhood.r_ij_[n] * contact_neighborhood.e_ij_[n];
+                    Vecd gradW_ijV_j = contact_neighborhood.dW_ij_[n] * Vol_k[index_j] * contact_neighborhood.e_ij_[n];
+
+                    weight_correction += weight_j * r_ji;
+                    local_configuration += r_ji * gradW_ijV_j.transpose();
+                }
+            }
+
+            // correction matrix for interacting configuration
+            Matd B = local_configuration.inverse();
+            Vecd normalized_weight_correction = B * weight_correction;
+            // Add the kernel weight correction to W_ij_ of neighboring particles.
+            for (size_t k = 0; k < contact_configuration_.size(); ++k)
+            {
+                Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+                for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+                {
+                    contact_neighborhood.W_ij_[n] -= normalized_weight_correction.dot(contact_neighborhood.e_ij_[n]) *
+                                                     contact_neighborhood.dW_ij_[n];
+                }
+            }
+            
+            // interaction with first two layers of solid particles
+            const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+            for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = inner_neighborhood.j_[n];
+                if (solid_contact_indicator_[index_j] == 1)
+                {
+                    Real W_ij = inner_neighborhood.W_ij_[n];
+                    Real weight_j = W_ij * Vol_[index_j];
+                    ttl_weight += weight_j;
+                    total_wall_shear_stress_[index_i] += wall_shear_stress_[index_j] * weight_j;
+                }
+            }
+
+            // interaction with fluid particles
+            for (size_t k = 0; k < contact_configuration_.size(); ++k)
+            {
+                Real *Vol_k = contact_Vol_[k];
+                Matd *fluid_WSS_k = fluid_wall_shear_stress_[k];
+                Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+                for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+                {
+                    size_t index_j = contact_neighborhood.j_[n];
+                    Real W_ij = contact_neighborhood.W_ij_[n];
+                    Real weight_j = W_ij * Vol_k[index_j];
+                    ttl_weight += weight_j;
+                    total_wall_shear_stress_[index_i] += fluid_WSS_k[index_j] * weight_j;
+                }
+            }
+        }
+
+        wall_shear_stress_[index_i] = total_wall_shear_stress_[index_i] / (ttl_weight + TinyReal);
+    };
+
+  protected:
+    int *solid_contact_indicator_;
+    Real *Vol_;
+    StdVec<Real *> contact_Vol_;
+    Matd *wall_shear_stress_;
+    StdVec<Matd *> fluid_wall_shear_stress_;
+    Matd *total_wall_shear_stress_;
+};
 } // namespace solid_dynamics
 } // namespace SPH
 #endif // FLUID_STRUCTURE_INTERACTION_H

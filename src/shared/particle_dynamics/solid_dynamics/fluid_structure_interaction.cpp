@@ -86,5 +86,87 @@ AverageVelocityAndAcceleration::
     : initialize_displacement_(solid_body),
       update_averages_(solid_body) {}
 //=================================================================================================//
+SolidWSSFromFluid::
+    SolidWSSFromFluid(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation)
+    : LocalDynamics(inner_relation.getSPHBody()),
+      DataDelegateInner(inner_relation), DataDelegateContact(contact_relation),
+      solid_contact_indicator_(particles_->getVariableDataByName<int>("SolidTwoLayersIndicator")),
+      Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+      wall_shear_stress_(particles_->registerStateVariable<Matd>("SolidWallShearStress")),
+      total_wall_shear_stress_(particles_->registerStateVariable<Matd>("SolidTotalWallShearStress")),
+      WSS_magnitude_(particles_->registerStateVariable<Real>("WSSMagnitude"))
+{
+    for (size_t k = 0; k != contact_particles_.size(); ++k)
+    {
+        contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+        fluid_wall_shear_stress_.push_back(contact_particles_[k]->getVariableDataByName<Matd>("FluidWallShearStress"));
+    }
+}
+//=================================================================================================//
+void SolidWSSFromFluid::interaction(size_t index_i, Real dt)
+{
+    total_wall_shear_stress_[index_i] = Matd::Zero();
+    Real ttl_weight(0);
+
+    if (solid_contact_indicator_[index_i] == 1)
+    {
+        // interaction with first two layers of solid particles
+        const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = inner_neighborhood.j_[n];
+            if (solid_contact_indicator_[index_j] == 1)
+            {
+                Real W_ij = inner_neighborhood.W_ij_[n];
+                Real weight_j = W_ij * Vol_[index_j];
+                ttl_weight += weight_j;
+                total_wall_shear_stress_[index_i] += wall_shear_stress_[index_j] * weight_j;
+            }
+        }
+
+        // interaction with fluid particles
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Real *Vol_k = contact_Vol_[k];
+            Matd *fluid_WSS_k = fluid_wall_shear_stress_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Real W_ij = contact_neighborhood.W_ij_[n];
+                Real weight_j = W_ij * Vol_k[index_j];
+                ttl_weight += weight_j;
+                total_wall_shear_stress_[index_i] += fluid_WSS_k[index_j] * weight_j;
+            }
+        }
+    }
+
+    wall_shear_stress_[index_i] = total_wall_shear_stress_[index_i] / (ttl_weight + TinyReal);
+    WSS_magnitude_[index_i] = getWSSMagnitudeFromMatrix(wall_shear_stress_[index_i]);
+}
+//=================================================================================================//
+//void SolidWSSFromFluid::update(size_t index_i, Real dt)
+//{
+//    Matd corrected_wall_shear_stress = Matd::Zero();
+//    corrected_wall_shear_stress = total_wall_shear_stress_[index_i] / (weight_summation_[index_i] + TinyReal);
+//    wall_shear_stress_[index_i] = corrected_wall_shear_stress;
+//}
+//=================================================================================================//
+CorrectKernelWeightsSolidWSSFromFluid::
+    CorrectKernelWeightsSolidWSSFromFluid(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation)
+    : LocalDynamics(inner_relation.getSPHBody()),
+      DataDelegateInner(inner_relation), DataDelegateContact(contact_relation),
+      solid_contact_indicator_(particles_->getVariableDataByName<int>("SolidTwoLayersIndicator")),
+      Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+      wall_shear_stress_(particles_->registerStateVariable<Matd>("SolidWallShearStress")),
+      total_wall_shear_stress_(particles_->registerStateVariable<Matd>("SolidTotalWallShearStress"))
+{
+    for (size_t k = 0; k != contact_particles_.size(); ++k)
+    {
+        contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+        fluid_wall_shear_stress_.push_back(contact_particles_[k]->getVariableDataByName<Matd>("FluidWallShearStress"));
+    }
+}
+//=================================================================================================//
 } // namespace solid_dynamics
 } // namespace SPH

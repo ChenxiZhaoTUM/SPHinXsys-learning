@@ -84,6 +84,22 @@ class VelocityGradient<Contact<Wall>> : public InteractionWithWall<VelocityGradi
 template <class KernelCorrectionType>
 using VelocityGradientWithWall = ComplexInteraction<VelocityGradient<Inner<KernelCorrectionType>, Contact<Wall>>>;
 
+class FluidWSS : public LocalDynamics
+{
+  public:
+    explicit FluidWSS(SPHBody &sph_body);
+    virtual ~FluidWSS(){};
+
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    int *two_layers_indicatior_;
+    Matd *vel_grad_;
+    Matd *wall_shear_stress_;
+    Vecd *n_;
+    Fluid &fluid_;
+};
+
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // VELOCITY_GRADIENT_H
