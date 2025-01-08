@@ -33,7 +33,7 @@ Real mu_f = 0.004;
 Real U_f = 3.0;
 Real c_f = 10.0*U_f;
 
-Real dp_0 = 0.06E-2;
+Real dp_0 = 0.05E-2;
 Real wall_resolution = 0.5 * dp_0;
 Real scaling = 1.0E-2;
 Vecd translation(0.0, 0.0, 0.0);
@@ -172,7 +172,7 @@ class WallBoundary : public ComplexShape
     explicit WallBoundary(const std::string &shape_name) : ComplexShape(shape_name)
     {
         /** Geometry definition. */
-        add<ExtrudeShape<TriangleMeshShapeSTL>>(4 * wall_resolution, full_path_to_file, translation, scaling);
+        add<ExtrudeShape<TriangleMeshShapeSTL>>(5 * wall_resolution, full_path_to_file, translation, scaling);
         subtract<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 };
@@ -492,8 +492,8 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0.0;
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 2.0;   /**< End time. */
-    Real Output_Time = 0.01; /**< Time stamps for output of body states. */
+    Real end_time = 6.0;   /**< End time. */
+    Real Output_Time = 0.001; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     /** statistics for computing CPU time. */
     TickCount t1 = TickCount::now();
@@ -508,7 +508,6 @@ int main(int ac, char *av[])
     /** Output the start states of bodies. */
     body_states_recording.writeToFile(0);
 
-    // 100mmHg => Qref
     outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(7.13E07, 8.26E-10, 1.20E09, accumulated_time, 0.0);
     outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(7.13E07, 8.26E-10, 1.20E09, accumulated_time, 0.0);
     outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(6.02E07, 9.79E-10, 1.01E09, accumulated_time, 0.0);
