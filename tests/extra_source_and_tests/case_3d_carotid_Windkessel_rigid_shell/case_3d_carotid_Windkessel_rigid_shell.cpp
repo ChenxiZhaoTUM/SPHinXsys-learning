@@ -26,7 +26,7 @@ Real scaling = pow(10, -3);
 Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
 Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
-Real dp_0 = 0.2 * scaling;
+Real dp_0 = 0.15 * scaling;
 Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/ 
 //----------------------------------------------------------------------
 //	define the imported model.
@@ -479,7 +479,7 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 2000)
+        while (ite_p < 3000)
         {
             relaxation_step_inner.exec();
             relaxation_step_inner_blood.exec();
