@@ -93,6 +93,90 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
     }
 };
 
+class TargetOutletPressureWindkesselQave : public BaseLocalDynamics<BodyPartByCell>
+{
+  public:
+    explicit TargetOutletPressureWindkesselQave(BodyAlignedBoxByCell& aligned_box_part)
+        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+          part_id_(aligned_box_part.getPartID()),
+          Rp_(0.0), C_(0.0), Rd_(0.0), Q_ave_(0.0), delta_t_(0.0), 
+          Q_n_(0.0), Q_0_(0.0), p_n_(0.0), p_0_(0.0),
+          flow_rate_(*(this->particles_->registerSingularVariable<Real>("FlowRate" + std::to_string(part_id_ - 1))->ValueAddress())),
+          current_flow_rate_(0.0), previous_flow_rate_(0.0),
+          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")) {};
+    virtual ~TargetOutletPressureWindkesselQave(){};
+
+    void setWindkesselParams(Real Rp, Real C, Real Rd, Real dt)
+    {
+        Rp_ = Rp;
+        C_ = C;
+        Rd_ = Rd;
+        Q_ave_ = 80*133.322/(Rp_ + Rd_);
+        delta_t_ = dt;
+    }
+
+    void updateNextPressure()
+    {
+        getFlowRate();
+
+        Q_n_ = current_flow_rate_ / delta_t_ - Q_ave_;
+
+        Real dp_dt = - p_0_ / (C_ * Rd_) + (Rp_ + Rd_) * Q_n_ / (C_ * Rd_) + Rp_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
+        Real p_star = p_0_ + dp_dt * delta_t_;
+        Real dp_dt_star = - p_star / (C_ * Rd_) + (Rp_ + Rd_) * Q_n_ / (C_ * Rd_) + Rp_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
+        p_n_ = p_0_ + 0.5 * delta_t_ * (dp_dt + dp_dt_star);
+
+        //p_n_ = ((Q_n_ * (1.0 + Rp_ / Rd_) + C_ * Rp_ * (Q_n_ - Q_0_) / delta_t_) * delta_t_ / C_ + p_0_) / (1.0 + delta_t_ / (C_ * Rd_));
+
+
+        //p_n_ = ((Rd_ * delta_t_ + Rp_ * delta_t_ + C_ * Rp_ * Rd_) * Q_n_ - C_ * Rp_ * Rd_ * Q_0_ + C_ * Rd_ * p_0_) / (C_ * Rd_ + delta_t_);
+
+        std::cout << "p_n_ = " << p_n_ / 133.32 + 80 << " mmHg" << std::endl;
+
+        writeOutletPressureData();
+        writeOutletFlowRateData();
+    }
+
+    Real operator()(Real p, Real current_time)
+    {
+        return p_n_;
+    }
+
+  protected:
+    int part_id_;
+    Real Rp_, C_, Rd_, Q_ave_, delta_t_;
+    Real Q_n_, Q_0_;
+    Real p_n_, p_0_;
+    Real &flow_rate_, current_flow_rate_, previous_flow_rate_;
+    Real *physical_time_;
+
+    void getFlowRate()
+    {
+        Q_0_ = Q_n_;
+        p_0_ = p_n_;
+        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
+        previous_flow_rate_ = flow_rate_;
+    }
+
+    void writeOutletPressureData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_outlet_pressure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << *physical_time_ << "   " << p_n_ <<  "\n";
+        out_file.close();
+    }
+
+    void writeOutletFlowRateData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_flow_rate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << *physical_time_ << "   " << Q_n_ <<  "\n";
+        out_file.close();
+    }
+};
+
 class NonPrescribedPressureForFlowRate : public BaseLocalDynamics<BodyPartByCell>
 {
   public:
@@ -142,6 +226,7 @@ class NonPrescribedPressureForFlowRate : public BaseLocalDynamics<BodyPartByCell
 };
 
 using WindkesselBoundaryCondition = PressureCondition<TargetOutletPressureWindkessel>;
+using WindkesselBoundaryConditionQave = PressureCondition<TargetOutletPressureWindkesselQave>;
 
 template <typename TargetPressure, class ExecutionPolicy = ParallelPolicy>
 class BidirectionalBufferWindkessel
