@@ -292,7 +292,6 @@ Real Youngs_modulus = 1.08e6; /** Normalized Youngs Modulus. */
 Real poisson = 0.49;          /** Poisson ratio. */
 // Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */  //478
 Real physical_viscosity = 2000;
-// Real physical_viscosity = 1.0e4;
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -419,7 +418,7 @@ int main(int ac, char *av[])
     shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, 4.0*shell_resolution);
+        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, 3.0*dp_0);
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineBodyLevelSetShape()->cleanLevelSet();
@@ -565,7 +564,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> density_relaxation(water_block_inner, water_shell_contact);
-    ReduceDynamics<fluid_dynamics::AdvectionTimeStep> get_fluid_advection_time_step_size(water_block, U_f);
+    ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> get_fluid_time_step_size(water_block);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_shell_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_shell_contact);
@@ -603,6 +602,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
     body_states_recording.addToWrite<Matd>(shell_body, "MidSurfaceCauchyStress");
     // body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Real>(shell_body, "Thickness");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
     //----------------------------------------------------------------------
@@ -648,8 +648,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     body_states_recording.writeToFile();
 
-    right_up_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(Rp_up, C_up, Rd_up, accumulated_time, 0.0);
-    right_down_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(Rp_down, C_down, Rd_down, accumulated_time, 0.0);
+    right_up_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(Rp_up, C_up, Rd_up, accumulated_time);
+    right_down_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(Rp_down, C_down, Rd_down, accumulated_time);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------

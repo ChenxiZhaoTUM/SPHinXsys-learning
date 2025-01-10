@@ -15,19 +15,18 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
     explicit TargetOutletPressureWindkessel(BodyAlignedBoxByCell& aligned_box_part)
         : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
           part_id_(aligned_box_part.getPartID()),
-          Rp_(0.0), C_(0.0), Rd_(0.0), Q_ave_(0.0), delta_t_(0.0), 
+          Rp_(0.0), C_(0.0), Rd_(0.0), delta_t_(0.0), 
           Q_n_(0.0), Q_0_(0.0), p_n_(80*133.32), p_0_(80*133.32),
           flow_rate_(*(this->particles_->registerSingularVariable<Real>("FlowRate" + std::to_string(part_id_ - 1))->ValueAddress())),
           current_flow_rate_(0.0), previous_flow_rate_(0.0),
           physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")) {};
     virtual ~TargetOutletPressureWindkessel(){};
 
-    void setWindkesselParams(Real Rp, Real C, Real Rd, Real dt, Real Q_ave)
+    void setWindkesselParams(Real Rp, Real C, Real Rd, Real dt)
     {
         Rp_ = Rp;
         C_ = C;
         Rd_ = Rd;
-        Q_ave_ = Q_ave;
         delta_t_ = dt;
     }
 
@@ -35,7 +34,7 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
     {
         getFlowRate();
 
-        Q_n_ = current_flow_rate_ / delta_t_ - Q_ave_;
+        Q_n_ = current_flow_rate_ / delta_t_;
 
         Real dp_dt = - p_0_ / (C_ * Rd_) + (Rp_ + Rd_) * Q_n_ / (C_ * Rd_) + Rp_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
         Real p_star = p_0_ + dp_dt * delta_t_;
@@ -60,7 +59,7 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
 
   protected:
     int part_id_;
-    Real Rp_, C_, Rd_, Q_ave_, delta_t_;
+    Real Rp_, C_, Rd_, delta_t_;
     Real Q_n_, Q_0_;
     Real p_n_, p_0_;
     Real &flow_rate_, current_flow_rate_, previous_flow_rate_;

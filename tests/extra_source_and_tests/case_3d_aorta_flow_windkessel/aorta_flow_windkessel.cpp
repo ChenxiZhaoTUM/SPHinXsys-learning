@@ -332,11 +332,11 @@ int main(int ac, char *av[])
     outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 9.34E-10, 1.52E9, accumulated_time, 0.0000118);
     outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 4.82E-9, 2.95E8, accumulated_time, 0.000096);*/
 
-    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, accumulated_time, 0);
-    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 8.74E-10, 1.63E9, accumulated_time, 0);
-    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, accumulated_time, 0);
-    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 9.34E-10, 1.52E9, accumulated_time, 0);
-    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 4.82E-9, 2.95E8, accumulated_time, 0);
+    outflow_pressure_condition1.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, accumulated_time);
+    outflow_pressure_condition2.getTargetPressure()->setWindkesselParams(1.04E8, 8.74E-10, 1.63E9, accumulated_time);
+    outflow_pressure_condition3.getTargetPressure()->setWindkesselParams(1.18E8, 7.7E-10, 1.84E9, accumulated_time);
+    outflow_pressure_condition4.getTargetPressure()->setWindkesselParams(9.7E7, 9.34E-10, 1.52E9, accumulated_time);
+    outflow_pressure_condition5.getTargetPressure()->setWindkesselParams(1.88E7, 4.82E-9, 2.95E8, accumulated_time);
     /**
      * @brief 	Main loop starts here.
     */
