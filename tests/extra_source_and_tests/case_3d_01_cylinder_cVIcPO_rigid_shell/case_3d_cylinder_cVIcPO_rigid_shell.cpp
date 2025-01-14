@@ -356,7 +356,6 @@ int main(int ac, char *av[])
     shell_curvature.exec();
     water_block_complex.updateConfiguration();
     shell_water_contact.updateConfiguration();
-    //correct_kernel_weights_for_interpolation.exec();
     boundary_indicator.exec();
     left_bidirection_buffer.tag_buffer_particles.exec();
     right_bidirection_buffer.tag_buffer_particles.exec();

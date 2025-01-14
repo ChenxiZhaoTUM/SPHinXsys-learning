@@ -313,7 +313,6 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "NormalDirection");
-    body_states_recording.addToWrite<Real>(wall_boundary, "Density");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "WallShearStress");
     body_states_recording.addToWrite<Real>(wall_boundary, "TimeAveragedWallShearStress");
     body_states_recording.addToWrite<Real>(wall_boundary, "OscillatoryShearIndex");
@@ -398,9 +397,6 @@ int main(int ac, char *av[])
                 relaxation_time += dt;
                 integration_time += dt;
                 physical_time += dt;
-
-                compute_inlet_transient_flow_rate.exec();
-                compute_outlet_transient_flow_rate.exec();
             }
 
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
@@ -414,6 +410,10 @@ int main(int ac, char *av[])
             number_of_iterations++;
 
             time_instance = TickCount::now();
+
+            compute_inlet_transient_flow_rate.exec();
+            compute_outlet_transient_flow_rate.exec();
+
             /** Water block configuration and periodic condition. */
             left_bidirection_buffer.injection.exec();
             right_bidirection_buffer.injection.exec();
