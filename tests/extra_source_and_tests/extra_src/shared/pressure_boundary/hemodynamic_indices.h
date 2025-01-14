@@ -95,6 +95,32 @@ class HemodynamicIndiceCalculation : public LocalDynamics
     Real *oscillatory_shear_index_;
 };
 
+class FirstLayerFromFluid : public LocalDynamics
+{
+  public:
+    FirstLayerFromFluid(SPHBody &solid_body, SPHBody &fluid_body)
+        : LocalDynamics(solid_body),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          solid_contact_indicator_(this->particles_->template registerStateVariable<int>("SolidFirstLayerIndicator")),
+          fluid_body_(fluid_body),
+          spacing_ref_(sph_body_.sph_adaptation_->ReferenceSpacing()){};
+    virtual ~FirstLayerFromFluid(){};
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        Real phi = fluid_body_.getInitialShape().findSignedDistance(pos_[index_i]);
+        solid_contact_indicator_[index_i] = 1;
+        if (phi > 1.01 * spacing_ref_)
+            solid_contact_indicator_[index_i] = 0;
+    }
+
+  protected:
+    Vecd *pos_;
+    int *solid_contact_indicator_;
+    SPHBody &fluid_body_;
+    Real spacing_ref_;
+};
+
 class TwoLayersFromFluid : public LocalDynamics
 {
   public:
