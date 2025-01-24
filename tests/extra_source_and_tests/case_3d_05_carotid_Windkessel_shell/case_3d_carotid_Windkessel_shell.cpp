@@ -1,6 +1,6 @@
 /**
- * @file 	carotid_VIPO_shell.cpp
- * @brief 	Carotid artery with shell, imposed velocity inlet and pressure outlet condition.
+ * @file 	carotid_Windkessel_shell.cpp
+ * @brief 	Carotid artery with shell, imposed velocity inlet and Windkessel outlet condition.
  */
 
 #include "sphinxsys.h"
@@ -12,6 +12,7 @@
 #include "pressure_boundary.h"
 #include "particle_generation_and_detection.h"
 #include "windkessel_bc.h"
+#include "hemodynamic_indices.h"
 
 using namespace SPH;
 //----------------------------------------------------------------------
@@ -27,7 +28,7 @@ Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
 Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
 Real dp_0 = 0.2 * scaling;
-Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/ 
+Real shell_resolution = dp_0 / 2;  /*thickness = 3.0 * shell_resolution*/ 
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -37,7 +38,6 @@ public:
     explicit ShellShape(const std::string &shape_name) : ComplexShape(shape_name),
         mesh_shape_(new TriangleMeshShapeSTL(full_path_to_file, translation, scaling))
     {
-        //add<ExtrudeShape<TriangleMeshShapeSTL>>(thickness, full_path_to_file, translation, scaling);
         add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
     }
 
@@ -55,7 +55,6 @@ class WaterBlock : public ComplexShape
 public:
     explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
     {
-        //add<TriangleMeshShapeSTL>(full_path_to_file, translation, scaling);
         add<ExtrudeShape<TriangleMeshShapeSTL>>(-shell_resolution/2, full_path_to_file, translation, scaling);
     }
 };
@@ -76,11 +75,11 @@ class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerato
     Shape &initial_shape_;
 
 public:
-    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape) 
+    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape, Real shell_thickness) 
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
         mesh_total_area_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
-        thickness_(particle_spacing_),
+        thickness_(shell_thickness),
         avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
         planned_number_of_particles_(0),
         mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
@@ -262,22 +261,22 @@ RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
 
-// outlet1 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Real DW_out_up = 1.9416 * 2 * scaling;
-Vec3d outlet_up_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
-Vec3d outlet_up_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_up_cut_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_up_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_up_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_up_normal * 2.0 * dp_0;
+// outlet1 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
+Real DW_out_up = 1.3261 * 2 * scaling;
+Vec3d outlet_up_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
+Vec3d outlet_up_normal(-0.0399, 0.0693, 0.9972);
+Vec3d outlet_up_cut_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_up_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_up_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_up_normal * 2.0 * dp_0;
 RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
 Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
 Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
 
-// outlet2 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
-Real DW_out_down = 1.3261 * 2 * scaling;
-Vec3d outlet_down_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
-Vec3d outlet_down_normal(-0.0399, 0.0693, 0.9972);
-Vec3d outlet_down_cut_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_down_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_down_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_down_normal * 2.0 * dp_0;
+// outlet2 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
+Real DW_out_down = 1.9416 * 2 * scaling;
+Vec3d outlet_down_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
+Vec3d outlet_down_normal(-0.3160, -0.0009, 0.9488);
+Vec3d outlet_down_cut_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_down_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_down_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_down_normal * 2.0 * dp_0;
 RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
 Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
 Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, outlet_down_rotation_result.axis);
@@ -285,16 +284,16 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 2.0;    /**< Characteristic velocity. */
+Real U_f = 4.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in * DW_in / (DW_out_up * DW_out_up + DW_out_down * DW_out_down));
-Real mu_f = 0.00355; /**< Dynamics viscosity. */
-Real Outlet_pressure = 0;
+Real c_f = 10.0 * U_f ;
+Real mu_f = 0.004; /**< Dynamics viscosity. */
 
-Real rho0_s = 1120;                /** Normalized density. */
-Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
+Real rho0_s = 1200;                /** Normalized density. */
+Real Youngs_modulus = 1.5e6;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
-//Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */
+// Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */  //478
+Real physical_viscosity = 20000;
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -326,18 +325,19 @@ struct InflowVelocity
         return target_velocity;
     }
 };
-
 //----------------------------------------------------------------------
 //	Pressure boundary definition.
 //----------------------------------------------------------------------
 // ref 0 mmHg
-Real Rp_up = 3.45E8;
-Real C_up = 1.51E-9;
-Real Rd_up = 1.55E9;
-Real Rp_down = 7.87E8;
-Real C_down = 6.62E-10;
-Real Rd_down = 3.54E9;
-
+Real Rp_up = 7.87E8;
+Real C_up = 6.62E-10;
+Real Rd_up = 3.54E9;
+Real Rp_down = 3.45E8;
+Real C_down = 1.51E-9;
+Real Rd_down = 1.55E9;
+//----------------------------------------------------------------------
+//	Boundary constrain
+//----------------------------------------------------------------------
 class BoundaryGeometry : public BodyPartByParticle
 {
   public:
@@ -352,11 +352,20 @@ class BoundaryGeometry : public BodyPartByParticle
   private:
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][2] < -30.8885 * scaling + 0.9935 * 4 * dp_0
-            || (base_particles_.ParticlePositions()[index_i][2] > 21.7855 * scaling - 0.9488 * 4 * dp_0
-                && base_particles_.ParticlePositions()[index_i][0] <= 0)
-            || (base_particles_.ParticlePositions()[index_i][2] > 18.6389 * scaling - 0.9972 * 4 * dp_0
-                && base_particles_.ParticlePositions()[index_i][0] > 0))
+        const Vecd &pos = base_particles_.ParticlePositions()[index_i];
+        Vecd center_point_inlet = Vecd(1.5611, 5.8559, -30.8885) * scaling;
+        Vecd center_point_outlet_up = Vecd(9.0220, 0.9750, 18.6389) * scaling;
+        Vecd center_point_outlet_down = Vecd(-2.6975, -0.4330, 21.7855) * scaling;
+
+        Vecd relative_position_inlet = pos - center_point_inlet;
+        Vecd relative_position_outlet_up = pos - center_point_outlet_up;
+        Vecd relative_position_outlet_down = pos - center_point_outlet_down;
+
+        Real projection_distance_inlet = relative_position_inlet.dot(inlet_normal);
+        Real projection_distance_outlet_up = relative_position_outlet_up.dot(-outlet_up_normal);
+        Real projection_distance_outlet_down = relative_position_outlet_down.dot(-outlet_down_normal);
+
+        if (ABS(projection_distance_inlet) < 4 * dp_0 || (ABS(projection_distance_outlet_up) < 4 * dp_0 && pos[0] > 0.005) || (ABS(projection_distance_outlet_down) < 4 * dp_0 && pos[0] < 0.002))
         {
             body_part_particles_.push_back(index_i);
         }
@@ -383,10 +392,10 @@ int main(int ac, char *av[])
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
     shell_body.defineAdaptation<SPHAdaptation>(1.15, dp_0/shell_resolution);
     shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign();
-    shell_body.defineMaterial<Solid>();
+    shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
+        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, 3.0*dp_0);
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineBodyLevelSetShape()->cleanLevelSet();
@@ -407,22 +416,10 @@ int main(int ac, char *av[])
 
         BodyAlignedBoxByCell inlet_detection_box(shell_body,
                                              makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half));
-        BodyAlignedBoxByCell outlet01_detection_box(shell_body,
+        BodyAlignedBoxByCell outlet_up_detection_box(shell_body,
                                                 makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_cut_translation)), outlet_up_half));
-        BodyAlignedBoxByCell outlet02_detection_box(shell_body,
+        BodyAlignedBoxByCell outlet_down_detection_box(shell_body,
                                                 makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_cut_translation)), outlet_down_half));
-
-        RealBody test_body_in(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_cut_translation)), inlet_half, "TestBodyIn"));
-        test_body_in.generateParticles<BaseParticles, Lattice>();
-
-        RealBody test_body_out_up(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_cut_translation)), outlet_up_half, "TestBodyOutUp"));
-        test_body_out_up.generateParticles<BaseParticles, Lattice>();
-
-        RealBody test_body_out_down(
-        sph_system, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_cut_translation)), outlet_down_half, "TestBodyOutDown"));
-        test_body_out_down.generateParticles<BaseParticles, Lattice>();
         //----------------------------------------------------------------------
         //	Methods used for particle relaxation.
         //----------------------------------------------------------------------
@@ -435,8 +432,8 @@ int main(int ac, char *av[])
 
         // here, need a class to switch particles in aligned box to ghost particles (not real particles)
         SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> inlet_particles_detection(inlet_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet01_particles_detection(outlet01_detection_box);
-        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet02_particles_detection(outlet02_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_up_particles_detection(outlet_up_detection_box);
+        SimpleDynamics<ParticlesInAlignedBoxDetectionByCell> outlet_down_particles_detection(outlet_down_detection_box);
 
         /** Write the body state to Vtp file. */
         BodyStatesRecordingToVtp write_shell_to_vtp({shell_body});
@@ -445,6 +442,7 @@ int main(int ac, char *av[])
         BodyStatesRecordingToVtp write_all_bodies_to_vtp({sph_system});
         /** Write the particle reload files. */
         ReloadParticleIO write_particle_reload_files({ &shell_body, &water_block });
+        ParticleSorting particle_sorting_shell(shell_body);
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
@@ -474,10 +472,13 @@ int main(int ac, char *av[])
         shell_normal_prediction.smoothing_normal_exec();
 
         inlet_particles_detection.exec();
+        particle_sorting_shell.exec();
         shell_body.updateCellLinkedList();
-        outlet01_particles_detection.exec();
+        outlet_up_particles_detection.exec();
+        particle_sorting_shell.exec();
         shell_body.updateCellLinkedList();
-        outlet02_particles_detection.exec();
+        outlet_down_particles_detection.exec();
+        particle_sorting_shell.exec();
         shell_body.updateCellLinkedList();
 
         write_all_bodies_to_vtp.writeToFile(ite_p);
@@ -496,7 +497,7 @@ int main(int ac, char *av[])
     InnerRelation water_block_inner(water_block);
     InnerRelation shell_inner(shell_body);
     ContactRelationFromShellToFluid water_shell_contact(water_block, {&shell_body}, {false});
-    //ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
+    ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
     ShellInnerRelationWithContactKernel shell_curvature_inner(shell_body, water_block);
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
@@ -507,28 +508,39 @@ int main(int ac, char *av[])
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
-    // shell dynamics
-    //InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
-    //Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
-    //Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
-    //ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
+    
+    //----------------------------------------------------------------------
+    //	Solid dynamics
+    //----------------------------------------------------------------------
+    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
+    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
+    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
+    ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
-    //SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
+    SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_velocity_damping(0.2, shell_inner, "Velocity", physical_viscosity);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
+        shell_rotation_damping(0.2, shell_inner, "AngularVelocity", physical_viscosity);
 
-    ///** Exert constrain on shell. */
-    //BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
+    /** Exert constrain on shell. */
+    BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
+    SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
     //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
-    // fluid dynamics
+    //----------------------------------------------------------------------
+    //	Fluid dynamics
+    //----------------------------------------------------------------------
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_shell_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_shell_contact);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> density_relaxation(water_block_inner, water_shell_contact);
-    ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> get_fluid_advection_time_step_size(water_block, U_f);
+    ReduceDynamics<fluid_dynamics::AdvectionTimeStep> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> get_fluid_time_step_size(water_block);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_shell_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_shell_contact);
 
+    // add buffers
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_half));
     fluid_dynamics::BidirectionalBuffer<fluid_dynamics::NonPrescribedPressure> left_buffer(left_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_up_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_buffer_translation)), outlet_up_half));
@@ -542,10 +554,17 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::WindkesselBoundaryCondition> right_down_inflow_pressure_condition(right_down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
 
-    // FSI
-    /*InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_emitter, Pi * pow(DW_in/2, 2));
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_up_transient_flow_rate(right_up_emitter, Pi * pow(DW_out_up/2, 2));
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_down_transient_flow_rate(right_down_emitter, Pi * pow(DW_out_down/2, 2));
+
+    //----------------------------------------------------------------------
+    //	FSI
+    //----------------------------------------------------------------------
+    InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_from_fluid(shell_water_contact);
+    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(shell_body, 0.757);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
-    solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);*/
+    solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
     //----------------------------------------------------------------------
     //	Define the configuration related particles dynamics.
     //----------------------------------------------------------------------
@@ -560,20 +579,23 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
-    //body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Matd>(shell_body, "MidSurfaceCauchyStress");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
+    body_states_recording.addToWrite<Vecd>(shell_body, "WallShearStress");
+    body_states_recording.addToWrite<Real>(shell_body, "TimeAveragedWallShearStress");
+    body_states_recording.addToWrite<Real>(shell_body, "OscillatoryShearIndex");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
     //----------------------------------------------------------------------
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
-    //shell_corrected_configuration.exec();
+    shell_corrected_configuration.exec();
     shell_average_curvature.exec();
-    //constrain_holder.exec();
+    constrain_holder.exec();
     water_block_complex.updateConfiguration();
-    //shell_water_contact.updateConfiguration();
+    shell_water_contact.updateConfiguration();
     boundary_indicator.exec();
     left_buffer.tag_buffer_particles.exec();
     right_up_buffer.tag_buffer_particles.exec();
@@ -585,7 +607,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 20;   /**< End time. */
+    Real end_time = 20.0;   /**< End time. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
@@ -605,7 +627,7 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile();
-
+    
     right_up_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(Rp_up, C_up, Rd_up, accumulated_time);
     right_down_inflow_pressure_condition.getTargetPressure()->setWindkesselParams(Rp_down, C_down, Rd_down, accumulated_time);
     //----------------------------------------------------------------------
@@ -620,12 +642,13 @@ int main(int ac, char *av[])
             time_instance = TickCount::now();
 
             Real Dt = get_fluid_advection_time_step_size.exec();
-            //std::cout << "Dt = " << Dt << std::endl;
             update_fluid_density.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
+
             /** FSI for viscous force. */
-            //viscous_force_on_shell.exec();
+            viscous_force_from_fluid.exec();
+            hemodynamic_indice_calculation.exec(Dt);
 
             interval_computing_time_step += TickCount::now() - time_instance;
             time_instance = TickCount::now();
@@ -633,16 +656,14 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
-                //std::cout << "dt = " << dt << std::endl;
 
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
-                //pressure_force_on_shell.exec();
+                pressure_force_on_shell.exec();
 
                 kernel_summation.exec();
 
                 inflow_velocity_condition.exec();
-                // left_inflow_pressure_condition.exec(dt);
                 //  windkessel model implementation
                 if (physical_time >= updateP_n * accumulated_time)
                 {
@@ -654,9 +675,11 @@ int main(int ac, char *av[])
                 right_up_inflow_pressure_condition.exec(dt);
                 right_down_inflow_pressure_condition.exec(dt);
 
+                inflow_velocity_condition.exec();
+
                 density_relaxation.exec(dt);
 
-                /*Real dt_s_sum = 0.0;
+                Real dt_s_sum = 0.0;
                 average_velocity_and_acceleration.initialize_displacement_.exec();
                 while (dt_s_sum < dt)
                 {
@@ -666,11 +689,14 @@ int main(int ac, char *av[])
                     shell_stress_relaxation_first.exec(dt_s);
 
                     constrain_holder.exec(dt_s);
+                    shell_velocity_damping.exec(dt_s);
+                    shell_rotation_damping.exec(dt_s);
+                    constrain_holder.exec(dt_s);
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;
                 }
-                average_velocity_and_acceleration.update_averages_.exec(dt);*/
+                average_velocity_and_acceleration.update_averages_.exec(dt);
 
                 relaxation_time += dt;
                 integration_time += dt;
@@ -688,6 +714,10 @@ int main(int ac, char *av[])
             number_of_iterations++;
 
             time_instance = TickCount::now();
+            
+            compute_inlet_transient_flow_rate.exec();
+            compute_outlet_up_transient_flow_rate.exec();
+            compute_outlet_down_transient_flow_rate.exec();
 
             left_buffer.injection.exec();
             right_up_buffer.injection.exec();
@@ -703,11 +733,11 @@ int main(int ac, char *av[])
             }
 
             water_block.updateCellLinkedList();
-            //shell_update_normal.exec();
-            //shell_body.updateCellLinkedList();
-            //shell_curvature_inner.updateConfiguration();
-            //shell_average_curvature.exec();
-            //shell_water_contact.updateConfiguration();
+            shell_update_normal.exec();
+            shell_body.updateCellLinkedList();
+            shell_curvature_inner.updateConfiguration();
+            shell_average_curvature.exec();
+            shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
 
             interval_updating_configuration += TickCount::now() - time_instance;
