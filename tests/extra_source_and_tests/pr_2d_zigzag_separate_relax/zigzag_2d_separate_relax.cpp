@@ -134,8 +134,15 @@ int main(int ac, char *av[])
     SimpleDynamics<NormalDirectionFromBodyShape> solid_normal_direction(import_body);
     InteractionWithUpdate<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_import_contact);
     water_block.addBodyStateForRecording<int>("FluidContactIndicator");
-    ReducedQuantityRecording<SurfaceKineticEnergy> write_water_kinetic_energy(water_block);
+    ReducedQuantityRecording<SurfaceKineticEnergy> write_water_surface_kinetic_energy(water_block);
     water_block.addBodyStateForRecording<Real>("ParticleEnergy");
+    AvgSurfaceKineticEnergy write_average_surface_kinetic_energy(water_block);
+
+    InteractionDynamics<LocalDisorderMeasure> local_disorder_measure(water_inner);
+    water_block.addBodyStateForRecording<Real>("FirstDistance");
+    water_block.addBodyStateForRecording<Real>("SecondDistance");
+    water_block.addBodyStateForRecording<Real>("LocalDisorderMeasureParameter");
+    GlobalDisorderMeasure write_global_disorder_measure(water_block);
 
     //BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
     BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
@@ -158,12 +165,16 @@ int main(int ac, char *av[])
     fluid_zero_order_consistency.exec();
     solid_normal_direction.exec();
     fluid_surface_indicator.exec();
-    write_water_kinetic_energy.writeToFile();
+    local_disorder_measure.exec();
+    write_water_surface_kinetic_energy.writeToFile();
+    write_average_surface_kinetic_energy.writeToFile();
+    write_global_disorder_measure.writeToFile();
     write_real_body_states.writeToFile();
     //----------------------------------------------------------------------
     //	Particle relaxation time stepping start here.
     //----------------------------------------------------------------------
     int ite_p = 0;
+    TickCount t1 = TickCount::now();
     while (ite_p < 2000)
     {
         relaxation_step_inner.exec();
@@ -171,7 +182,8 @@ int main(int ac, char *av[])
 
         solid_normal_direction.exec();
         fluid_surface_indicator.exec();
-        
+        local_disorder_measure.exec();
+
         ite_p += 1;
         if (ite_p % 500 == 0)
         {
@@ -180,9 +192,17 @@ int main(int ac, char *av[])
         }
         import_water_complex.updateConfiguration();
         water_import_complex.updateConfiguration();
-        write_water_kinetic_energy.writeToFile(ite_p);
+
+        write_water_surface_kinetic_energy.writeToFile(ite_p);
+        write_average_surface_kinetic_energy.writeToFile(ite_p);
+        write_global_disorder_measure.writeToFile(ite_p);
     }
     std::cout << "The physics relaxation process finish !" << std::endl;
+
+    TickCount t4 = TickCount::now();
+    TimeInterval tt;
+    tt = t4 - t1;
+    std::cout << "Total time for computation: " << tt.seconds() << " seconds." << std::endl;
 
     solid_zero_order_consistency.exec();
     fluid_zero_order_consistency.exec();
