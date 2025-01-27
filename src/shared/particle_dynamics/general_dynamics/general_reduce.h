@@ -323,5 +323,246 @@ class SurfaceKineticEnergy
     }
 };
 
+class AvgSurfaceKineticEnergy : public DataDelegateSimple
+{
+  protected:
+    StdLargeVec<int> &fluid_contact_indicator_;
+    StdLargeVec<Real> &particle_energy_;
+
+  public:
+    explicit AvgSurfaceKineticEnergy(SPHBody &sph_body)
+        : DataDelegateSimple(sph_body),
+          fluid_contact_indicator_(*particles_->getVariableByName<int>("FluidContactIndicator")),
+          particle_energy_(*particles_->getVariableByName<Real>("ParticleEnergy")) {};
+    virtual ~AvgSurfaceKineticEnergy(){};
+
+    Real getAvgSurfaceKineticEnergy()
+    {
+        int fluid_surface_particle_num = 0;
+        Real average_surface_kinetic_energy = 0;
+        for (size_t i = 0; i != particles_->total_real_particles_; ++i)
+        {
+            if (fluid_contact_indicator_[i] == 1)
+            {
+                fluid_surface_particle_num++;
+                average_surface_kinetic_energy += particle_energy_[i];
+            }  
+        }
+        average_surface_kinetic_energy /= (fluid_surface_particle_num + TinyReal);
+        return average_surface_kinetic_energy;
+    }
+
+    void writeToFile(size_t iteration_step = 0)
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" +  "average_surface_kinetic_energy.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << iteration_step << "   ";
+        out_file << getAvgSurfaceKineticEnergy();
+        out_file << "\n";
+        out_file.close();
+    };
+};
+
+class LocalDisorderMeasure : public LocalDynamics, public DataDelegateInner
+{
+  public:
+    explicit LocalDisorderMeasure(BaseInnerRelation &inner_relation)
+        : LocalDynamics(inner_relation.getSPHBody()),
+          DataDelegateInner(inner_relation),
+          spacing_ref_(sph_body_.sph_adaptation_->ReferenceSpacing()),
+          distance_default_(100.0 * spacing_ref_),
+          pos_(*particles_->getVariableByName<Vecd>("Position")),
+          distance_1st_(*particles_->registerSharedVariable<Real>("FirstDistance")),
+          distance_2nd_(*particles_->registerSharedVariable<Real>("SecondDistance")),
+          local_disorder_measure_parameter_(*particles_->registerSharedVariable<Real>("LocalDisorderMeasureParameter"))
+    {}
+    virtual ~LocalDisorderMeasure(){};
+
+    void interaction(size_t index_i, Real dt)
+    {
+        const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+
+        Vecd distance_1st_vec = distance_default_ * Vecd::Ones();
+
+        int cone_count_ = 8;
+        Real cone_angle_ = 7.0 / 18.0 * Pi;
+        std::vector<Vecd> distances_2nd_vec(cone_count_, distance_default_ * Vecd::Ones());
+
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = inner_neighborhood.j_[n];
+
+            Vecd temp = pos_[index_i] - pos_[index_j];
+            if (temp.squaredNorm() < distance_1st_vec.squaredNorm())
+            {
+                distance_1st_vec = temp; // more reliable distance
+            }
+
+            if (Dimensions == 2)
+            {
+                Real angle = std::atan2(temp[1], temp[0]);
+                if (angle < 0)
+                    angle += 2.0 * Pi;
+                int cone_index = static_cast<int>(angle / cone_angle_);
+
+                if (temp.squaredNorm() < distances_2nd_vec[cone_index].squaredNorm())
+                {
+                    distances_2nd_vec[cone_index] = temp;
+                }
+            }
+        }
+
+        Real max_min_distance_2nd = 0.0;
+        for (const Vecd &min_dist_vec : distances_2nd_vec)
+        {
+            if (min_dist_vec.norm() < distance_default_)
+            {
+                max_min_distance_2nd = std::max(max_min_distance_2nd, min_dist_vec.norm());
+            }
+        }
+
+        distance_1st_[index_i] = distance_1st_vec.norm();
+        distance_2nd_[index_i] = max_min_distance_2nd;
+
+        if (distance_2nd_[index_i] > 0)
+            local_disorder_measure_parameter_[index_i] = (distance_2nd_[index_i] - distance_1st_[index_i]) / (distance_2nd_[index_i] + distance_1st_[index_i]);
+        else
+            local_disorder_measure_parameter_[index_i] = 0;
+    }
+
+  protected:
+    Real spacing_ref_, distance_default_;
+    StdLargeVec<Vecd> &pos_;
+    StdLargeVec<Real> &distance_1st_, &distance_2nd_;
+    StdLargeVec<Real> &local_disorder_measure_parameter_;
+};
+
+class LocalDisorderMeasureForPeriodicCondition : public LocalDynamics, public DataDelegateInner
+{
+  public:
+    explicit LocalDisorderMeasureForPeriodicCondition(BaseInnerRelation &inner_relation, Real width, Real height)
+        : LocalDynamics(inner_relation.getSPHBody()),
+          DataDelegateInner(inner_relation),
+          spacing_ref_(sph_body_.sph_adaptation_->ReferenceSpacing()),
+          distance_default_(100.0 * spacing_ref_),
+          pos_(*particles_->getVariableByName<Vecd>("Position")),
+          distance_1st_(*particles_->registerSharedVariable<Real>("FirstDistance")),
+          distance_2nd_(*particles_->registerSharedVariable<Real>("SecondDistance")),
+          local_disorder_measure_parameter_(*particles_->registerSharedVariable<Real>("LocalDisorderMeasureParameter")),
+          width_(width), height_(height){};
+    virtual ~LocalDisorderMeasureForPeriodicCondition(){};
+
+    void interaction(size_t index_i, Real dt)
+    {
+        const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+
+        Vecd distance_1st_vec = distance_default_ * Vecd::Ones();
+
+        int cone_count_ = 8;
+        Real cone_angle_ = 7.0 / 18.0 * Pi;
+        std::vector<Vecd> distances_2nd_vec(cone_count_, distance_default_ * Vecd::Ones());
+
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = inner_neighborhood.j_[n];
+
+            Vecd temp = pos_[index_i] - pos_[index_j];
+            if (temp.squaredNorm() < distance_1st_vec.squaredNorm())
+            {
+                distance_1st_vec = temp; // more reliable distance
+            }
+
+            if (Dimensions == 2)
+            {
+                Real angle = std::atan2(temp[1], temp[0]);
+                if (angle < 0)
+                    angle += 2.0 * Pi;
+                int cone_index = static_cast<int>(angle / cone_angle_);
+
+                if (temp.squaredNorm() < distances_2nd_vec[cone_index].squaredNorm())
+                {
+                    if (temp[0] > 0.5 * width_)
+                    {
+                        temp[0] -= width_;
+                    }
+                    else if (temp[0] < -0.5 * width_)
+                    {
+                        temp[0] += width_;
+                    }
+
+                    if (temp[1] > 0.5 * height_)
+                    {
+                        temp[1] -= height_;
+                    }
+                    else if (temp[1] < -0.5 * height_)
+                    {
+                        temp[1] += height_;
+                    }
+
+                    distances_2nd_vec[cone_index] = temp;
+                }
+            }
+        }
+
+        Real max_min_distance_2nd = 0.0;
+        for (const Vecd &min_dist_vec : distances_2nd_vec)
+        {
+            if (min_dist_vec.norm() < distance_default_)
+            {
+                max_min_distance_2nd = std::max(max_min_distance_2nd, min_dist_vec.norm());
+            }
+        }
+
+        distance_1st_[index_i] = distance_1st_vec.norm();
+        distance_2nd_[index_i] = max_min_distance_2nd;
+
+        if (distance_2nd_[index_i] > 0)
+            local_disorder_measure_parameter_[index_i] = (distance_2nd_[index_i] - distance_1st_[index_i]) / (distance_2nd_[index_i] + distance_1st_[index_i]);
+        else
+            local_disorder_measure_parameter_[index_i] = 0;
+    }
+
+  protected:
+    Real spacing_ref_, distance_default_;
+    StdLargeVec<Vecd> &pos_;
+    StdLargeVec<Real> &distance_1st_, &distance_2nd_;
+    StdLargeVec<Real> &local_disorder_measure_parameter_;
+    Real width_, height_;
+};
+
+class GlobalDisorderMeasure : public DataDelegateSimple
+{
+  private:
+    StdLargeVec<Real> &local_disorder_measure_parameter_;
+
+  public:
+    explicit GlobalDisorderMeasure(SPHBody &sph_body)
+        : DataDelegateSimple(sph_body),
+          local_disorder_measure_parameter_(*particles_->getVariableByName<Real>("LocalDisorderMeasureParameter")) {};
+    virtual ~GlobalDisorderMeasure(){};
+
+    Real getGlobalDisorderMeasureValue()
+    {
+        Real global_disorder_measure_parameter = 0;
+        for (size_t i = 0; i != particles_->total_real_particles_; ++i)
+        {
+            global_disorder_measure_parameter += local_disorder_measure_parameter_[i];
+        }
+        global_disorder_measure_parameter /= (particles_->total_real_particles_ + TinyReal);
+        return global_disorder_measure_parameter;
+    }
+
+    void writeToFile(size_t iteration_step = 0)
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + "gobal_disorder_measure.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << iteration_step << "   ";
+        out_file << getGlobalDisorderMeasureValue();
+        out_file << "\n";
+        out_file.close();
+    };
+};
 } // namespace SPH
 #endif // GENERAL_REDUCE_H
