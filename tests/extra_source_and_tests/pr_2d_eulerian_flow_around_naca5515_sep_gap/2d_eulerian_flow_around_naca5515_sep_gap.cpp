@@ -161,9 +161,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
-    sph_system.setRunParticleRelaxation(false);
+    sph_system.setRunParticleRelaxation(true);
     // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(true);
+    sph_system.setReloadParticles(false);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
@@ -235,10 +235,18 @@ int main(int ac, char *av[])
         water_block.addBodyStateForRecording<Vecd>("KernelSummation");
 
         SimpleDynamics<NormalDirectionFromBodyShape> solid_normal_direction(airfoil);
-        InteractionWithUpdate<FluidSurfaceIndicationByDistance> fluid_contact_indicator(water_block_contact);
+        InteractionWithUpdate<FluidSurfaceIndicationByDistance> fluid_surface_indicator(water_block_contact);
         water_block.addBodyStateForRecording<int>("FluidContactIndicator");
-        ReducedQuantityRecording<SurfaceKineticEnergy> write_water_kinetic_energy(water_block);
+        ReducedQuantityRecording<SurfaceKineticEnergy> write_water_surface_kinetic_energy(water_block);
         water_block.addBodyStateForRecording<Real>("ParticleEnergy");
+        AvgSurfaceKineticEnergy write_average_surface_kinetic_energy(water_block);
+
+        InteractionDynamics<LocalDisorderMeasure> local_disorder_measure(water_block_inner);
+        water_block.addBodyStateForRecording<Real>("FirstDistance");
+        water_block.addBodyStateForRecording<Real>("SecondDistance");
+        water_block.addBodyStateForRecording<Real>("LocalDisorderMeasureParameter");
+        GlobalDisorderMeasure write_global_disorder_measure(water_block);
+    
         //----------------------------------------------------------------------
         //	Particle relaxation starts here.
         //----------------------------------------------------------------------
@@ -256,18 +264,23 @@ int main(int ac, char *av[])
         solid_zero_order_consistency.exec();
         fluid_zero_order_consistency.exec();
         solid_normal_direction.exec();
-        fluid_contact_indicator.exec();
-        write_water_kinetic_energy.writeToFile();
+        fluid_surface_indicator.exec();
+        local_disorder_measure.exec();
+        write_water_surface_kinetic_energy.writeToFile();
+        write_average_surface_kinetic_energy.writeToFile();
+        write_global_disorder_measure.writeToFile();
         write_real_body_states.writeToFile();
 
         int ite_p = 0;
+        TickCount t1 = TickCount::now();
         while (ite_p < 2000)
         {
             relaxation_step_inner.exec();
             relaxation_step_inner_water.exec();
 
             solid_normal_direction.exec();
-            fluid_contact_indicator.exec();
+            fluid_surface_indicator.exec();
+            local_disorder_measure.exec();
 
             ite_p += 1;
             if (ite_p % 2000 == 0)
@@ -278,9 +291,17 @@ int main(int ac, char *av[])
 
             airfoil_water_complex.updateConfiguration();
             water_wall_complex.updateConfiguration();
-            write_water_kinetic_energy.writeToFile(ite_p);
+
+            write_water_surface_kinetic_energy.writeToFile(ite_p);
+            write_average_surface_kinetic_energy.writeToFile(ite_p);
+            write_global_disorder_measure.writeToFile(ite_p);
         }
         std::cout << "The physics relaxation process finish !" << std::endl;
+
+        TickCount t4 = TickCount::now();
+        TimeInterval tt;
+        tt = t4 - t1;
+        std::cout << "Total time for computation: " << tt.seconds() << " seconds." << std::endl;
 
         solid_zero_order_consistency.exec();
         fluid_zero_order_consistency.exec();
