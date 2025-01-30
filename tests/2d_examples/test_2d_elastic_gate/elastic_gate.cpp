@@ -16,10 +16,10 @@ Real Dam_L = 100.0;                     /**< Water block width. */
 Real Dam_H = 140.0;                     /**< Water block height. */
 Real Gate_width = 5.0;                  /**< Width of the gate. */
 Real Base_bottom_position = 79.0;       /**< Position of gate base. (In Y direction) */
-Real resolution_ref = Gate_width / 2.0; /**< Initial reference particle spacing. */
+Real resolution_ref = 1.0; /**< Initial reference particle spacing. */
 Real BW = resolution_ref * 4.0;         /**< Extending width for BCs. */
 /** The offset that the rubber gate shifted above the tank. */
-Real dp_s = 0.5 * resolution_ref;
+Real dp_s = resolution_ref;
 Vec2d offset = Vec2d(0.0, Base_bottom_position - floor(Base_bottom_position / dp_s) * dp_s);
 /** Domain bounds of the system. */
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(DL + BW, DH + BW));
@@ -47,13 +47,13 @@ Real rho0_f = 1.0;                         /**< Reference density of fluid. */
 Real gravity_g = 9.8e-3;                   /**< Value of gravity. */
 Real U_f = 1.0;                            /**< Characteristic velocity. */
 Real c_f = 20.0 * sqrt(140.0 * gravity_g); /**< Reference sound speed. */
+Real mu_f = 1.0E-3;
 //----------------------------------------------------------------------
 //	Material parameters of the elastic gate.
 //----------------------------------------------------------------------
 Real rho0_s = 1.1;   /**< Reference density of gate. */
-Real poisson = 0.47; /**< Poisson ratio. */
-Real Ae = 7.8e3;     /**< Normalized Youngs Modulus. */
-Real Youngs_modulus = Ae * rho0_f * U_f * U_f;
+Real poisson = 0.4; /**< Poisson ratio. */
+Real Youngs_modulus = 1.2E4;
 //----------------------------------------------------------------------
 //	Cases-dependent geometries
 //----------------------------------------------------------------------
@@ -147,7 +147,7 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBlock"));
-    water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f);
+    water_block.defineParticlesAndMaterial<BaseParticles, WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
     water_block.generateParticles<ParticleGeneratorLattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
@@ -155,12 +155,12 @@ int main(int ac, char *av[])
     wall_boundary.generateParticles<ParticleGeneratorLattice>();
 
     SolidBody gate(sph_system, makeShared<MultiPolygonShape>(createGateShape(), "Gate"));
-    gate.defineAdaptationRatios(1.15, 2.0);
+    gate.defineAdaptationRatios(1.15, 1.0);
     gate.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     gate.generateParticles<ParticleGeneratorLattice>();
 
     ObserverBody gate_observer(sph_system, "Observer");
-    gate_observer.defineAdaptationRatios(1.15, 2.0);
+    gate_observer.defineAdaptationRatios(1.15, 1.0);
     gate_observer.generateParticles<ObserverParticleGenerator>(observation_location);
     //----------------------------------------------------------------------
     //	Define body relation map.
@@ -184,6 +184,8 @@ int main(int ac, char *av[])
     Dynamics1Level<fluid_dynamics::Integration1stHalfRiemannWithWall> pressure_relaxation(water_block_complex_relation);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfRiemannWithWall> density_relaxation(water_block_complex_relation);
     InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex> update_density_by_summation(water_block_complex_relation);
+    InteractionDynamics<fluid_dynamics::ViscousAccelerationWithWall> viscous_force(water_block_complex_relation);
+
     SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g)));
     ReduceDynamics<fluid_dynamics::AdvectionTimeStepSize> get_fluid_advection_time_step_size(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStepSize> get_fluid_time_step_size(water_block);
@@ -195,6 +197,7 @@ int main(int ac, char *av[])
     SimpleDynamics<NormalDirectionFromBodyShape> gate_normal_direction(gate);
     InteractionWithUpdate<KernelCorrectionMatrixInner> gate_corrected_configuration(gate_inner_relation);
     InteractionDynamics<solid_dynamics::PressureForceAccelerationFromFluidRiemann> fluid_pressure_force_on_gate(gate_water_contact_relation);
+    InteractionDynamics<solid_dynamics::ViscousForceFromFluid> viscous_force_on_gate(gate_water_contact_relation);
     solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(gate);
     //----------------------------------------------------------------------
     //	Algorithms of Elastic dynamics.
@@ -214,6 +217,8 @@ int main(int ac, char *av[])
     RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
         write_beam_tip_displacement("Position", io_environment, gate_observer_contact_relation);
     // TODO: observing position is not as good observing displacement.
+    water_block.addBodyStateForRecording<Real>("Pressure");
+
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -253,6 +258,11 @@ int main(int ac, char *av[])
             initialize_a_fluid_step.exec();
             Real Dt = get_fluid_advection_time_step_size.exec();
             update_density_by_summation.exec();
+
+            viscous_force.exec();
+            /** Viscous force exerting on structure. */
+            viscous_force_on_gate.exec();
+
             /** Update normal direction at elastic body surface. */
             gate_update_normal.exec();
             Real relaxation_time = 0.0;
