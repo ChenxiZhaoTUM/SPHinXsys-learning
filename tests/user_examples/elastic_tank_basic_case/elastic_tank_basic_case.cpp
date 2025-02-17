@@ -32,7 +32,7 @@ int main(int ac, char* av[])
 	//	Creating body, materials and particles.
 	//--------------------------------------------------------------------------------
 	SolidBody tank(sph_system, makeShared<Tank>("Tank"));
-	//tank.defineAdaptation<SPHAdaptation>(1.15, 2.0);  // can not use damping
+	tank.defineAdaptation<SPHAdaptation>(1.15, 2.0);  // can not use damping
 	tank.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
 	if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
 	{
@@ -64,6 +64,7 @@ int main(int ac, char* av[])
 	//	Basically the the range of bodies to build neighbor particle lists.
 	//--------------------------------------------------------------------------------
 	InnerRelation tank_inner(tank);
+	InnerRelation water_inner(water_block);
 
 	ContactRelation water_block_contact(water_block, { &tank });
 	ContactRelation air_block_contact(air_block, { &tank });
@@ -166,9 +167,10 @@ int main(int ac, char* av[])
 	Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfRiemannWithWall>
 		air_density_relaxation(air_block_contact, air_water_complex);
 
-	DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vecd, DampingPairwiseInner>>>
-        fluid_damping(0.2, water_tank_complex_for_damping, "Velocity", viscous_dynamics);
-
+	/*DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vecd, DampingPairwiseInner>>>
+        fluid_damping(0.2, water_tank_complex_for_damping, "Velocity", viscous_dynamics);*/
+	DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d>>>
+        fluid_damping(0.2, water_inner, "Velocity", viscous_dynamics);
 	//--------------------------------------------------------------------------------
 	//	Algorithms of FSI.
 	//--------------------------------------------------------------------------------
