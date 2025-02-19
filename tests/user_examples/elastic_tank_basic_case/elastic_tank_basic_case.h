@@ -23,7 +23,7 @@ std::string probe_shape = "./input/base_case_probe_0.106.STL";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real resolution_ref = 0.006;			  /** Initial particle spacing*/
+Real resolution_ref = 0.0072;			  /** Initial particle spacing*/
 Real length_scale = 1.0;							  /** Scale factor*/
 Vecd translation(0, 0.12, 0);
 BoundingBox system_domain_bounds(Vecd(-0.6, -0.2, -0.2), Vecd(0.6, 0.4, 0.2));
