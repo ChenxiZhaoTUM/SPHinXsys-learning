@@ -16,9 +16,9 @@ Real DH = 2.1;                                /**< Tank height. */
 Real Dam_L = 1.0;                             /**< Water block width. */
 Real Dam_H = 2.0;                             /**< Water block height. */
 Real Gate_width = 0.05;                       /**< Width of the gate. */
-Real particle_spacing_ref = Gate_width / 4.0; /**< Initial reference particle spacing. 8, 10, 12 */
+Real particle_spacing_ref = Gate_width / 12.0; /**< Initial reference particle spacing. 8, 10, 12 */
 Real BW = 4.0 * particle_spacing_ref;         /**< Extending width for BCs. */
-BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(DL + BW, DH + BW));
+BoundingBox system_domain_bounds(Vec2d(-BW, -Gate_width), Vec2d(DL + BW, DH + BW));
 //----------------------------------------------------------------------
 //	Define the corner point of water block geometry.
 //----------------------------------------------------------------------
@@ -268,10 +268,12 @@ int main(int ac, char *av[])
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
     /** Output body states for visualization. */
-    BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, sph_system.real_bodies_);
+    BodyStatesRecordingToPlt write_real_body_states_to_vtp(io_environment, sph_system.real_bodies_);
     /** Output the observed displacement of gate free end. */
     RegressionTestEnsembleAverage<ObservedQuantityRecording<Vecd>>
         write_beam_tip_displacement("Position", io_environment, gate_observer_contact);
+
+    water_block.addBodyStateForRecording<Real>("Pressure");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -296,8 +298,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
-    Real end_time = 0.5; /**< End time. */
-    Real output_interval = end_time / 50.0;
+    Real end_time = 1.0; /**< End time. */
+    Real output_interval = end_time / 100.0;
     Real dt = 0.0;   /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     TickCount t1 = TickCount::now();

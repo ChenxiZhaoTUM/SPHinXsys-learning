@@ -19,7 +19,7 @@ Real Base_bottom_position = 79.0;       /**< Position of gate base. (In Y direct
 Real resolution_ref = 1.0; /**< Initial reference particle spacing. */
 Real BW = resolution_ref * 4.0;         /**< Extending width for BCs. */
 /** The offset that the rubber gate shifted above the tank. */
-Real dp_s = resolution_ref;
+Real dp_s = 0.5*resolution_ref;
 Vec2d offset = Vec2d(0.0, Base_bottom_position - floor(Base_bottom_position / dp_s) * dp_s);
 /** Domain bounds of the system. */
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(DL + BW, DH + BW));
@@ -155,12 +155,12 @@ int main(int ac, char *av[])
     wall_boundary.generateParticles<ParticleGeneratorLattice>();
 
     SolidBody gate(sph_system, makeShared<MultiPolygonShape>(createGateShape(), "Gate"));
-    gate.defineAdaptationRatios(1.15, 1.0);
+    gate.defineAdaptationRatios(1.15, resolution_ref/dp_s);
     gate.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     gate.generateParticles<ParticleGeneratorLattice>();
 
     ObserverBody gate_observer(sph_system, "Observer");
-    gate_observer.defineAdaptationRatios(1.15, 1.0);
+    gate_observer.defineAdaptationRatios(1.15, resolution_ref / dp_s);
     gate_observer.generateParticles<ObserverParticleGenerator>(observation_location);
     //----------------------------------------------------------------------
     //	Define body relation map.
@@ -235,7 +235,7 @@ int main(int ac, char *av[])
     int number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 400.0;
-    Real output_interval = end_time / 200.0;
+    Real output_interval = end_time / 400.0;
     Real dt = 0.0;   /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     TickCount t1 = TickCount::now();
