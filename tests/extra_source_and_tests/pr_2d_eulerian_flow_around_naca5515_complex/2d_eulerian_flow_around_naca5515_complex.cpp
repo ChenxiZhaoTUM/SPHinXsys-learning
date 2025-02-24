@@ -12,7 +12,7 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Set the file path to the data file.
 //----------------------------------------------------------------------
-std::string airfoil = "./input/NACA5515_5deg.dat";
+std::string airfoil = "./input/NACA5515_neg10deg.dat";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
@@ -151,16 +151,16 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     // Tag for run particle relaxation for the initial body fitted distribution.
-    sph_system.setRunParticleRelaxation(true);
+    sph_system.setRunParticleRelaxation(false);
     // Tag for computation start with relaxed body fitted particles distribution.
-    sph_system.setReloadParticles(false);
+    sph_system.setReloadParticles(true);
     // Handle command line arguments and override the tags for particle relaxation and reload.
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     SolidBody airfoil(sph_system, makeShared<AirfoilModel>("AirfoilNACA5515"));
-    airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.0)->writeLevelSet(sph_system);
+    airfoil.defineBodyLevelSetShape()->cleanLevelSet(1.0);
     airfoil.defineMaterial<Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? airfoil.generateParticles<BaseParticles, Reload>(airfoil.getName())
@@ -331,14 +331,14 @@ int main(int ac, char *av[])
     water_block.addBodyStateForRecording<Vecd>("MomentumChangeRate");
     water_block.addBodyStateForRecording<int>("Indicator");
     water_block.addBodyStateForRecording<Real>("Pressure");
-    //BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
-    BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
+    BodyStatesRecordingToVtp write_real_body_states(sph_system.real_bodies_);
+    //BodyStatesRecordingToPlt write_real_body_states(sph_system.real_bodies_);
 
 
-    //RegressionTestDynamicTimeWarping<ReducedQuantityRecording<QuantitySummation<Vecd>>>
-    //    write_total_viscous_force_from_fluid(airfoil, "ViscousForceFromFluid");
-    //ReducedQuantityRecording<QuantitySummation<Vecd>>
-    //    write_total_pressure_force_from_fluid_body(airfoil, "PressureForceFromFluid");
+    ReducedQuantityRecording<QuantitySummation<Vecd>>
+        write_total_viscous_force_from_fluid(airfoil, "ViscousForceFromFluid");
+    ReducedQuantityRecording<QuantitySummation<Vecd>>
+        write_total_pressure_force_from_fluid(airfoil, "PressureForceFromFluid");
     //ReducedQuantityRecording<MaximumSpeed> write_maximum_speed(water_block);
 
     ObservedQuantityRecording<Real>
@@ -366,7 +366,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     size_t number_of_iterations = 0;
     int screen_output_interval = 1000;
-    Real end_time = 15.0;
+    Real end_time = 10.0;
     Real output_interval = 0.5; /**< time stamps for output. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
@@ -416,8 +416,8 @@ int main(int ac, char *av[])
 
         viscous_force_from_fluid.exec();
         pressure_force_from_fluid.exec();
-        //write_total_viscous_force_from_fluid.writeToFile(number_of_iterations);
-        //write_total_pressure_force_from_fluid_body.writeToFile(number_of_iterations);
+        write_total_viscous_force_from_fluid.writeToFile(number_of_iterations);
+        write_total_pressure_force_from_fluid.writeToFile(number_of_iterations);
         //write_maximum_speed.writeToFile(number_of_iterations);
 
         write_recorded_water_pressure.writeToFile(number_of_iterations);
@@ -434,8 +434,6 @@ int main(int ac, char *av[])
     TimeInterval tt;
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
-
-    //write_total_viscous_force_from_fluid.testResult();
 
     return 0;
 }
