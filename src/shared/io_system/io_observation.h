@@ -97,6 +97,65 @@ class ObservedQuantityRecording<VariableType> : public BodyStatesRecording,
     }
 };
 
+class AxialVelocityRecording : public BodyStatesRecording,
+                                                public ObservingAQuantity<Vecd>
+{
+  protected:
+    SPHBody &observer_;
+    PltEngine plt_engine_;
+    BaseParticles &base_particles_;
+    std::string dynamics_identifier_name_;
+    const std::string quantity_name_;
+    std::string filefullpath_output_;
+
+  public:
+    Vecd type_indicator_; /*< this is an indicator to identify the variable type. */
+
+  public:
+    AxialVelocityRecording(BaseContactRelation &contact_relation)
+        : BodyStatesRecording(contact_relation.getSPHBody()),
+          ObservingAQuantity<Vecd>(contact_relation, "Velocity"),
+          observer_(contact_relation.getSPHBody()), plt_engine_(),
+          base_particles_(observer_.getBaseParticles()),
+          dynamics_identifier_name_(contact_relation.getSPHBody().getName()),
+          quantity_name_("Velocity")
+    {
+        /** Output for .dat file. */
+        filefullpath_output_ = io_environment_.output_folder_ + "/" + dynamics_identifier_name_ + "_" + "AxialVelocity" + ".dat";
+        std::ofstream out_file(filefullpath_output_.c_str(), std::ios::app);
+        out_file << "run_time"
+                 << "   ";
+        for (size_t i = 0; i != base_particles_.TotalRealParticles(); ++i)
+        {
+            std::string quantity_name_i = quantity_name_ + "[" + std::to_string(i) + "]";
+            out_file << "\"" << quantity_name_i << "[0]\""
+                 << "   ";
+        }
+        out_file << "\n";
+        out_file.close();
+    };
+    virtual ~AxialVelocityRecording(){};
+
+    virtual void writeWithFileName(const std::string &sequence) override
+    {
+        this->exec();
+        std::ofstream out_file(filefullpath_output_.c_str(), std::ios::app);
+        out_file << sv_physical_time_.getValue() << "   ";
+        for (size_t i = 0; i != base_particles_.TotalRealParticles(); ++i)
+        {
+            out_file << std::fixed << std::setprecision(9) << this->interpolated_quantities_[i][0] << "   ";
+        }
+        out_file << "\n";
+        out_file.close();
+    };
+
+    Vecd *getObservedQuantity()
+    {
+        return this->interpolated_quantities_;
+    }
+};
+
+
 template <typename...>
 class ReducedQuantityRecording;
 /**
