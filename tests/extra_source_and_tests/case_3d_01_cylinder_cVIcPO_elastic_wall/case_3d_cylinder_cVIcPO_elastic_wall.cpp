@@ -19,17 +19,18 @@ using namespace SPH;
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real scale = 0.001;
-Real diameter = 5.0 * scale;
+Real diameter = 1.0 * scale;
+Real DH = diameter;
 Real fluid_radius = 0.5 * diameter;
-Real full_length = 50.0 * scale;
+Real full_length = 4.0 * scale;
 //----------------------------------------------------------------------
 //	Geometry parameters for wall.
 //----------------------------------------------------------------------
-int number_of_particles = 10;
+int number_of_particles = 30;
 Real resolution_ref = diameter / number_of_particles;
 //Real resolution_wall = 0.5 * resolution_ref;
 Real resolution_wall = resolution_ref;
-Real wall_thickness = resolution_ref * 3.0;
+Real wall_thickness = resolution_ref * 4.0;
 int SimTK_resolution = 20;
 Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 //----------------------------------------------------------------------
@@ -47,18 +48,21 @@ BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter) - Ve
 //----------------------------------------------------------------------
 //	Material parameters.
 //----------------------------------------------------------------------
-Real Outlet_pressure = 0;
-Real rho0_f = 1060.0; /**< Reference density of fluid. */
-Real mu_f = 0.004;   /**< Viscosity. */
+Real Inlet_pressure = 0.2;
+Real Outlet_pressure = 0.1;
+Real rho0_f = 1000.0; /**< Reference density of fluid. */
+Real Re = 50;
+Real mu_f = sqrt(rho0_f * pow(0.5 * DH, 3.0) * fabs(Inlet_pressure - Outlet_pressure) / (Re * full_length));
 /**< Characteristic velocity. Average velocity */
-Real U_f = 0.2;
+Real U_f = pow(0.5 * DH, 2.0) * fabs(Inlet_pressure - Outlet_pressure) / (2.0 * mu_f * full_length);
 Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
-Real rho0_s = 1200;           /** Normalized density. */
-Real Youngs_modulus = 1.5e6; /** Normalized Youngs Modulus. */
-Real poisson = 0.49;          /** Poisson ratio. */
-Real physical_viscosity = 200;
+Real rho0_s = 1100;           /** Normalized density. */
+Real Youngs_modulus = 1.0e4; /** Normalized Youngs Modulus. */
+Real poisson = 0.3;          /** Poisson ratio. */
+Real physical_viscosity = diameter/full_length/4 * sqrt(rho0_s*Youngs_modulus) * diameter;
+//Real physical_viscosity = 200;
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -78,7 +82,7 @@ struct InflowVelocity
     {
         Vec3d target_velocity = Vec3d(0, 0, 0);
 
-        target_velocity[0] = SMAX(2.0 * U_f * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
+        target_velocity[0] = SMAX(U_f * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
                                   0.);
 
         return target_velocity;
@@ -148,7 +152,7 @@ StdVec<Vecd> createWallAxialObservationPoints(
 };
 
 StdVec<Vecd> displacement_observation_location = {
-    Vecd(15 * scale, fluid_radius + 0.5 * wall_thickness, 0.0), Vecd(25 * scale, fluid_radius + 0.5 * wall_thickness, 0.0), Vecd(35 * scale, fluid_radius + 0.5 * wall_thickness, 0.0)};
+    Vecd(1.5 * scale, fluid_radius + 0.5 * wall_thickness, 0.0), Vecd(2.0 * scale, fluid_radius + 0.5 * wall_thickness, 0.0), Vecd(3.5 * scale, fluid_radius + 0.5 * wall_thickness, 0.0)};
 //----------------------------------------------------------------------
 //	Boundary constrain
 //----------------------------------------------------------------------
@@ -228,7 +232,7 @@ int main(int ac, char *av[])
     ObserverBody fluid_axial_observer(system, "fluid_observer_axial");
     fluid_axial_observer.generateParticles<ObserverParticles>(createAxialObservationPoints(full_length));
     ObserverBody fluid_radial_observer(system, "fluid_observer_radial");
-    fluid_radial_observer.generateParticles<ObserverParticles>(createRadialObservationPoints(full_length, diameter, number_of_particles));
+    fluid_radial_observer.generateParticles<ObserverParticles>(createRadialObservationPoints(full_length, diameter, 50));
     ObserverBody wall_axial_observer(system, "wall_observer_axial");
     wall_axial_observer.generateParticles<ObserverParticles>(createWallAxialObservationPoints(full_length)); 
     ObserverBody wall_displacement_observer(system, "wall_observer_displacement");
@@ -369,8 +373,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(wall_boundary, "TimeAveragedWallShearStress");
     body_states_recording.addToWrite<Real>(wall_boundary, "OscillatoryShearIndex");
     ObservedQuantityRecording<Vecd> write_wall_WSS_axial("WallShearStress", wall_observer_contact_axial);
-    ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", fluid_observer_contact_axial);
-    ObservedQuantityRecording<Vec3d> write_fluid_velocity_radial("Velocity", fluid_observer_contact_radial);
+    AxialVelocityRecording write_fluid_velocity_axial(fluid_observer_contact_axial);
+    AxialVelocityRecording write_fluid_velocity_radial(fluid_observer_contact_radial);
     ObservedQuantityRecording<Vecd> write_wall_displacement("Position", wall_observer_contact_displacement);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -392,7 +396,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 2.0;               /**< End time. */
-    Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 20; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
