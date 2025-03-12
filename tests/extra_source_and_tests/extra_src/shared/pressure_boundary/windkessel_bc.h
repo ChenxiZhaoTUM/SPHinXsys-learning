@@ -601,7 +601,7 @@ class ResistanceBCPressure : public BaseLocalDynamics<BodyPartByCell>
         : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
           part_id_(aligned_box_part.getPartID()),
           R_(0.0), delta_t_(0.0),
-          Q_n_(0.0), p_n_(100.0*133.322), p_0_(100.0*133.322),
+          Q_n_(0.0), p_n_(0), p_0_(0),
           flow_rate_(*(this->particles_->registerSingularVariable<Real>("FlowRate" + std::to_string(part_id_ - 1))->Data())),
           current_flow_rate_(0.0), previous_flow_rate_(0.0),
           physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")) {};
@@ -618,10 +618,10 @@ class ResistanceBCPressure : public BaseLocalDynamics<BodyPartByCell>
         getFlowRate();
 
         Q_n_ = current_flow_rate_ / delta_t_;
-        p_n_ = p_0_ + R_ * Q_n_;
+        p_n_ = R_ * Q_n_;
 
         std::cout << "Q_n_ = " << Q_n_ << std::endl;
-        std::cout << "p_n_ = " << p_n_ / 133.32 << " mmHg" << std::endl;
+        std::cout << "p_n_ = " << p_n_ << std::endl;
 
         writeOutletPressureData();
         writeOutletFlowRateData();
@@ -629,7 +629,7 @@ class ResistanceBCPressure : public BaseLocalDynamics<BodyPartByCell>
 
     Real operator()(Real p, Real current_time)
     {
-        return p_n_ - 100 * 133.322;
+        return p_n_;
     }
 
   protected:
