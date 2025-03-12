@@ -55,8 +55,8 @@ Real mu_f = sqrt(rho0_f * fluid_radius * fluid_radius * fabs(Inlet_pressure - Ou
 //Real mu_f = 0.00025;
 /**< Characteristic velocity. Average velocity */
 Real U_f = fabs(Inlet_pressure - Outlet_pressure) *  fluid_radius * fluid_radius / (8 * mu_f * full_length);
-Real U_max = 3.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
-Real c_f = 10.0 * U_max; /**< Reference sound speed. */
+Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
+Real c_f = 100.0 * U_max; /**< Reference sound speed. */
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
