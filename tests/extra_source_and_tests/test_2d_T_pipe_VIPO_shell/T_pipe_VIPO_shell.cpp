@@ -12,6 +12,7 @@
 #include "kernel_summation.hpp"
 #include "pressure_boundary.h"
 #include "sphinxsys.h"
+#include "hemodynamic_indices.h"
 
 using namespace SPH;
 //----------------------------------------------------------------------
@@ -22,7 +23,7 @@ Real DH = 0.1;               /**< Reference and the height of main channel. */
 Real DL1 = 0.75 * DL;        /**< The length of the main channel. */
 Real resolution_ref = 0.005; /**< Initial reference particle spacing. */
 Real resolution_shell = resolution_ref;
-Real BW = resolution_shell * 1.0;
+Real BW = resolution_ref * 4.0;
 Real buffer_width = resolution_ref * 4.0;                    /**< Reference size of the emitter. */
 Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
@@ -239,6 +240,26 @@ class BoundaryGeometry : public BodyPartByParticle
         }
     };
 };
+
+StdVec<Vecd> createRadialObservationPoints(
+    double axial_position, double height, int number_of_particles,
+    Vecd translation = Vecd(0.0, 0.0))
+{
+    StdVec<Vecd> observation_points;
+    double x = axial_position;
+
+    for (int i = 0; i <= number_of_particles; ++i)
+    {
+        double z = height * i / double(number_of_particles);
+        observation_points.emplace_back(Vecd(x, z) + translation);
+    }
+
+    return observation_points;
+};
+
+StdVec<Vecd> displacement_observation_location = {
+    Vecd(0.0, DH + 0.5 * resolution_shell), Vecd((DL1-DL_sponge)/2, DH + 0.5 * resolution_shell), 
+    Vecd(DL1 - 0.5 * resolution_shell, 1.5 * DH), Vecd(DL + 0.5 * resolution_shell, 1.5 * DH) };
 } // namespace SPH
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
@@ -270,6 +291,12 @@ int main(int ac, char *av[])
 
     ObserverBody velocity_observer(sph_system, "VelocityObserver");
     velocity_observer.generateParticles<ObserverParticles>(observer_location);
+
+    ObserverBody fluid_radial_observer(sph_system, "fluid_observer_radial");
+    fluid_radial_observer.generateParticles<ObserverParticles>(createRadialObservationPoints((DL1-DL_sponge)/2, DH, 50));
+    ObserverBody wall_displacement_observer(sph_system, "wall_observer_displacement");
+    wall_displacement_observer.generateParticles<ObserverParticles>(displacement_observation_location);
+    
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -284,6 +311,8 @@ int main(int ac, char *av[])
     ContactRelationFromFluidToShell shell_water_contact(shell_body, {&water_block}, {false});
     ShellInnerRelationWithContactKernel shell_curvature_inner(shell_body, water_block);
     ContactRelation velocity_observer_contact(velocity_observer, {&water_block});
+    ContactRelation fluid_observer_contact_radial(fluid_radial_observer, {&water_block});
+    ContactRelation shell_observer_contact_displacement(wall_displacement_observer, {&shell_body});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.
@@ -340,7 +369,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     // FSI.
     //----------------------------------------------------------------------
-    InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_shell(shell_water_contact);
+    InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_on_shell(shell_water_contact);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
     solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
     //----------------------------------------------------------------------
@@ -358,10 +387,14 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
-    body_states_recording.addToWrite<Vecd>(shell_body, "PressureForceFromFluid");
+    body_states_recording.addToWrite<Matd>(shell_body, "MidSurfaceCauchyStress");
+    body_states_recording.addToWrite<Vecd>(shell_body, "WallShearStress");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
     RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>> write_centerline_velocity("Velocity", velocity_observer_contact);
+    AxialVelocityRecording write_fluid_velocity_radial(fluid_observer_contact_radial);
+    ObservedQuantityRecording<Vecd> write_wall_displacement("Position", shell_observer_contact_displacement);
+    ObservedQuantityRecording<Vecd> write_shell_WSS_axial("WallShearStress", shell_observer_contact_displacement);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -501,6 +534,12 @@ int main(int ac, char *av[])
         body_states_recording.writeToFile();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
+
+        fluid_observer_contact_radial.updateConfiguration();
+        write_fluid_velocity_radial.writeToFile(number_of_iterations);
+        shell_observer_contact_displacement.updateConfiguration();
+        write_wall_displacement.writeToFile(number_of_iterations);
+        write_shell_WSS_axial.writeToFile(number_of_iterations);
     }
     TickCount t4 = TickCount::now();
 
@@ -515,14 +554,14 @@ int main(int ac, char *av[])
     std::cout << std::fixed << std::setprecision(9) << "interval_updating_configuration = "
               << interval_updating_configuration.seconds() << "\n";
 
-    if (sph_system.GenerateRegressionData())
-    {
-        write_centerline_velocity.generateDataBase(1.0e-3);
-    }
-    else
-    {
-        write_centerline_velocity.testResult();
-    }
+    //if (sph_system.GenerateRegressionData())
+    //{
+    //    write_centerline_velocity.generateDataBase(1.0e-3);
+    //}
+    //else
+    //{
+    //    write_centerline_velocity.testResult();
+    //}
 
     return 0;
 }
