@@ -369,6 +369,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "NormalDirection");
     body_states_recording.addToWrite<Real>(wall_boundary, "Density");
+    body_states_recording.addDerivedVariableRecording<SimpleDynamics<VonMisesStress>>(wall_boundary);
+    body_states_recording.addDerivedVariableRecording<SimpleDynamics<Displacement>>(wall_boundary);
     body_states_recording.addToWrite<Vecd>(wall_boundary, "WallShearStress");
     body_states_recording.addToWrite<Real>(wall_boundary, "TimeAveragedWallShearStress");
     body_states_recording.addToWrite<Real>(wall_boundary, "OscillatoryShearIndex");

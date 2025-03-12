@@ -399,6 +399,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_boundary, "NormalDirection");
     body_states_recording.addToWrite<Matd>(shell_boundary, "MidSurfaceCauchyStress");
+    body_states_recording.addDerivedVariableRecording<SimpleDynamics<Displacement>>(shell_boundary);
     body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
     body_states_recording.addToWrite<Vecd>(shell_boundary, "WallShearStress");
