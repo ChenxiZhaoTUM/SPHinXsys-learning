@@ -1,6 +1,6 @@
 /**
- * @file 	carotid_VIPO_wall.cpp
- * @brief 	Carotid artery with solid wall, imposed velocity inlet and pressure outlet condition.
+ * @file 	wall_particle_generation_illustration.cpp
+ * @brief 	
  */
 
 #include "sphinxsys.h"

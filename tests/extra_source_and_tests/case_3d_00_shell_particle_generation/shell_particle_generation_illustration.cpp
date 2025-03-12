@@ -1,10 +1,6 @@
 /**
- * @file 	carotid_VIPO_rigid_shell.cpp
- * @brief 	Carotid artery with shell, imposed velocity inlet and pressure outlet condition.
- */
-/**
- * @file 	carotid_VIPO_wall.cpp
- * @brief 	Carotid artery with solid wall, imposed velocity inlet and pressure outlet condition.
+ * @file 	shell_particle_generation_illustration.cpp
+ * @brief
  */
 
 #include "kernel_summation.h"
