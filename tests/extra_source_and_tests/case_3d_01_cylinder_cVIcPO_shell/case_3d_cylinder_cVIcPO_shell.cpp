@@ -192,7 +192,14 @@ StdVec<Vecd> createWallAxialObservationPoints(
 };
 
 StdVec<Vecd> displacement_observation_location = {
-    Vecd(1.5 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), Vecd(2.0 * scale, fluid_radius + 0.5* resolution_shell, 0.0), Vecd(3.5 * scale, fluid_radius + 0.5 * resolution_shell, 0.0)};
+    Vecd(0.5 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
+    Vecd(1.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
+    Vecd(1.5 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
+    Vecd(2.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
+    Vecd(2.5 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
+    Vecd(3.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
+    Vecd(3.5 * scale, fluid_radius + 0.5 * resolution_shell, 0.0)};
+
 //----------------------------------------------------------------------
 //	Boundary constrain
 //----------------------------------------------------------------------
