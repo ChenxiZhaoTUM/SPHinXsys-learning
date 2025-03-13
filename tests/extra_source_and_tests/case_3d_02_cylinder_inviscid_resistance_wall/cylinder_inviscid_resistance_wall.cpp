@@ -341,7 +341,7 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-    right_pressure_condition.getTargetPressure()->setWindkesselParams(1.0E7, accumulated_time);
+    right_pressure_condition.getTargetPressure()->setWindkesselParams(5.0E6, accumulated_time);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
