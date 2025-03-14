@@ -284,7 +284,7 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 4.0;    /**< Characteristic velocity. */
+Real U_f = 2.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f ;
 Real mu_f = 0.004; /**< Dynamics viscosity. */
@@ -293,7 +293,7 @@ Real rho0_s = 1200;                /** Normalized density. */
 Real Youngs_modulus = 1.5e6;    /** Normalized Youngs Modulus. */
 Real poisson = 0.49;               /** Poisson ratio. */
 // Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */  //478
-Real physical_viscosity = 20000;
+Real physical_viscosity = 2000;
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -395,7 +395,7 @@ int main(int ac, char *av[])
     shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, 3.0*dp_0);
+        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, 4.0*dp_0);
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineBodyLevelSetShape()->cleanLevelSet();
