@@ -48,8 +48,7 @@ BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter) - Ve
 //	Material parameters.
 //----------------------------------------------------------------------
 Real rho0_f = 1000.0; /**< Reference density of fluid. */
-Real U_f = 0.5;
-Real U_max = 2.0 * U_f;
+Real U_max = 1.0;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 //----------------------------------------------------------------------
 //	Shell particle generation
@@ -115,9 +114,6 @@ struct InflowVelocity
             u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * current_time) + b[i] * sin(w * (i + 1) * current_time),
                          0.0);
         }
-            
-        //target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
-        //                          1.0e-2);
 
         target_velocity[0] = u_ave;
         target_velocity[1] = 0.0;
@@ -370,8 +366,8 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-
     right_pressure_condition.getTargetPressure()->setWindkesselParams(3.05E8, 9.79E-10, 1.37E9, accumulated_time);
+    
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
