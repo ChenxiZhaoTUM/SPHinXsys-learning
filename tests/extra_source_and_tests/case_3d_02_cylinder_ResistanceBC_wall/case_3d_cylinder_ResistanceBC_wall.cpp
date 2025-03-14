@@ -1,5 +1,5 @@
 /**
- * @file 	case_3d_cylinder_cVIcPO_rigid_shell.cpp
+ * @file 	case_3d_cylinder_ResistanceBC_wall.cpp
  * @brief 
  * @details
  * @author 
@@ -19,17 +19,18 @@ using namespace SPH;
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real scale = 0.001;
-Real diameter = 5.0 * scale;
+Real diameter = 1.0 * scale;
+Real DH = diameter;
 Real fluid_radius = 0.5 * diameter;
-Real full_length = 50.0 * scale;
+Real full_length = 4.0 * scale;
 //----------------------------------------------------------------------
 //	Geometry parameters for wall.
 //----------------------------------------------------------------------
-int number_of_particles = 10;
+int number_of_particles = 30;
 Real resolution_ref = diameter / number_of_particles;
 //Real resolution_wall = 0.5 * resolution_ref;
-Real resolution_shell = resolution_ref;
-Real wall_thickness = resolution_ref * 3.0;
+Real resolution_wall = resolution_ref;
+Real wall_thickness = resolution_ref * 4.0;
 int SimTK_resolution = 20;
 Vec3d translation_fluid(full_length * 0.5, 0., 0.);
 //----------------------------------------------------------------------
@@ -47,91 +48,44 @@ BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter) - Ve
 //----------------------------------------------------------------------
 //	Material parameters.
 //----------------------------------------------------------------------
-Real Outlet_pressure = 0;
-Real rho0_f = 1060.0; /**< Reference density of fluid. */
-Real mu_f = 0.004;   /**< Viscosity. */
-/**< Characteristic velocity. Average velocity */
-Real U_f = 0.2;
-Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
+Real rho0_f = 1000.0; /**< Reference density of fluid. */
+Real mu_f = 0.004;
+Real U_max = 0.08;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
-//----------------------------------------------------------------------
-//	Shell particle generation
-//----------------------------------------------------------------------
-class ShellBoundary;
-template <>
-class ParticleGenerator<SurfaceParticles, ShellBoundary> : public ParticleGenerator<SurfaceParticles>
-{
-    Real resolution_shell_;
-    Real shell_thickness_;
-
-  public:
-    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles,
-                               Real resolution_shell, Real shell_thickness)
-        : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
-          resolution_shell_(resolution_shell),
-          shell_thickness_(shell_thickness){};
-    void prepareGeometricData() override
-    {
-        Real radius_mid_surface = fluid_radius + resolution_shell_ * 0.5;
-        auto particle_number_mid_surface =
-            int(2.0 * radius_mid_surface * Pi / resolution_shell_);
-        auto particle_number_height =
-            int(full_length / resolution_shell_);
-        for (int i = 0; i < particle_number_mid_surface; i++)
-        {
-            for (int j = 0; j < particle_number_height; j++)
-            {
-                Real theta = (i + 0.5) * 2 * Pi / (Real)particle_number_mid_surface;
-                
-                Real x = full_length  * j / (Real)particle_number_height + 0.5 * resolution_shell_;
-                Real y = radius_mid_surface * cos(theta);
-                Real z = radius_mid_surface * sin(theta);
-                addPositionAndVolumetricMeasure(Vec3d(x, y, z),
-                                                resolution_shell_ * resolution_shell_);
-                Vec3d n_0 = Vec3d(0.0, y / radius_mid_surface, z / radius_mid_surface);
-                addSurfaceProperties(n_0, shell_thickness_);
-            }
-        }
-    }
-};
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
 struct InflowVelocity
 {
-    Real u_ref_, t_ref_;
+    Real u_ave;
     AlignedBoxShape &aligned_box_;
-    Vec3d halfsize_;
 
     template <class BoundaryConditionType>
     InflowVelocity(BoundaryConditionType &boundary_condition)
-        : u_ref_(U_f), t_ref_(1.0),
-          aligned_box_(boundary_condition.getAlignedBox()),
-          halfsize_(aligned_box_.HalfSize()) {}
+        : u_ave(0.0), aligned_box_(boundary_condition.getAlignedBox()) {}
 
     Vecd operator()(Vecd &position, Vecd &velocity, Real current_time)
     {
-        Vec3d target_velocity = Vec3d(0, 0, 0);
+        Vecd target_velocity = velocity;
 
-        Real u_ave = current_time < t_ref_ ? 0.5 * u_ref_ * (1.0 - cos(Pi * current_time / t_ref_)) : u_ref_;
-        target_velocity[0] = 2.0 * u_ave * SMAX(0.0, 1.0 - position[1] * position[1] / fluid_radius / fluid_radius);
+        u_ave = 0.3782;
+        Real a[8] = {-0.1812, 0.1276, -0.08981, 0.04347, -0.05412, 0.02642, 0.008946, -0.009005};
+        Real b[8] = {-0.07725, 0.01466, 0.004295, -0.06679, 0.05679, -0.01878, 0.01869, -0.01888};
+        for (size_t i = 0; i < 8; i++)
+        {
+            u_ave = u_ave + a[i] * cos(8.302 * (i + 1) * current_time) + b[i] * sin(8.302 * (i + 1) * current_time);
+        }
+            
+        /*if (aligned_box_.checkInBounds(position))
+        {
+            target_velocity[0] = 2 * u_ave / 20.0 * SMAX(0.0, 1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius);
+        }*/
+
+        target_velocity[0] = u_ave / 20.0;
+        target_velocity[1] = 0.0;
+        target_velocity[2] = 0.0;
 
         return target_velocity;
-    }
-};
-//----------------------------------------------------------------------
-//	Pressure boundary condition.
-//----------------------------------------------------------------------
-struct RightOutflowPressure
-{
-    template <class BoundaryConditionType>
-    RightOutflowPressure(BoundaryConditionType &boundary_condition) {}
-
-    Real operator()(Real p, Real curent_time)
-    {
-        /*constant pressure*/
-        Real pressure = Outlet_pressure;
-        return pressure;
     }
 };
 //----------------------------------------------------------------------
@@ -176,14 +130,16 @@ StdVec<Vecd> createWallAxialObservationPoints(
     for (int i = 0; i < nx; i++)
     {
         double x = full_length / (nx - 1) * i;
-        Vec3d point_coordinate(x, -fluid_radius - 0.5 * resolution_shell, 0.0);
+        Vec3d point_coordinate(x, -fluid_radius - 0.5 * resolution_wall, 0.0);
         observation_points.emplace_back(point_coordinate + translation);
     }
     return observation_points;
 };
 
 StdVec<Vecd> displacement_observation_location = {
-    Vecd(15 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), Vecd(25 * scale, fluid_radius + 0.5* resolution_shell, 0.0), Vecd(35 * scale, fluid_radius + 0.5 * resolution_shell, 0.0)};
+    Vecd(1.5 * scale, fluid_radius + 0.5 * wall_thickness, 0.0), 
+    Vecd(2.0 * scale, fluid_radius + 0.5 * wall_thickness, 0.0), 
+    Vecd(3.5 * scale, fluid_radius + 0.5 * wall_thickness, 0.0)};
 
 //----------------------------------------------------------------------
 //	Main code.
@@ -197,6 +153,13 @@ int main(int ac, char *av[])
     water_block_shape->add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius,
                                                       full_length * 0.5, SimTK_resolution,
                                                       translation_fluid);
+    auto wall_shape = makeShared<ComplexShape>("WallBody");
+    wall_shape->add<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius + wall_thickness,
+                                               full_length * 0.5 + resolution_wall, SimTK_resolution,
+                                                      translation_fluid);
+    wall_shape->subtract<TriangleMeshShapeCylinder>(SimTK::UnitVec3(1., 0., 0.), fluid_radius,
+                                               full_length * 0.7, SimTK_resolution,
+                                               translation_fluid);
     //----------------------------------------------------------------------
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
@@ -218,15 +181,20 @@ int main(int ac, char *av[])
         ? water_block.generateParticlesWithReserve<BaseParticles, Reload>(in_outlet_particle_buffer, water_block.getName())
         : water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
 
-    SolidBody shell_boundary(system, makeShared<DefaultShape>("Shell"));
-    shell_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_shell);
-    shell_boundary.defineMaterial<Solid>();
-    shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, wall_thickness);
+    SolidBody wall_boundary(system, wall_shape);
+    wall_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_wall);
+    wall_boundary.defineBodyLevelSetShape(2.0)->correctLevelSetSign();
+    //wall_boundary.defineMaterial<LinearElasticSolid>(1, 1e3, 0.45);
+    wall_boundary.defineMaterial<Solid>();
+    (!system.RunParticleRelaxation() && system.ReloadParticles())
+        ? wall_boundary.generateParticles<BaseParticles, Reload>("WallBody")
+        : wall_boundary.generateParticles<BaseParticles, Lattice>();
+
 
     ObserverBody fluid_axial_observer(system, "fluid_observer_axial");
     fluid_axial_observer.generateParticles<ObserverParticles>(createAxialObservationPoints(full_length));
     ObserverBody fluid_radial_observer(system, "fluid_observer_radial");
-    fluid_radial_observer.generateParticles<ObserverParticles>(createRadialObservationPoints(full_length, diameter, number_of_particles));
+    fluid_radial_observer.generateParticles<ObserverParticles>(createRadialObservationPoints(full_length, diameter, 50));
     ObserverBody wall_axial_observer(system, "wall_observer_axial");
     wall_axial_observer.generateParticles<ObserverParticles>(createWallAxialObservationPoints(full_length)); 
     //----------------------------------------------------------------------
@@ -236,19 +204,24 @@ int main(int ac, char *av[])
     if (system.RunParticleRelaxation() && !system.ReloadParticles())
     {
         InnerRelation water_block_inner(water_block);
+        InnerRelation wall_boundary_inner(wall_boundary);
         using namespace relax_dynamics;
         SimpleDynamics<RandomizeParticlePosition> random_water_particles(water_block);
+        SimpleDynamics<RandomizeParticlePosition> random_particles(wall_boundary);
         RelaxationStepInner relaxation_step_water_inner(water_block_inner);
+        RelaxationStepInner relaxation_step_inner(wall_boundary_inner);
         //----------------------------------------------------------------------
         //	Relaxation output
         //----------------------------------------------------------------------
         BodyStatesRecordingToVtp write_body_state_to_vtp(system);
-        ReloadParticleIO write_particle_reload_files({ &water_block});
+        ReloadParticleIO write_particle_reload_files({ &water_block, &wall_boundary });
         //----------------------------------------------------------------------
         //	Physics relaxation starts here.
         //----------------------------------------------------------------------
         random_water_particles.exec(0.25);
+        random_particles.exec(0.25);
         relaxation_step_water_inner.SurfaceBounding().exec();
+        relaxation_step_inner.SurfaceBounding().exec();
         write_body_state_to_vtp.writeToFile(0.0);
         //----------------------------------------------------------------------
         // From here the time stepping begins.
@@ -258,6 +231,7 @@ int main(int ac, char *av[])
         while (ite < relax_step)
         {
             relaxation_step_water_inner.exec();
+            relaxation_step_inner.exec();
             ite++;
             if (ite % 250 == 0)
             {
@@ -276,13 +250,12 @@ int main(int ac, char *av[])
     //  Generally, we first define all the inner relations, then the contact relations.
     //----------------------------------------------------------------------
     InnerRelation water_block_inner(water_block);
-    InnerRelation shell_boundary_inner(shell_boundary);
-    ShellInnerRelationWithContactKernel wall_curvature_inner(shell_boundary, water_block);
-    ContactRelationFromShellToFluid water_block_contact(water_block, {&shell_boundary}, {false});
-    ContactRelationFromFluidToShell shell_water_contact(shell_boundary, {&water_block}, {false});
+    InnerRelation wall_boundary_inner(wall_boundary);
+    ContactRelation water_block_contact(water_block, {&wall_boundary});
+    ContactRelation wall_contact(wall_boundary, {&water_block});
     ContactRelation fluid_observer_contact_axial(fluid_axial_observer, {&water_block});
     ContactRelation fluid_observer_contact_radial(fluid_radial_observer, {&water_block});
-    ContactRelation shell_observer_contact_axial(wall_axial_observer, {&shell_boundary});
+    ContactRelation wall_observer_contact_axial(wall_axial_observer, {&wall_boundary});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.
@@ -298,9 +271,7 @@ int main(int ac, char *av[])
     // Finally, the auxillary models such as time step estimator, initial condition,
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
-    InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> wall_corrected_configuration(shell_boundary_inner);
-    SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_curvature(wall_curvature_inner);
-
+    SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_block_contact);
     Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
@@ -316,18 +287,17 @@ int main(int ac, char *av[])
     BodyAlignedBoxByCell left_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec3d(emitter_translation)), emitter_halfsize));
     fluid_dynamics::BidirectionalBuffer<fluid_dynamics::NonPrescribedPressure> left_bidirection_buffer(left_buffer, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_buffer(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(Pi, Vecd(0., 1.0, 0.)), Vec3d(disposer_translation)), disposer_halfsize));
-    fluid_dynamics::BidirectionalBuffer<RightOutflowPressure> right_bidirection_buffer(right_buffer, in_outlet_particle_buffer);
+    fluid_dynamics::BidirectionalBufferWindkessel<fluid_dynamics::ResistanceBCPressure> right_bidirection_buffer(right_buffer, in_outlet_particle_buffer);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_pressure_condition(left_buffer);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightOutflowPressure>> right_pressure_condition(right_buffer);
+    SimpleDynamics<fluid_dynamics::ResistanceBoundaryCondition> right_pressure_condition(right_buffer);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
 
     ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_buffer, Pi*fluid_radius*fluid_radius);
-    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_transient_flow_rate(right_buffer, Pi*fluid_radius*fluid_radius);
 
-    InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_from_fluid(shell_water_contact);
-    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(shell_boundary, 1.0);
+    InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_from_fluid(wall_contact);
+    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(wall_boundary, 1.0);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //----------------------------------------------------------------------
@@ -337,29 +307,29 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
-    body_states_recording.addToWrite<Vecd>(shell_boundary, "NormalDirection");
-    body_states_recording.addToWrite<Real>(shell_boundary, "Average1stPrincipleCurvature");
-    body_states_recording.addToWrite<Real>(shell_boundary, "Average2ndPrincipleCurvature");
-    body_states_recording.addToWrite<Vecd>(shell_boundary, "WallShearStress");
-    body_states_recording.addToWrite<Real>(shell_boundary, "TimeAveragedWallShearStress");
-    body_states_recording.addToWrite<Real>(shell_boundary, "OscillatoryShearIndex");
-    ObservedQuantityRecording<Vecd> write_shell_WSS_axial("WallShearStress", shell_observer_contact_axial);
-    ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", fluid_observer_contact_axial);
-    ObservedQuantityRecording<Vec3d> write_fluid_velocity_radial("Velocity", fluid_observer_contact_radial);
+    body_states_recording.addToWrite<Vecd>(wall_boundary, "NormalDirection");
+    body_states_recording.addToWrite<Real>(wall_boundary, "Density");
+    body_states_recording.addToWrite<Vecd>(wall_boundary, "WallShearStress");
+    body_states_recording.addToWrite<Real>(wall_boundary, "TimeAveragedWallShearStress");
+    body_states_recording.addToWrite<Real>(wall_boundary, "OscillatoryShearIndex");
+    ObservedQuantityRecording<Vecd> write_wall_WSS_axial("WallShearStress", wall_observer_contact_axial);
+    /*ObservedQuantityRecording<Vec3d> write_fluid_velocity_axial("Velocity", fluid_observer_contact_axial);
+    ObservedQuantityRecording<Vec3d> write_fluid_velocity_radial("Velocity", fluid_observer_contact_radial);*/
+    AxialVelocityRecording write_fluid_velocity_axial(fluid_observer_contact_axial);
+    AxialVelocityRecording write_fluid_velocity_radial(fluid_observer_contact_radial);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
     //----------------------------------------------------------------------
     system.initializeSystemCellLinkedLists();
     system.initializeSystemConfigurations();
-    wall_corrected_configuration.exec();
-    shell_curvature.exec();
     water_block_complex.updateConfiguration();
-    shell_water_contact.updateConfiguration();
+    wall_contact.updateConfiguration();
     //correct_kernel_weights_for_interpolation.exec();
     boundary_indicator.exec();
     left_bidirection_buffer.tag_buffer_particles.exec();
     right_bidirection_buffer.tag_buffer_particles.exec();
+    wall_boundary_normal_direction.exec();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
@@ -367,9 +337,10 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 2.0;               /**< End time. */
-    Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 200; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-
+    Real accumulated_time = 0.01;
+    int updateP_n = 0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -384,7 +355,7 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
-
+    right_pressure_condition.getTargetPressure()->setWindkesselParams(5.0E6, accumulated_time);
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -417,9 +388,17 @@ int main(int ac, char *av[])
 
                 // boundary condition implementation
                 kernel_summation.exec();
+                
                 left_pressure_condition.exec(dt);
+                if (physical_time >= updateP_n * accumulated_time)
+                {
+                    right_pressure_condition.getTargetPressure()->updateNextPressure();
+
+                    ++updateP_n;
+                }
                 right_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
+
                 density_relaxation.exec(dt);
 
                 relaxation_time += dt;
@@ -437,11 +416,9 @@ int main(int ac, char *av[])
             }
             number_of_iterations++;
 
-            time_instance = TickCount::now();
-
             compute_inlet_transient_flow_rate.exec();
-            compute_outlet_transient_flow_rate.exec();
 
+            time_instance = TickCount::now();
             /** Water block configuration and periodic condition. */
             left_bidirection_buffer.injection.exec();
             right_bidirection_buffer.injection.exec();
@@ -455,7 +432,7 @@ int main(int ac, char *av[])
 
             water_block.updateCellLinkedList();
             water_block_complex.updateConfiguration();
-            shell_water_contact.updateConfiguration();
+            wall_contact.updateConfiguration();
 
             interval_updating_configuration += TickCount::now() - time_instance;
             boundary_indicator.exec();
@@ -474,8 +451,8 @@ int main(int ac, char *av[])
         write_fluid_velocity_axial.writeToFile(number_of_iterations);
         write_fluid_velocity_radial.writeToFile(number_of_iterations);
 
-        shell_observer_contact_axial.updateConfiguration();
-        write_shell_WSS_axial.writeToFile(number_of_iterations);
+        wall_observer_contact_axial.updateConfiguration();
+        write_wall_WSS_axial.writeToFile(number_of_iterations);
     }
     TickCount t4 = TickCount::now();
 
