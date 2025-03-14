@@ -1,5 +1,5 @@
 /**
- * @file 	case_3d_cylinder_cVIcPO_shell.cpp
+ * @file 	case_3d_cylinder_ResistanceBC_shell.cpp
  * @brief 
  * @details
  * @author 
