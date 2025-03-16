@@ -53,7 +53,7 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real mu_f = 0.004;
 
 Real rho0_s = 1200;           /** Normalized density. */
-Real Youngs_modulus = 1.0e7; /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 5.0e7; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = diameter/full_length/4 * sqrt(rho0_s*Youngs_modulus) * diameter;
 //Real physical_viscosity = 200;
@@ -179,9 +179,12 @@ StdVec<Vecd> createWallAxialObservationPoints(
 };
 
 StdVec<Vecd> displacement_observation_location = {
-    Vecd(3.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
     Vecd(5.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
-    Vecd(8.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0)};
+    Vecd(10.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
+    Vecd(15.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0),
+    Vecd(20.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0),
+    Vecd(25.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0)
+};
 
 //----------------------------------------------------------------------
 //	Boundary constrain
@@ -226,8 +229,8 @@ int main(int ac, char *av[])
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, resolution_ref);
-    system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    system.setReloadParticles(false);       // Tag for computation with save particles distribution
+    system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    system.setReloadParticles(true);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     system.handleCommandlineOptions(ac, av); // handle command line arguments
 #endif
@@ -365,9 +368,9 @@ int main(int ac, char *av[])
     //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
     SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_velocity_damping(0.5, shell_boundary_inner, "Velocity", physical_viscosity);
+        shell_velocity_damping(0.2, shell_boundary_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_rotation_damping(0.5, shell_boundary_inner, "AngularVelocity", physical_viscosity);
+        shell_rotation_damping(0.2, shell_boundary_inner, "AngularVelocity", physical_viscosity);
     //----------------------------------------------------------------------
     //	FSI
     //----------------------------------------------------------------------
