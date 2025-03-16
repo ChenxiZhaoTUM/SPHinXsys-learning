@@ -172,11 +172,6 @@ StdVec<Vecd> createWallAxialObservationPoints(
     return observation_points;
 };
 
-StdVec<Vecd> displacement_observation_location = {
-    Vecd(3.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
-    Vecd(5.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
-    Vecd(8.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0)};
-
 //----------------------------------------------------------------------
 //	Main code.
 //----------------------------------------------------------------------

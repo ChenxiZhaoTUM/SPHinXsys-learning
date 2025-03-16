@@ -179,9 +179,12 @@ StdVec<Vecd> createWallAxialObservationPoints(
 };
 
 StdVec<Vecd> displacement_observation_location = {
-    Vecd(3.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
     Vecd(5.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
-    Vecd(8.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0)};
+    Vecd(10.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0), 
+    Vecd(15.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0),
+    Vecd(20.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0),
+    Vecd(25.0 * scale, fluid_radius + 0.5 * resolution_shell, 0.0)
+};
 
 //----------------------------------------------------------------------
 //	Boundary constrain
@@ -365,9 +368,9 @@ int main(int ac, char *av[])
     //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
     SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_velocity_damping(0.5, shell_boundary_inner, "Velocity", physical_viscosity);
+        shell_velocity_damping(0.2, shell_boundary_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_rotation_damping(0.5, shell_boundary_inner, "AngularVelocity", physical_viscosity);
+        shell_rotation_damping(0.2, shell_boundary_inner, "AngularVelocity", physical_viscosity);
     //----------------------------------------------------------------------
     //	FSI
     //----------------------------------------------------------------------
