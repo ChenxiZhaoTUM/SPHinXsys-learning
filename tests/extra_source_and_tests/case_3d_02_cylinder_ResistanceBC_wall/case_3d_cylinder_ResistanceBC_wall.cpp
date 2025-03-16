@@ -297,7 +297,7 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_buffer, Pi*fluid_radius*fluid_radius);
 
     InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_from_fluid(wall_contact);
-    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(wall_boundary, 1.0);
+    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(wall_boundary, 2 * Pi / 8.302);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //----------------------------------------------------------------------

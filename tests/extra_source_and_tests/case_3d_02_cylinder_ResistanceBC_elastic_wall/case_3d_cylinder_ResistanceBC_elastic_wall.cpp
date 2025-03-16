@@ -349,7 +349,7 @@ int main(int ac, char *av[])
     //	FSI
     //----------------------------------------------------------------------
     InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_from_fluid(wall_contact);
-    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(wall_boundary, 1.0);
+    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(wall_boundary, 2 * Pi / 8.302);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_wall(wall_contact);
     solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(wall_boundary);
     //----------------------------------------------------------------------
