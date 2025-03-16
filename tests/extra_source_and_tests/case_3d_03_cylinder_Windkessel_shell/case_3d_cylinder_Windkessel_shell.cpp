@@ -53,7 +53,7 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real mu_f = 0.004;
 
 Real rho0_s = 1200;           /** Normalized density. */
-Real Youngs_modulus = 1.0e7; /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 5.0e7; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = diameter/full_length/4 * sqrt(rho0_s*Youngs_modulus) * diameter;
 //Real physical_viscosity = 200;
@@ -226,8 +226,8 @@ int main(int ac, char *av[])
     //  Build up -- a SPHSystem --
     //----------------------------------------------------------------------
     SPHSystem system(system_domain_bounds, resolution_ref);
-    system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
-    system.setReloadParticles(false);       // Tag for computation with save particles distribution
+    system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
+    system.setReloadParticles(true);       // Tag for computation with save particles distribution
 #ifdef BOOST_AVAILABLE
     system.handleCommandlineOptions(ac, av); // handle command line arguments
 #endif
