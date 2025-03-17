@@ -21,7 +21,7 @@ using namespace SPH;
 Real scale = 0.001;
 Real DH = 6.35 * scale;          /**< Channel height. */
 Real DL = 10 * DH / 2;           /**< Channel length. */
-Real resolution_ref = DH / 20.0; /**< Initial reference particle spacing. */
+Real resolution_ref = DH / 30.0; /**< Initial reference particle spacing. */
 Real resolution_wall = resolution_ref;
 Real wall_thickness = resolution_ref * 4;                    /**< Extending width for BCs. */
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
@@ -274,7 +274,7 @@ int main(int ac, char *av[])
     Real end_time = 2.0;               /**< End time. */
     Real Output_Time = end_time / 20; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-    Real accumulated_time = 0.02;
+    Real accumulated_time = 0.01;
     int updateP_n = 0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time

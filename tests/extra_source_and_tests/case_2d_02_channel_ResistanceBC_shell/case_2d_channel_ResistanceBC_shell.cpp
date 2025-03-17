@@ -21,7 +21,7 @@ using namespace SPH;
 Real scale = 0.001;
 Real DH = 6.35 * scale;          /**< Channel height. */
 Real DL = 10 * DH / 2;           /**< Channel length. */
-Real resolution_ref = DH / 20.0; /**< Initial reference particle spacing. */
+Real resolution_ref = DH / 30.0; /**< Initial reference particle spacing. */
 Real resolution_shell = resolution_ref;
 Real wall_thickness = resolution_ref * 4;                    /**< Extending width for BCs. */
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
@@ -41,7 +41,7 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real mu_f = 0.004;
 
 Real rho0_s = 1200;           /** Normalized density. */
-Real Youngs_modulus = 1.0e7; /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 5.0e7; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = DH/DL/4 * sqrt(rho0_s*Youngs_modulus) * DH;
 //Real physical_viscosity = 200;
@@ -230,7 +230,7 @@ int main(int ac, char *av[])
 
     SolidBody shell_boundary(sph_system, makeShared<DefaultShape>("Shell"));
     shell_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_shell);
-    shell_boundary.defineMaterial<NeoHookeanSolid>(rho0_s, Youngs_modulus, poisson);
+    shell_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, wall_thickness);
 
     ObserverBody fluid_axial_observer(sph_system, "fluid_observer_axial");
@@ -309,8 +309,8 @@ int main(int ac, char *av[])
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_boundary);
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
-    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
-    SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    //SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
         shell_velocity_damping(0.2, shell_boundary_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
@@ -366,10 +366,10 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 2.0;               /**< End time. */
-    Real Output_Time = end_time / 20; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 200; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
-    Real accumulated_time = 0.02;
+    Real accumulated_time = 0.01;
     int updateP_n = 0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
