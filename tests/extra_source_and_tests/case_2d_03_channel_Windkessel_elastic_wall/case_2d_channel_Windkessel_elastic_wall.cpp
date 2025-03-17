@@ -21,7 +21,7 @@ using namespace SPH;
 Real scale = 0.001;
 Real DH = 6.35 * scale;          /**< Channel height. */
 Real DL = 10 * DH / 2;           /**< Channel length. */
-Real resolution_ref = DH / 20.0; /**< Initial reference particle spacing. */
+Real resolution_ref = DH / 30.0; /**< Initial reference particle spacing. */
 Real resolution_wall = resolution_ref;
 Real wall_thickness = resolution_ref * 4;                    /**< Extending width for BCs. */
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
@@ -41,7 +41,7 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real mu_f = 0.004;
 
 Real rho0_s = 1200;           /** Normalized density. */
-Real Youngs_modulus = 1.0e9; /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 5.0e9; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = DH/DL/4 * sqrt(rho0_s*Youngs_modulus) * DH;
 //Real physical_viscosity = 200;
