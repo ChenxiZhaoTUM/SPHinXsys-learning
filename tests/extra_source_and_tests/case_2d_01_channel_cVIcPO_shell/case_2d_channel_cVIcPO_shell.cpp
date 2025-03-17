@@ -21,7 +21,7 @@ using namespace SPH;
 Real scale = 0.001;
 Real DL = 4 * scale;             /**< Channel length. */
 Real DH = 1 * scale;             /**< Channel height. */
-Real resolution_ref = DH / 20.0; /**< Initial reference particle spacing. */
+Real resolution_ref = DH / 30.0; /**< Initial reference particle spacing. */
 Real resolution_shell = resolution_ref;
 Real wall_thickness = resolution_ref * 4; /**< Extending width for BCs. */
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
@@ -321,8 +321,8 @@ int main(int ac, char *av[])
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_boundary);
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_boundary, "BoundaryGeometry", resolution_ref * 4);
-    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
-    SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    //SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
         shell_velocity_damping(0.2, shell_boundary_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
@@ -378,7 +378,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 2.0;               /**< End time. */
-    Real Output_Time = end_time / 20; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 200; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------

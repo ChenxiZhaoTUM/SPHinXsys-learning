@@ -21,7 +21,7 @@ using namespace SPH;
 Real scale = 0.001;
 Real DL = 4 * scale;                                         /**< Channel length. */
 Real DH = 1 * scale;                                             /**< Channel height. */
-Real resolution_ref = DH / 20.0;                             /**< Initial reference particle spacing. */
+Real resolution_ref = DH / 30.0;                             /**< Initial reference particle spacing. */
 Real resolution_wall = resolution_ref;
 Real wall_thickness = resolution_ref * 4;                    /**< Extending width for BCs. */
 StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
