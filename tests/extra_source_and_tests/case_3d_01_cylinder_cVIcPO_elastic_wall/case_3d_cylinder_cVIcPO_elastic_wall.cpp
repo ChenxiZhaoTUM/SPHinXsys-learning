@@ -384,6 +384,9 @@ int main(int ac, char *av[])
     AxialVelocityRecording write_fluid_velocity_axial(fluid_observer_contact_axial);
     AxialVelocityRecording write_fluid_velocity_radial(fluid_observer_contact_radial);
     ObservedQuantityRecording<Vecd> write_wall_displacement("Position", wall_observer_contact_displacement);
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_viscous_force_on_wall(wall_boundary, "ViscousForceFromFluid");
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_pressure_force_on_wall(wall_boundary, "PressureForceFromFluid");
+    
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -540,6 +543,9 @@ int main(int ac, char *av[])
         write_wall_WSS_axial.writeToFile(number_of_iterations);
         wall_observer_contact_displacement.updateConfiguration();
         write_wall_displacement.writeToFile(number_of_iterations);
+
+        write_total_viscous_force_on_wall.writeToFile(number_of_iterations);
+        write_total_pressure_force_on_wall.writeToFile(number_of_iterations);
     }
     TickCount t4 = TickCount::now();
 
