@@ -36,7 +36,7 @@ Vecd disposer_translation(DL - 2.0 * resolution_ref, 0.5 * DH);
 //	Material parameters.
 //----------------------------------------------------------------------
 Real rho0_f = 1000.0; /**< Reference density of fluid. */
-Real U_max = 0.3;
+Real U_max = 1.0;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real mu_f = 0.004;
 
