@@ -337,9 +337,17 @@ int main(int ac, char *av[])
 
                 // boundary condition implementation
                 kernel_summation.exec();
+                
                 left_pressure_condition.exec(dt);
+                if (physical_time >= updateP_n * accumulated_time)
+                {
+                    right_pressure_condition.getTargetPressure()->updateNextPressure();
+
+                    ++updateP_n;
+                }
                 right_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
+
                 density_relaxation.exec(dt);
 
                 relaxation_time += dt;
