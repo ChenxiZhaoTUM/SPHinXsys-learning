@@ -1,8 +1,5 @@
 /**
- * @file 	T_pipe_VIPO_shell.cpp
- * @brief 	This is a test of fluid shell interaction in a T-shaped pipe.
- * @details The flow with velocity inlet and pressure outlet boundary condition in a T-shaped pipe in 2D is considered.
- * @author 	Chenxi Zhao, Weiyi Kong, Xiangyu Hu
+ * @file 	T_pipe_cVIcPO_shell.cpp
  */
 
 #include "bidirectional_buffer.h"
@@ -12,6 +9,7 @@
 #include "kernel_summation.hpp"
 #include "pressure_boundary.h"
 #include "sphinxsys.h"
+#include "windkessel_bc.h"
 #include "hemodynamic_indices.h"
 
 using namespace SPH;
@@ -43,6 +41,7 @@ Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Refere
 Real rho0_s = 1.0e3;         /** Normalized density. */
 Real Youngs_modulus = 1.0e5; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
+Real physical_viscosity = DH/DL/4 * sqrt(rho0_s*Youngs_modulus) * DH;
 //----------------------------------------------------------------------
 //	Define geometry of SPH bodies.
 //----------------------------------------------------------------------
@@ -258,8 +257,12 @@ StdVec<Vecd> createRadialObservationPoints(
 };
 
 StdVec<Vecd> displacement_observation_location = {
-    Vecd(0.0, DH + 0.5 * resolution_shell), Vecd((DL1-DL_sponge)/2, DH + 0.5 * resolution_shell), 
-    Vecd(DL1 - 0.5 * resolution_shell, 1.5 * DH), Vecd(DL + 0.5 * resolution_shell, 1.5 * DH) };
+    Vecd(0.0, DH + 0.5 * resolution_shell), 
+    Vecd((DL1-DL_sponge)/2, DH + 0.5 * resolution_shell), 
+    Vecd(DL1 - 0.5 * resolution_shell, 1.5 * DH), 
+    Vecd(DL + 0.5 * resolution_shell, 0.5 * DH),
+    Vecd(DL + 0.5 * resolution_shell, 1.5 * DH) };
+
 } // namespace SPH
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
@@ -333,6 +336,10 @@ int main(int ac, char *av[])
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
     SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
+        shell_velocity_damping(0.2, shell_inner, "Velocity", physical_viscosity);
+    DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vecd, FixedDampingRate>>>
+        shell_rotation_damping(0.2, shell_inner, "AngularVelocity", physical_viscosity);
     //----------------------------------------------------------------------
     // Fluid dynamics.
     //----------------------------------------------------------------------
@@ -366,10 +373,15 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::PressureCondition<UpOutflowPressure>> up_inflow_pressure_condition(up_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<DownOutflowPressure>> down_inflow_pressure_condition(down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
+
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_emitter, DH);
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_up_transient_flow_rate(up_emitter, DL - DL1);
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_down_transient_flow_rate(down_emitter, DL - DL1);
     //----------------------------------------------------------------------
     // FSI.
     //----------------------------------------------------------------------
     InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_on_shell(shell_water_contact);
+    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(shell_body, 1.0);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
     solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
     //----------------------------------------------------------------------
@@ -395,6 +407,8 @@ int main(int ac, char *av[])
     AxialVelocityRecording write_fluid_velocity_radial(fluid_observer_contact_radial);
     ObservedQuantityRecording<Vecd> write_wall_displacement("Position", shell_observer_contact_displacement);
     ObservedQuantityRecording<Vecd> write_shell_WSS_axial("WallShearStress", shell_observer_contact_displacement);
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_viscous_force_on_wall(shell_body, "ViscousForceFromFluid");
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_pressure_force_on_wall(shell_body, "PressureForceFromFluid");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -460,6 +474,7 @@ int main(int ac, char *av[])
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
                 pressure_force_on_shell.exec();
+                hemodynamic_indice_calculation.exec(Dt);
 
                 // boundary condition implementation
                 kernel_summation.exec();
@@ -480,6 +495,9 @@ int main(int ac, char *av[])
                     shell_stress_relaxation_first.exec(dt_s);
 
                     constrain_holder.exec(dt_s);
+                    shell_velocity_damping.exec(dt_s);
+                    shell_rotation_damping.exec(dt_s);
+                    constrain_holder.exec();
 
                     shell_stress_relaxation_second.exec(dt_s);
                     dt_s_sum += dt_s;
@@ -540,6 +558,9 @@ int main(int ac, char *av[])
         shell_observer_contact_displacement.updateConfiguration();
         write_wall_displacement.writeToFile(number_of_iterations);
         write_shell_WSS_axial.writeToFile(number_of_iterations);
+
+        write_total_viscous_force_on_wall.writeToFile(number_of_iterations);
+        write_total_pressure_force_on_wall.writeToFile(number_of_iterations);
     }
     TickCount t4 = TickCount::now();
 
@@ -553,15 +574,6 @@ int main(int ac, char *av[])
               << interval_computing_pressure_relaxation.seconds() << "\n";
     std::cout << std::fixed << std::setprecision(9) << "interval_updating_configuration = "
               << interval_updating_configuration.seconds() << "\n";
-
-    //if (sph_system.GenerateRegressionData())
-    //{
-    //    write_centerline_velocity.generateDataBase(1.0e-3);
-    //}
-    //else
-    //{
-    //    write_centerline_velocity.testResult();
-    //}
 
     return 0;
 }

@@ -1,8 +1,5 @@
 /**
- * @file 	T_pipe_VIPO_shell.cpp
- * @brief 	This is a test of fluid shell interaction in a T-shaped pipe.
- * @details The flow with velocity inlet and pressure outlet boundary condition in a T-shaped pipe in 2D is considered.
- * @author 	Chenxi Zhao, Weiyi Kong, Xiangyu Hu
+ * @file 	T_pipe_cVIcPO_rigid_shell.cpp
  */
 
 #include "bidirectional_buffer.h"
@@ -12,6 +9,7 @@
 #include "kernel_summation.hpp"
 #include "pressure_boundary.h"
 #include "sphinxsys.h"
+#include "windkessel_bc.h"
 #include "hemodynamic_indices.h"
 
 using namespace SPH;
@@ -37,12 +35,6 @@ Real Re = 100.0;                                                      /**< Reyno
 Real U_f = 1.0;                                                       /**< Characteristic velocity. */
 Real mu_f = rho0_f * U_f * DH / Re;                                   /**< Dynamics viscosity. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Reference sound speed needs to consider the flow speed in the narrow channels. */
-//----------------------------------------------------------------------
-//	Material parameters of the shell.
-//----------------------------------------------------------------------
-Real rho0_s = 1.0e3;         /** Normalized density. */
-Real Youngs_modulus = 1.0e5; /** Normalized Youngs Modulus. */
-Real poisson = 0.3;          /** Poisson ratio. */
 //----------------------------------------------------------------------
 //	Define geometry of SPH bodies.
 //----------------------------------------------------------------------
@@ -218,28 +210,6 @@ struct DownOutflowPressure
 //----------------------------------------------------------------------
 //	Constrain region of shell body.
 //----------------------------------------------------------------------
-class BoundaryGeometry : public BodyPartByParticle
-{
-  public:
-    BoundaryGeometry(SPHBody &body, const std::string &body_part_name)
-        : BodyPartByParticle(body, body_part_name)
-    {
-        TaggingParticleMethod tagging_particle_method = std::bind(&BoundaryGeometry::tagManually, this, _1);
-        tagParticles(tagging_particle_method);
-    };
-    virtual ~BoundaryGeometry(){};
-
-  private:
-    void tagManually(size_t index_i)
-    {
-        if (base_particles_.ParticlePositions()[index_i][0] < -DL_sponge + buffer_width ||
-            base_particles_.ParticlePositions()[index_i][1] > 2.0 * DH - buffer_width ||
-            base_particles_.ParticlePositions()[index_i][1] < -DH + buffer_width)
-        {
-            body_part_particles_.push_back(index_i);
-        }
-    };
-};
 
 StdVec<Vecd> createRadialObservationPoints(
     double axial_position, double height, int number_of_particles,
@@ -258,8 +228,12 @@ StdVec<Vecd> createRadialObservationPoints(
 };
 
 StdVec<Vecd> displacement_observation_location = {
-    Vecd(0.0, DH + 0.5 * resolution_shell), Vecd((DL1-DL_sponge)/2, DH + 0.5 * resolution_shell), 
-    Vecd(DL1 - 0.5 * resolution_shell, 1.5 * DH), Vecd(DL + 0.5 * resolution_shell, 1.5 * DH) };
+    Vecd(0.0, DH + 0.5 * resolution_shell), 
+    Vecd((DL1-DL_sponge)/2, DH + 0.5 * resolution_shell), 
+    Vecd(DL1 - 0.5 * resolution_shell, 1.5 * DH), 
+    Vecd(DL + 0.5 * resolution_shell, 0.5 * DH),
+    Vecd(DL + 0.5 * resolution_shell, 1.5 * DH) };
+
 } // namespace SPH
 //-----------------------------------------------------------------------------------------------------------
 //	Main program starts here.
@@ -286,7 +260,7 @@ int main(int ac, char *av[])
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
     shell_body.defineAdaptation<SPHAdaptation>(1.15, resolution_ref / resolution_shell);
     shell_body.defineBodyLevelSetShape(level_set_refinement_ratio)->writeLevelSet(sph_system);
-    shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
+    shell_body.defineMaterial<Solid>();
     shell_body.generateParticles<SurfaceParticles, WallBoundary>(resolution_shell, BW);
 
     ObserverBody velocity_observer(sph_system, "VelocityObserver");
@@ -325,14 +299,8 @@ int main(int ac, char *av[])
     // Shell dynamics.
     //----------------------------------------------------------------------
     InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
-    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
-    Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
-    ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
-    SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
-    /** Exert constrain on shell. */
-    BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
-    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+
     //----------------------------------------------------------------------
     // Fluid dynamics.
     //----------------------------------------------------------------------
@@ -366,12 +334,16 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::PressureCondition<UpOutflowPressure>> up_inflow_pressure_condition(up_emitter);
     SimpleDynamics<fluid_dynamics::PressureCondition<DownOutflowPressure>> down_inflow_pressure_condition(down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
+
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_emitter, DH);
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_up_transient_flow_rate(up_emitter, DL - DL1);
+    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_down_transient_flow_rate(down_emitter, DL - DL1);
     //----------------------------------------------------------------------
     // FSI.
     //----------------------------------------------------------------------
     InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_on_shell(shell_water_contact);
+    SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(shell_body, 1.0);
     InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
-    solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(shell_body);
     //----------------------------------------------------------------------
     //	Define the configuration related particles dynamics.
     //----------------------------------------------------------------------
@@ -387,14 +359,14 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
-    body_states_recording.addToWrite<Matd>(shell_body, "MidSurfaceCauchyStress");
     body_states_recording.addToWrite<Vecd>(shell_body, "WallShearStress");
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
     RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>> write_centerline_velocity("Velocity", velocity_observer_contact);
     AxialVelocityRecording write_fluid_velocity_radial(fluid_observer_contact_radial);
-    ObservedQuantityRecording<Vecd> write_wall_displacement("Position", shell_observer_contact_displacement);
     ObservedQuantityRecording<Vecd> write_shell_WSS_axial("WallShearStress", shell_observer_contact_displacement);
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_viscous_force_on_wall(shell_body, "ViscousForceFromFluid");
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_pressure_force_on_wall(shell_body, "PressureForceFromFluid");
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -403,7 +375,6 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     shell_corrected_configuration.exec();
     shell_average_curvature.exec();
-    constrain_holder.exec();
     water_block_complex.updateConfiguration();
     shell_water_contact.updateConfiguration();
     boundary_indicator.exec();
@@ -418,7 +389,6 @@ int main(int ac, char *av[])
     Real end_time = 15.0;              /**< End time. */
     Real Output_Time = end_time / 150; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-    Real dt_s = 0.0;                   /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -460,6 +430,7 @@ int main(int ac, char *av[])
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
                 pressure_force_on_shell.exec();
+                hemodynamic_indice_calculation.exec(Dt);
 
                 // boundary condition implementation
                 kernel_summation.exec();
@@ -467,24 +438,7 @@ int main(int ac, char *av[])
                 up_inflow_pressure_condition.exec(dt);
                 down_inflow_pressure_condition.exec(dt);
                 inflow_velocity_condition.exec();
-
                 density_relaxation.exec(dt);
-
-                Real dt_s_sum = 0.0;
-                average_velocity_and_acceleration.initialize_displacement_.exec();
-                while (dt_s_sum < dt)
-                {
-                    dt_s = shell_time_step_size.exec();
-                    if (dt - dt_s_sum < dt_s)
-                        dt_s = dt - dt_s_sum;
-                    shell_stress_relaxation_first.exec(dt_s);
-
-                    constrain_holder.exec(dt_s);
-
-                    shell_stress_relaxation_second.exec(dt_s);
-                    dt_s_sum += dt_s;
-                }
-                average_velocity_and_acceleration.update_averages_.exec(dt);
 
                 relaxation_time += dt;
                 integration_time += dt;
@@ -496,7 +450,7 @@ int main(int ac, char *av[])
             {
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << sv_physical_time->getValue()
-                          << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
+                          << "	Dt = " << Dt << "	dt = " << dt << "\n";
                 write_centerline_velocity.writeToFile(number_of_iterations);
             }
             number_of_iterations++;
@@ -516,10 +470,6 @@ int main(int ac, char *av[])
                 particle_sorting.exec();
             }
             water_block.updateCellLinkedList();
-            shell_update_normal.exec();
-            shell_body.updateCellLinkedList();
-            shell_curvature_inner.updateConfiguration();
-            shell_average_curvature.exec();
             shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
 
@@ -538,8 +488,10 @@ int main(int ac, char *av[])
         fluid_observer_contact_radial.updateConfiguration();
         write_fluid_velocity_radial.writeToFile(number_of_iterations);
         shell_observer_contact_displacement.updateConfiguration();
-        write_wall_displacement.writeToFile(number_of_iterations);
         write_shell_WSS_axial.writeToFile(number_of_iterations);
+
+        write_total_viscous_force_on_wall.writeToFile(number_of_iterations);
+        write_total_pressure_force_on_wall.writeToFile(number_of_iterations);
     }
     TickCount t4 = TickCount::now();
 
@@ -553,15 +505,6 @@ int main(int ac, char *av[])
               << interval_computing_pressure_relaxation.seconds() << "\n";
     std::cout << std::fixed << std::setprecision(9) << "interval_updating_configuration = "
               << interval_updating_configuration.seconds() << "\n";
-
-    //if (sph_system.GenerateRegressionData())
-    //{
-    //    write_centerline_velocity.generateDataBase(1.0e-3);
-    //}
-    //else
-    //{
-    //    write_centerline_velocity.testResult();
-    //}
 
     return 0;
 }

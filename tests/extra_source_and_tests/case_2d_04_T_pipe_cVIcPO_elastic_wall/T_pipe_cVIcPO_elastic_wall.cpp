@@ -188,6 +188,7 @@ StdVec<Vecd> displacement_observation_location = {
     Vecd(DL1 - 0.5 * resolution_wall, 1.5 * DH), 
     Vecd(DL + 0.5 * resolution_wall, 0.5 * DH),
     Vecd(DL + 0.5 * resolution_wall, 1.5 * DH) };
+
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
@@ -431,7 +432,7 @@ int main(int ac, char *av[])
             {
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << physical_time
-                          << "	Dt = " << Dt << "	dt = " << dt << "\n";
+                          << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
             }
             number_of_iterations++;
 
