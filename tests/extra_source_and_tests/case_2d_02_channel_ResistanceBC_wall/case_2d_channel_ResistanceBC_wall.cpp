@@ -36,7 +36,7 @@ Vecd disposer_translation(DL - 2.0 * resolution_ref, 0.5 * DH);
 //	Material parameters.
 //----------------------------------------------------------------------
 Real rho0_f = 1000.0; /**< Reference density of fluid. */
-Real U_max = 1.0;
+Real U_max = 0.8;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real mu_f = 0.004;
 //----------------------------------------------------------------------
@@ -107,8 +107,8 @@ struct InflowVelocity
                          0.0);
         }
 
-        target_velocity[0] = SMAX(2.0 * u_ave * (1.0 - position[1] * position[1] / pow(0.5*DH, 2)),
-                                  1.0e-2);
+        target_velocity[0] = SMAX(1.5 * u_ave * (1.0 - position[1] * position[1] / pow(0.5*DH, 2)),
+                                  0.);
 
         //target_velocity[0] = u_ave;
         target_velocity[1] = 0.0;
