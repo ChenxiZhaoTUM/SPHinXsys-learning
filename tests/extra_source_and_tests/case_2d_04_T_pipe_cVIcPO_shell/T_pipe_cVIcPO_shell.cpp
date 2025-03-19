@@ -30,7 +30,7 @@ Real level_set_refinement_ratio = resolution_ref / (0.1 * BW);
 //	Global parameters on the fluid properties.
 //----------------------------------------------------------------------
 Real Outlet_pressure = 0;
-Real rho0_f = 1.0;                                                    /**< Reference density of fluid. Using air density here.*/
+Real rho0_f = 1000.0;                                                    /**< Reference density of fluid. Using air density here.*/
 Real Re = 100.0;                                                      /**< Reynolds number. */
 Real U_f = 1.0;                                                       /**< Characteristic velocity. */
 Real mu_f = rho0_f * U_f * DH / Re;                                   /**< Dynamics viscosity. */
@@ -38,8 +38,8 @@ Real c_f = 10.0 * U_f * SMAX(Real(1), DH / (Real(2.0) * (DL - DL1))); /** Refere
 //----------------------------------------------------------------------
 //	Material parameters of the shell.
 //----------------------------------------------------------------------
-Real rho0_s = 1.0e3;         /** Normalized density. */
-Real Youngs_modulus = 1.0e5; /** Normalized Youngs Modulus. */
+Real rho0_s = 1200;         /** Normalized density. */
+Real Youngs_modulus = 5.0e6; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = DH/DL/4 * sqrt(rho0_s*Youngs_modulus) * DH;
 //----------------------------------------------------------------------

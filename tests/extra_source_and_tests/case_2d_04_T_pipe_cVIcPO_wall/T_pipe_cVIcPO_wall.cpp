@@ -30,7 +30,7 @@ StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement o
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real Outlet_pressure = 0;
-Real rho0_f = 1.0;                                                 /**< Reference density of fluid. */
+Real rho0_f = 1000.0;                                                 /**< Reference density of fluid. */
 Real Re = 100.0;                                                      /**< Reynolds number. */
 Real U_f = 1.0;                                                       /**< Characteristic velocity. */
 Real mu_f = rho0_f * U_f * DH / Re;                                   /**< Dynamics viscosity. */
