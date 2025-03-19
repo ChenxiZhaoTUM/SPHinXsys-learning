@@ -45,7 +45,7 @@ Real U_f = pow(0.5 * DH, 2.0) * fabs(Inlet_pressure - Outlet_pressure) / (2.0 * 
 Real U_max = 2.0 * U_f;  // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
-Real rho0_s = 1100;           /** Normalized density. */
+Real rho0_s = 1200;           /** Normalized density. */
 Real Youngs_modulus = 1.0e4; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = DH/DL/4 * sqrt(rho0_s*Youngs_modulus) * DH;
@@ -85,7 +85,7 @@ class ParticleGenerator<SurfaceParticles, ShellBoundary> : public ParticleGenera
     void prepareGeometricData() override
     {
         auto particle_number_mid_surface = int(DL / resolution_shell_);
-        for (int i = 0; i < particle_number_mid_surface - 1; i++)
+        for (int i = 0; i < particle_number_mid_surface; i++)
         {
             Real x = (Real(i) + 0.5) * resolution_shell_;
             // upper wall
@@ -378,7 +378,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 2.0;               /**< End time. */
-    Real Output_Time = end_time / 200; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 20; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     //----------------------------------------------------------------------

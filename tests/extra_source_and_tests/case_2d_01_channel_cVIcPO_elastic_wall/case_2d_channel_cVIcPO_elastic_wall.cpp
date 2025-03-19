@@ -45,7 +45,7 @@ Real U_f = pow(0.5 * DH, 2.0) * fabs(Inlet_pressure - Outlet_pressure) / (2.0 * 
 Real U_max = 2.0 * U_f;      // parabolic inflow, Thus U_max = 2*U_f
 Real c_f = 10.0 * U_max;     /**< Reference sound speed. */
 
-Real rho0_s = 1100;           /** Normalized density. */
+Real rho0_s = 1200;           /** Normalized density. */
 Real Youngs_modulus = 1.0e4; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = DH/DL/4 * sqrt(rho0_s*Youngs_modulus) * DH;

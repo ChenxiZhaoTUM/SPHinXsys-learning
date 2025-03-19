@@ -79,7 +79,7 @@ class ParticleGenerator<SurfaceParticles, ShellBoundary> : public ParticleGenera
     void prepareGeometricData() override
     {
         auto particle_number_mid_surface = int(DL / resolution_shell_);
-        for (int i = 0; i < particle_number_mid_surface - 1; i++)
+        for (int i = 0; i < particle_number_mid_surface; i++)
         {
             Real x = (Real(i) + 0.5) * resolution_shell_;
             // upper wall
