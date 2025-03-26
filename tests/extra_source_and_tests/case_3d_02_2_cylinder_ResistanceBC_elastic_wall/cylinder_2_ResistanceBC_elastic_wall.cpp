@@ -53,7 +53,7 @@ Real U_max = 1.0;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 
 Real rho0_s = 1200;           /** Normalized density. */
-Real Youngs_modulus = 1.0e7; /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 5.0e8; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = diameter/full_length/4 * sqrt(rho0_s*Youngs_modulus) * diameter;
 //Real physical_viscosity = 200;
@@ -82,8 +82,11 @@ struct InflowVelocity
             u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * current_time) + b[i] * sin(w * (i + 1) * current_time),
                          0.0);
         }
+
+        target_velocity[0] = SMAX(1.5 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
+                                  0.);
             
-        target_velocity[0] = u_ave;
+        //target_velocity[0] = u_ave;
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 

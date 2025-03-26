@@ -48,7 +48,7 @@ BoundingBox system_domain_bounds(Vec3d(0, -0.5 * diameter, -0.5 * diameter) - Ve
 //	Material parameters.
 //----------------------------------------------------------------------
 Real rho0_f = 1000.0; /**< Reference density of fluid. */
-Real U_max = 1.0;
+Real U_max = 0.8;
 Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real mu_f = 0.004;
 //----------------------------------------------------------------------
@@ -117,7 +117,11 @@ struct InflowVelocity
                          0.0);
         }
 
-        target_velocity[0] = u_ave;
+        
+        target_velocity[0] = SMAX(1.5 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / fluid_radius / fluid_radius),
+                                  0.);
+
+        //target_velocity[0] = u_ave;
         target_velocity[1] = 0.0;
         target_velocity[2] = 0.0;
 
