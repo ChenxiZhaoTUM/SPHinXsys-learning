@@ -24,7 +24,8 @@ Real resolution_shell = resolution_ref;
 Real BW = resolution_ref * 4.0;
 Real buffer_width = resolution_ref * 4.0;                    /**< Reference size of the emitter. */
 Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
-StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
+//StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
+StdVec<Vecd> observer_location = {Vecd(DL - 0.5 * (DL-DL1), 0.5 * DH)}; /**< Displacement observation point. */
 Real level_set_refinement_ratio = resolution_ref / (0.1 * BW);
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties.
@@ -540,6 +541,8 @@ int main(int ac, char *av[])
             shell_average_curvature.exec();
             shell_water_contact.updateConfiguration();
             water_block_complex.updateConfiguration();
+
+            velocity_observer_contact.updateConfiguration();
 
             interval_updating_configuration += TickCount::now() - time_instance;
             boundary_indicator.exec();

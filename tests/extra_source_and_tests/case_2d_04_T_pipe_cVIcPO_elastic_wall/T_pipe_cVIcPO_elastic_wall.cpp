@@ -24,8 +24,8 @@ Real resolution_wall = resolution_ref;
 Real BW = resolution_ref * 4;                                /**< Reference size of the emitter. */
 Real buffer_width = resolution_ref * 4.0;                    /**< Reference size of the emitter. */
 Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
-StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
-
+//StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
+StdVec<Vecd> observer_location = {Vecd(DL - 0.5 * (DL - DL1), 0.5 * DH)};
 //----------------------------------------------------------------------
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
@@ -214,6 +214,9 @@ int main(int ac, char *av[])
     wall_boundary.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     wall_boundary.generateParticles<BaseParticles, Lattice>();
 
+    ObserverBody velocity_observer(sph_system, "VelocityObserver");
+    velocity_observer.generateParticles<ObserverParticles>(observer_location);
+
     ObserverBody fluid_radial_observer(sph_system, "fluid_observer_radial");
     fluid_radial_observer.generateParticles<ObserverParticles>(createRadialObservationPoints((DL1-DL_sponge)/2, DH, 50));
     ObserverBody wall_displacement_observer(sph_system, "wall_observer_displacement");
@@ -229,6 +232,7 @@ int main(int ac, char *av[])
     InnerRelation wall_boundary_inner(wall_boundary);
     ContactRelation water_block_contact(water_block, {&wall_boundary});
     ContactRelation wall_contact(wall_boundary, {&water_block});
+    ContactRelation velocity_observer_contact(velocity_observer, {&water_block});
     ContactRelation fluid_observer_contact_radial(fluid_radial_observer, {&water_block});
     ContactRelation wall_observer_contact_displacement(wall_displacement_observer, {&wall_boundary});
     //----------------------------------------------------------------------
@@ -323,6 +327,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "WallShearStress");
+    ObservedQuantityRecording<Vecd> write_centerline_velocity("Velocity", velocity_observer_contact);
     ObservedQuantityRecording<Vecd> write_wall_WSS_axial("WallShearStress", wall_observer_contact_displacement);
     AxialVelocityRecording write_fluid_velocity_radial(fluid_observer_contact_radial);
     ObservedQuantityRecording<Vecd> write_wall_displacement("Position", wall_observer_contact_displacement);
@@ -433,6 +438,8 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
                           << physical_time
                           << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
+
+                write_centerline_velocity.writeToFile(number_of_iterations);
             }
             number_of_iterations++;
 
@@ -460,6 +467,8 @@ int main(int ac, char *av[])
             wall_boundary.updateCellLinkedList();
             water_block_complex.updateConfiguration();
             wall_contact.updateConfiguration();
+
+            velocity_observer_contact.updateConfiguration();
 
             interval_updating_configuration += TickCount::now() - time_instance;
             boundary_indicator.exec();
