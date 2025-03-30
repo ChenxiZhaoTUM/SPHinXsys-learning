@@ -115,7 +115,9 @@ struct InflowVelocity
                          0.0);
         }
 
-        target_velocity[0] = u_ave;
+        target_velocity[0] = SMAX(1.5 * u_ave * (1.0 - position[1] * position[1] / pow(0.5*DH, 2)),
+                            0.);
+
         target_velocity[1] = 0.0;
 
         return target_velocity;
