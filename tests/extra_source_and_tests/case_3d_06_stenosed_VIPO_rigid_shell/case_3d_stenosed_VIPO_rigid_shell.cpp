@@ -30,7 +30,7 @@ Real full_length = 100 * scale;
 int number_of_particles = 10;
 Real resolution_ref = diameter / number_of_particles;
 Real shell_resolution = 0.5 * resolution_ref;
-Real shell_thickness = 4.0 * shell_resolution;
+Real shell_thickness = 4.0 * resolution_ref;
 Vec3d translation_fluid(0., 0., 0.);
 //----------------------------------------------------------------------
 //	Geometry parameters for boundary condition.
@@ -264,7 +264,7 @@ StdVec<Vecd> createRadialObservationPoints(
     for (int i = 0; i <= number_of_particles; ++i)
     {
         double z = -R + (2.0 * R) * i / double(number_of_particles);
-        observation_points.emplace_back(Vecd(x, z) + translation);
+        observation_points.emplace_back(Vecd(x, 0.0, z) + translation);
     }
 
     return observation_points;
@@ -336,7 +336,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     FluidBody water_block(system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineBodyLevelSetShape(2.0)->correctLevelSetSign()->writeLevelSet(system);
-    water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f, mu_f);
+    water_block.defineClosure<WeaklyCompressibleFluid, Viscosity>(ConstructArgs(rho0_f, c_f), mu_f);
     ParticleBuffer<ReserveSizeFactor> in_outlet_particle_buffer(0.5);
     //water_block.generateParticlesWithReserve<BaseParticles, Lattice>(in_outlet_particle_buffer);
     (!system.RunParticleRelaxation() && system.ReloadParticles())
@@ -545,7 +545,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 2.0;               /**< End time. */
-    Real Output_Time = end_time / 100; /**< Time stamps for output of body states. */
+    Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
 
     //----------------------------------------------------------------------
@@ -557,8 +557,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time = 0.001;
-    int updateP_n = 0;
+
     //----------------------------------------------------------------------
     //	First output before the main loop.
     //----------------------------------------------------------------------
