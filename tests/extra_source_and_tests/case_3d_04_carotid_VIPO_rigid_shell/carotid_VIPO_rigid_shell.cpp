@@ -75,11 +75,11 @@ class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerato
     Shape &initial_shape_;
 
 public:
-    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape) 
+    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape, Real shell_thickness) 
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
         mesh_total_area_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
-        thickness_(particle_spacing_),
+        thickness_(shell_thickness),
         avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
         planned_number_of_particles_(0),
         mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
@@ -284,7 +284,7 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 2.0;    /**< Characteristic velocity. */
+Real U_f = 0.5;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in * DW_in / (DW_out_up * DW_out_up + DW_out_down * DW_out_down));
 Real mu_f = 0.004; /**< Dynamics viscosity. */
@@ -352,7 +352,7 @@ int main(int ac, char *av[])
     shell_body.defineMaterial<Solid>();
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape);
+        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, 3*dp_0);
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineBodyLevelSetShape()->cleanLevelSet();

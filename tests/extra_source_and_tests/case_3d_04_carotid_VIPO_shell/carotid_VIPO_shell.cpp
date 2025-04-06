@@ -284,7 +284,7 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 2.0;    /**< Characteristic velocity. */
+Real U_f = 1.0;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f * SMAX(Real(1), DW_in * DW_in / (DW_out_up * DW_out_up + DW_out_down * DW_out_down));
 Real mu_f = 0.004; /**< Dynamics viscosity. */
@@ -394,7 +394,7 @@ int main(int ac, char *av[])
     shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
         ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, 3.0*dp_0);
+        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, shell_resolution);
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineBodyLevelSetShape()->cleanLevelSet();
@@ -518,14 +518,14 @@ int main(int ac, char *av[])
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_velocity_damping(0.2, shell_inner, "Velocity", physical_viscosity);
+        shell_velocity_damping(0.5, shell_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_rotation_damping(0.2, shell_inner, "AngularVelocity", physical_viscosity);
+        shell_rotation_damping(0.5, shell_inner, "AngularVelocity", physical_viscosity);
 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
-    SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
-    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    //SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
+    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
     //----------------------------------------------------------------------
     //	Fluid dynamics

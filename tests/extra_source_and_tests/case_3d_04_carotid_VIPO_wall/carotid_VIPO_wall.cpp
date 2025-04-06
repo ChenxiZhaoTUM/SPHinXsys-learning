@@ -357,7 +357,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 3.0;   /**< End time. */
+    Real end_time = 2.5;   /**< End time. */
     //Real Output_Time = end_time / 300; /**< Time stamps for output of body states. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
