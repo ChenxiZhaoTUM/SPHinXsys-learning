@@ -19,7 +19,10 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
           Q_n_(0.0), Q_0_(0.0), p_n_(80*133.32), p_0_(80*133.32),
           flow_rate_(*(this->particles_->registerSingularVariable<Real>("FlowRate" + std::to_string(part_id_ - 1))->Data())),
           current_flow_rate_(0.0), previous_flow_rate_(0.0),
-          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")) {};
+          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")),
+          M_n_(0.0), current_mass_flow_rate_(0.0), previous_mass_flow_rate_(0.0),
+          acc_mass_flow_rate_(*(this->particles_->registerSingularVariable<Real>("AccMassFlowRate" + std::to_string(part_id_ - 1))->Data()))
+    {};
     virtual ~TargetOutletPressureWindkessel(){};
 
     void setWindkesselParams(Real Rp, Real C, Real Rd, Real dt)
@@ -35,6 +38,7 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
         getFlowRate();
 
         Q_n_ = current_flow_rate_ / delta_t_;
+        M_n_ = current_mass_flow_rate_ / delta_t_;
 
         Real dp_dt = - p_0_ / (C_ * Rd_) + (Rp_ + Rd_) * Q_n_ / (C_ * Rd_) + Rp_ * (Q_n_ - Q_0_) / (delta_t_ + TinyReal);
         Real p_star = p_0_ + dp_dt * delta_t_;
@@ -63,6 +67,8 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
     Real Q_n_, Q_0_;
     Real p_n_, p_0_;
     Real &flow_rate_, current_flow_rate_, previous_flow_rate_;
+    Real M_n_;
+    Real &acc_mass_flow_rate_, current_mass_flow_rate_, previous_mass_flow_rate_;
     Real *physical_time_;
 
     void getFlowRate()
@@ -71,12 +77,15 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
         p_0_ = p_n_;
         current_flow_rate_ = flow_rate_ - previous_flow_rate_;
         previous_flow_rate_ = flow_rate_;
+
+        current_mass_flow_rate_ = acc_mass_flow_rate_ - previous_mass_flow_rate_;
+        previous_flow_rate_ = acc_mass_flow_rate_;
     }
 
     void writeOutletPressureData()
     {
         std::string output_folder = "./output";
-        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_outlet_pressure.dat";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_windkessel_outlet_pressure.dat";
         std::ofstream out_file(filefullpath.c_str(), std::ios::app);
         out_file << *physical_time_ << "   " << p_n_ <<  "\n";
         out_file.close();
@@ -85,10 +94,15 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
     void writeOutletFlowRateData()
     {
         std::string output_folder = "./output";
-        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_flow_rate.dat";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_volume_flow_rate.dat";
         std::ofstream out_file(filefullpath.c_str(), std::ios::app);
         out_file << *physical_time_ << "   " << Q_n_ <<  "\n";
         out_file.close();
+
+        std::string filefullpath_mass = output_folder + "/" + std::to_string(part_id_ - 1) + "_mass_flow_rate.dat";
+        std::ofstream out_file_mass(filefullpath_mass.c_str(), std::ios::app);
+        out_file_mass << *physical_time_ << "   " << M_n_ <<  "\n";
+        out_file_mass.close();
     }
 };
 
@@ -176,23 +190,28 @@ class TargetOutletPressureWindkesselQave : public BaseLocalDynamics<BodyPartByCe
     }
 };
 
+using WindkesselBoundaryCondition = PressureCondition<TargetOutletPressureWindkessel>;
+using WindkesselBoundaryConditionQave = PressureCondition<TargetOutletPressureWindkesselQave>;
+
 class NonPrescribedPressureForFlowRate : public BaseLocalDynamics<BodyPartByCell>
 {
   public:
     explicit NonPrescribedPressureForFlowRate(BodyAlignedBoxByCell& aligned_box_part)
         : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
           part_id_(aligned_box_part.getPartID()),
-          Q_n_(0.0), Q_0_(0.0),
+          Q_n_(0.0),
           flow_rate_(*(this->particles_->registerSingularVariable<Real>("FlowRate" + std::to_string(part_id_ - 1))->Data())),
           current_flow_rate_(0.0), previous_flow_rate_(0.0),
-          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")) {};
+          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")),
+          M_n_(0.0), current_mass_flow_rate_(0.0), previous_mass_flow_rate_(0.0),
+          acc_mass_flow_rate_(*(this->particles_->registerSingularVariable<Real>("AccMassFlowRate" + std::to_string(part_id_ - 1))->Data())) {};
     virtual ~NonPrescribedPressureForFlowRate(){};
-
 
     void writeInletFlowRate(Real delta_t)
     {
         getFlowRate();
         Q_n_ = current_flow_rate_ / delta_t;
+        M_n_ = current_mass_flow_rate_ / delta_t;
         writeOutletFlowRateData();
     }
 
@@ -203,30 +222,101 @@ class NonPrescribedPressureForFlowRate : public BaseLocalDynamics<BodyPartByCell
 
   protected:
     int part_id_;
-    Real Q_n_, Q_0_;
+    Real Q_n_;
     Real &flow_rate_, current_flow_rate_, previous_flow_rate_;
+    Real M_n_;
+    Real &acc_mass_flow_rate_, current_mass_flow_rate_, previous_mass_flow_rate_;
     Real *physical_time_;
 
     void getFlowRate()
     {
-        Q_0_ = Q_n_;
         current_flow_rate_ = flow_rate_ - previous_flow_rate_;
         previous_flow_rate_ = flow_rate_;
+
+        current_mass_flow_rate_ = acc_mass_flow_rate_ - previous_mass_flow_rate_;
+        previous_mass_flow_rate_ = acc_mass_flow_rate_;
     }
 
     void writeOutletFlowRateData()
     {
         std::string output_folder = "./output";
-        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_flow_rate.dat";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_volume_flow_rate.dat";
         std::ofstream out_file(filefullpath.c_str(), std::ios::app);
         out_file << *physical_time_ << "   " << Q_n_ <<  "\n";
         out_file.close();
+
+        std::string filefullpath_mass = output_folder + "/" + std::to_string(part_id_ - 1) + "_mass_flow_rate.dat";
+        std::ofstream out_file_mass(filefullpath_mass.c_str(), std::ios::app);
+        out_file_mass << *physical_time_ << "   " << M_n_ <<  "\n";
+        out_file_mass.close();
     }
 };
 
-using WindkesselBoundaryCondition = PressureCondition<TargetOutletPressureWindkessel>;
-using WindkesselBoundaryConditionQave = PressureCondition<TargetOutletPressureWindkesselQave>;
+class RightOutflowPressure : public BaseLocalDynamics<BodyPartByCell>
+{
+  public:
+    explicit RightOutflowPressure(BodyAlignedBoxByCell& aligned_box_part)
+        : BaseLocalDynamics<BodyPartByCell>(aligned_box_part),
+          part_id_(aligned_box_part.getPartID()),
+          Q_n_(0.0),
+          flow_rate_(*(this->particles_->registerSingularVariable<Real>("FlowRate" + std::to_string(part_id_ - 1))->Data())),
+          current_flow_rate_(0.0), previous_flow_rate_(0.0),
+          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")),
+          M_n_(0.0), current_mass_flow_rate_(0.0), previous_mass_flow_rate_(0.0),
+          acc_mass_flow_rate_(*(this->particles_->registerSingularVariable<Real>("AccMassFlowRate" + std::to_string(part_id_ - 1))->Data())) {};
+    virtual ~RightOutflowPressure(){};
 
+    void writeOutletFlowRate(Real delta_t)
+    {
+        getFlowRate();
+        Q_n_ = current_flow_rate_ / delta_t;
+        M_n_ = current_mass_flow_rate_ / delta_t;
+        writeOutletFlowRateData();
+    }
+
+    Real operator()(Real p, Real current_time)
+    {
+        return 0.0;
+    }
+
+  protected:
+    int part_id_;
+    Real Q_n_;
+    Real &flow_rate_, current_flow_rate_, previous_flow_rate_;
+    Real M_n_;
+    Real &acc_mass_flow_rate_, current_mass_flow_rate_, previous_mass_flow_rate_;
+    Real *physical_time_;
+
+    void getFlowRate()
+    {
+        current_flow_rate_ = flow_rate_ - previous_flow_rate_;
+        previous_flow_rate_ = flow_rate_;
+
+        current_mass_flow_rate_ = acc_mass_flow_rate_ - previous_mass_flow_rate_;
+        previous_mass_flow_rate_ = acc_mass_flow_rate_;
+    }
+
+    void writeOutletFlowRateData()
+    {
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_volume_flow_rate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << *physical_time_ << "   " << Q_n_ <<  "\n";
+        out_file.close();
+
+        std::string filefullpath_mass = output_folder + "/" + std::to_string(part_id_ - 1) + "_mass_flow_rate.dat";
+        std::ofstream out_file_mass(filefullpath_mass.c_str(), std::ios::app);
+        out_file_mass << *physical_time_ << "   " << M_n_ <<  "\n";
+        out_file_mass.close();
+    }
+};
+
+using NonPrescribedPBC = PressureCondition<NonPrescribedPressureForFlowRate>;
+using PredefinedPBC = PressureCondition<RightOutflowPressure>;
+
+//----------------------------------------------------------------------
+//	Windkessel buffer
+//----------------------------------------------------------------------
 template <typename TargetPressure, class ExecutionPolicy = ParallelPolicy>
 class BidirectionalBufferWindkessel
 {
@@ -281,7 +371,8 @@ class BidirectionalBufferWindkessel
               upper_bound_fringe_(0.5 * sph_body_.getSPHBodyResolutionRef()),
               physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")),
               target_pressure_(target_pressure),
-              flow_rate_(*(this->particles_->template getSingularVariableByName<Real>("FlowRate" + std::to_string(part_id_ - 1))->Data()))
+              flow_rate_(*(this->particles_->template getSingularVariableByName<Real>("FlowRate" + std::to_string(part_id_ - 1))->Data())),
+              acc_mass_flow_rate_(*(this->particles_->template getSingularVariableByName<Real>("AccMassFlowRate" + std::to_string(part_id_ - 1))->Data()))
         {
             particle_buffer_.checkParticlesReserved();
         };
@@ -309,6 +400,7 @@ class BidirectionalBufferWindkessel
                     mutex_switch.unlock();
 
                     flow_rate_ -= Vol_[index_i];
+                    acc_mass_flow_rate_ -= Vol_[index_i] * rho_[index_i];
                 }
             }
         }
@@ -325,6 +417,7 @@ class BidirectionalBufferWindkessel
         Real upper_bound_fringe_;
         Real *physical_time_;
         Real &flow_rate_;
+        Real &acc_mass_flow_rate_;
 
       private:
         TargetPressure &target_pressure_;
@@ -338,9 +431,11 @@ class BidirectionalBufferWindkessel
               part_id_(aligned_box_part.getPartID()),
               aligned_box_(aligned_box_part.getAlignedBoxShape()),
               pos_(particles_->getVariableDataByName<Vecd>("Position")),
+              rho_(particles_->getVariableDataByName<Real>("Density")),
               Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
               buffer_particle_indicator_(particles_->getVariableDataByName<int>("BufferParticleIndicator")),
-              flow_rate_(*(this->particles_->template getSingularVariableByName<Real>("FlowRate" + std::to_string(part_id_ - 1))->Data())) {};
+              flow_rate_(*(this->particles_->template getSingularVariableByName<Real>("FlowRate" + std::to_string(part_id_ - 1))->Data())),
+              acc_mass_flow_rate_(*(this->particles_->template getSingularVariableByName<Real>("AccMassFlowRate" + std::to_string(part_id_ - 1))->Data())) {};
         virtual ~Deletion() {};
 
         void update(size_t index_i, Real dt = 0.0)
@@ -354,6 +449,7 @@ class BidirectionalBufferWindkessel
                 {
                     particles_->switchToBufferParticle(index_i);
                     flow_rate_ += Vol_[index_i];
+                    acc_mass_flow_rate_ += Vol_[index_i] * rho_[index_i];
                 }
                 mutex_switch.unlock();
             }
@@ -364,9 +460,10 @@ class BidirectionalBufferWindkessel
         std::mutex mutex_switch;
         AlignedBoxShape &aligned_box_;
         Vecd *pos_;
-        Real *Vol_;
+        Real *rho_, *Vol_;
         int *buffer_particle_indicator_;
         Real &flow_rate_;
+        Real &acc_mass_flow_rate_;
     };
 
   public:
@@ -382,6 +479,8 @@ class BidirectionalBufferWindkessel
     SimpleDynamics<Deletion, ExecutionPolicy> deletion;
 };
 
+using InletBidirectionalBuffer = BidirectionalBufferWindkessel<NonPrescribedPressureForFlowRate>;
+using OutletBidirectionalBuffer = BidirectionalBufferWindkessel<RightOutflowPressure>;
 using WindkesselOutletBidirectionalBuffer = BidirectionalBufferWindkessel<TargetOutletPressureWindkessel>;
 
 class TotalVelocityNormVal
@@ -418,7 +517,7 @@ class AreaAverageFlowRate : public ReduceSumType
     explicit AreaAverageFlowRate(BodyAlignedBoxByCell& aligned_box_part, Real outlet_area)
           : ReduceSumType(aligned_box_part),
             part_id_(aligned_box_part.getPartID()),
-            tansient_flow_rate_(*(this->particles_->template registerSingularVariable<Real>("TransientFlowRate" + std::to_string(part_id_ - 1))->Data())),
+            tansient_flow_rate_(*(this->particles_->template registerSingularVariable<Real>("TransientVolumeFlowRate" + std::to_string(part_id_ - 1))->Data())),
             outlet_area_(outlet_area), physical_time_(this->sph_system_.template getSystemVariableDataByName<Real>("PhysicalTime")) {};
     virtual ~AreaAverageFlowRate(){};
 
@@ -428,7 +527,7 @@ class AreaAverageFlowRate : public ReduceSumType
         tansient_flow_rate_ = average_velocity_norm * outlet_area_;
 
         std::string output_folder = "./output";
-        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_flow_rate.dat";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_transient_VolumeFlowRate.dat";
         std::ofstream out_file(filefullpath.c_str(), std::ios::app);
         out_file << *physical_time_ << "   " << tansient_flow_rate_ <<  "\n";
         out_file.close();
@@ -445,6 +544,69 @@ class AreaAverageFlowRate : public ReduceSumType
 };
 
 using SectionTransientFlowRate = AreaAverageFlowRate<TotalVelocityNormVal>;
+
+class TotalMassNormVal
+    : public BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>
+{
+  protected:
+    Vecd *vel_;
+    Real *rho_;
+    AlignedBoxShape &aligned_box_;
+    const int alignment_axis_;
+    Transform &transform_;
+
+  public:
+      explicit TotalMassNormVal(BodyAlignedBoxByCell& aligned_box_part)
+          : BaseLocalDynamicsReduce<ReduceSum<Real>, BodyPartByCell>(aligned_box_part),
+          vel_(this->particles_->template getVariableDataByName<Vecd>("Velocity")),
+          rho_(this->particles_->template getVariableDataByName<Real>("Density")),
+          aligned_box_(aligned_box_part.getAlignedBoxShape()),
+          alignment_axis_(aligned_box_.AlignmentAxis()),
+          transform_(aligned_box_.getTransform()) {};
+
+    virtual ~TotalMassNormVal(){};
+
+    Real reduce(size_t index_i, Real dt = 0.0)
+    {
+        Vecd frame_velocity = Vecd::Zero();
+        frame_velocity[alignment_axis_] = transform_.xformBaseVecToFrame(vel_[index_i])[alignment_axis_];
+        return frame_velocity[alignment_axis_] * rho_[index_i];
+    }
+};
+
+template <class ReduceSumType>
+class AreaAverageMassFlowRate : public ReduceSumType
+{
+  public:
+    explicit AreaAverageMassFlowRate(BodyAlignedBoxByCell& aligned_box_part, Real outlet_area)
+          : ReduceSumType(aligned_box_part),
+            part_id_(aligned_box_part.getPartID()),
+            tansient_mass_flow_rate_(*(this->particles_->template registerSingularVariable<Real>("TransientMassFlowRate" + std::to_string(part_id_ - 1))->Data())),
+            outlet_area_(outlet_area), physical_time_(this->sph_system_.template getSystemVariableDataByName<Real>("PhysicalTime")) {};
+    virtual ~AreaAverageMassFlowRate(){};
+
+    virtual Real outputResult(Real reduced_value) override
+    {
+        Real average_mass_norm = ReduceSumType::outputResult(reduced_value) / Real(this->getDynamicsIdentifier().SizeOfLoopRange());
+        tansient_mass_flow_rate_ = average_mass_norm * outlet_area_;
+
+        std::string output_folder = "./output";
+        std::string filefullpath = output_folder + "/" + std::to_string(part_id_ - 1) + "_transient_MassFlowRate.dat";
+        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
+        out_file << *physical_time_ << "   " << tansient_mass_flow_rate_ <<  "\n";
+        out_file.close();
+
+        return tansient_mass_flow_rate_;
+    }
+
+  private:
+    int part_id_;
+    Real &tansient_mass_flow_rate_;
+    Real outlet_area_;
+    Real *physical_time_;
+};
+
+using SectionTransientMassFlowRate = AreaAverageMassFlowRate<TotalMassNormVal>;
 
 template <typename AlignedShapeType, typename TargetPressure, class ExecutionPolicy = ParallelPolicy>
 class BidirectionalBufferArb
