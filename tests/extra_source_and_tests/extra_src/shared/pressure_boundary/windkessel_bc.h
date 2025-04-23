@@ -79,7 +79,7 @@ class TargetOutletPressureWindkessel : public BaseLocalDynamics<BodyPartByCell>
         previous_flow_rate_ = flow_rate_;
 
         current_mass_flow_rate_ = acc_mass_flow_rate_ - previous_mass_flow_rate_;
-        previous_flow_rate_ = acc_mass_flow_rate_;
+        previous_mass_flow_rate_ = acc_mass_flow_rate_;
     }
 
     void writeOutletPressureData()
