@@ -86,6 +86,24 @@ class GeometricShapeBall : public GeometricShape
     virtual BoundingBox findBounds() override;
 };
 
+class GeometricShapeCylinder : public GeometricShape
+{
+  private:
+    SimTK::ContactGeometry::Cylinder cylinder_;
+
+  public:
+    explicit GeometricShapeCylinder(const Real &radius, const Real &halflength,
+                                const std::string &shape_name = "GeometricShapeCylinder");
+    virtual ~GeometricShapeCylinder(){};
+
+    virtual bool checkContain(const Vec3d &probe_point, bool BOUNDARY_INCLUDED = true) override;
+    virtual Vec3d findClosestPoint(const Vec3d &probe_point) override;
+
+  protected:
+    Real halflength_;
+    Real radius_;
+    virtual BoundingBox findBounds() override;
+};
 } // namespace SPH
 
 #endif // GEOMETRIC_SHAPE_H
