@@ -307,27 +307,25 @@ int main(int ac, char *av[])
     //	Boundary conditions.
     //----------------------------------------------------------------------
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_buffer_half));
-    fluid_dynamics::BidirectionalBuffer<fluid_dynamics::NonPrescribedPressure> left_buffer(left_emitter, in_outlet_particle_buffer);
+    fluid_dynamics::InletBidirectionalBuffer left_buffer(left_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_up_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_up_emitter_rotation), Vec3d(outlet_up_buffer_translation)), outlet_up_buffer_half));
-    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_up_buffer(right_up_emitter, in_outlet_particle_buffer);
+    fluid_dynamics::OutletBidirectionalBuffer right_up_buffer(right_up_emitter, in_outlet_particle_buffer);
     BodyAlignedBoxByCell right_down_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Rotation3d(outlet_down_emitter_rotation), Vec3d(outlet_down_buffer_translation)), outlet_down_buffer_half));
-    fluid_dynamics::BidirectionalBuffer<RightInflowPressure> right_down_buffer(right_down_emitter, in_outlet_particle_buffer);
+    fluid_dynamics::OutletBidirectionalBuffer right_down_buffer(right_down_emitter, in_outlet_particle_buffer);
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_wall_contact);
-    SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_inflow_pressure_condition(left_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_up_inflow_pressure_condition(right_up_emitter);
-    SimpleDynamics<fluid_dynamics::PressureCondition<RightInflowPressure>> right_down_inflow_pressure_condition(right_down_emitter);
+    SimpleDynamics<fluid_dynamics::NonPrescribedPBC> left_inflow_pressure_condition(left_emitter);
+    SimpleDynamics<fluid_dynamics::PredefinedPBC> right_up_inflow_pressure_condition(right_up_emitter);
+    SimpleDynamics<fluid_dynamics::PredefinedPBC> right_down_inflow_pressure_condition(right_down_emitter);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
 
     ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_emitter, Pi * pow(DW_in/2, 2));
     ReduceDynamics<fluid_dynamics::SectionTransientMassFlowRate> compute_inlet_transient_mass_flow_rate(left_emitter, Pi * pow(DW_in/2, 2));
-    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_up_transient_flow_rate(right_up_emitter, Pi * pow(DW_out_up/2, 2));
-    ReduceDynamics<fluid_dynamics::SectionTransientMassFlowRate> compute_outlet_up_transient_mass_flow_rate(right_up_emitter, Pi * pow(DW_out_up/2, 2));
-    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_down_transient_flow_rate(right_down_emitter, Pi * pow(DW_out_down/2, 2));
-    ReduceDynamics<fluid_dynamics::SectionTransientMassFlowRate> compute_outlet_down_transient_mass_flow_rate(right_down_emitter, Pi * pow(DW_out_down/2, 2));
 
     InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_from_fluid(wall_contact);
     SimpleDynamics<solid_dynamics::FirstLayerFromFluid> solid_first_layer(wall_boundary, water_block);
     SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(wall_boundary, 0.5);
+    InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_wall(wall_contact);
+    
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -345,7 +343,9 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Vecd>(wall_boundary, "WallShearStress");
     body_states_recording.addToWrite<Real>(wall_boundary, "TimeAveragedWallShearStress");
     body_states_recording.addToWrite<Real>(wall_boundary, "OscillatoryShearIndex");
-
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_viscous_force_on_wall(wall_boundary, "ViscousForceFromFluid");
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_pressure_force_on_wall(wall_boundary, "PressureForceFromFluid");
+    
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -369,6 +369,9 @@ int main(int ac, char *av[])
     //Real Output_Time = end_time / 300; /**< Time stamps for output of body states. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
+
+    Real accumulated_time = 0.005;
+    int updateP_n = 0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -409,8 +412,20 @@ int main(int ac, char *av[])
                 dt = SMIN(get_fluid_time_step_size.exec(), Dt);
 
                 pressure_relaxation.exec(dt);
+                /** FSI for pressure force. */
+                pressure_force_on_wall.exec();
 
                 kernel_summation.exec();
+
+                if (physical_time >= updateP_n * accumulated_time)
+                {
+                    left_inflow_pressure_condition.getTargetPressure()->writeInletFlowRate(accumulated_time);
+                    right_up_inflow_pressure_condition.getTargetPressure()->writeOutletFlowRate(accumulated_time);
+                    right_down_inflow_pressure_condition.getTargetPressure()->writeOutletFlowRate(accumulated_time);
+                   
+                    ++updateP_n;
+                }
+
                 left_inflow_pressure_condition.exec(dt);
                 right_up_inflow_pressure_condition.exec(dt);
                 right_down_inflow_pressure_condition.exec(dt);
@@ -434,13 +449,6 @@ int main(int ac, char *av[])
             number_of_iterations++;
 
             time_instance = TickCount::now();
-
-            compute_inlet_transient_flow_rate.exec();
-            compute_inlet_transient_mass_flow_rate.exec();
-            compute_outlet_up_transient_flow_rate.exec();
-            compute_outlet_up_transient_mass_flow_rate.exec();
-            compute_outlet_down_transient_flow_rate.exec();
-            compute_outlet_down_transient_mass_flow_rate.exec();
 
             left_buffer.injection.exec();
             right_up_buffer.injection.exec();
@@ -468,6 +476,11 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
+        compute_inlet_transient_flow_rate.exec();
+        compute_inlet_transient_mass_flow_rate.exec();
+
+        write_total_viscous_force_on_wall.writeToFile(number_of_iterations);
+        write_total_pressure_force_on_wall.writeToFile(number_of_iterations);
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }

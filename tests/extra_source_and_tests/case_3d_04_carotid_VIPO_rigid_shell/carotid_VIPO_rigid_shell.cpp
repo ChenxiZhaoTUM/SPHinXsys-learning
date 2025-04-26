@@ -322,7 +322,7 @@ Vecd standard_direction(1, 0, 0);
 // inlet R=3.130, (1.583, 5.904, -31.850), (0.0, 0.0, 1.0)
 Real DW_in = 3.130 * 2 * scaling;
 Vec3d inlet_half = Vec3d(2.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
-Vec3d inlet_normal(0.0, 0.0, 1.000);
+Vec3d inlet_normal(0.0, 0.0, 1.0);
 Vec3d inlet_cut_translation = Vec3d(1.583, 5.904, -31.850) * scaling - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
 Vec3d inlet_buffer_translation = Vec3d(1.583, 5.904, -31.850) * scaling + inlet_normal * 2.0 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
@@ -573,7 +573,8 @@ int main(int ac, char *av[])
 
     InteractionWithUpdate<solid_dynamics::WallShearStress> viscous_force_from_fluid(shell_water_contact);
     SimpleDynamics<solid_dynamics::HemodynamicIndiceCalculation> hemodynamic_indice_calculation(shell_body, 0.5);
-
+    InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(density_relaxation)>> pressure_force_on_shell(shell_water_contact);
+    
     //----------------------------------------------------------------------
     //	Define the configuration related particles dynamics.
     //----------------------------------------------------------------------
@@ -593,6 +594,9 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Vecd>(shell_body, "WallShearStress");
     body_states_recording.addToWrite<Real>(shell_body, "TimeAveragedWallShearStress");
     body_states_recording.addToWrite<Real>(shell_body, "OscillatoryShearIndex");
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_viscous_force_on_wall(shell_body, "ViscousForceFromFluid");
+    ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_pressure_force_on_wall(shell_body, "PressureForceFromFluid");
+    
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -663,7 +667,7 @@ int main(int ac, char *av[])
 
                 pressure_relaxation.exec(dt);
                 /** FSI for pressure force. */
-                //pressure_force_on_shell.exec();
+                pressure_force_on_shell.exec();
 
                 kernel_summation.exec();
 
@@ -699,7 +703,7 @@ int main(int ac, char *av[])
             number_of_iterations++;
 
             time_instance = TickCount::now();
-            
+
             left_emitter_inflow_injection.injection.exec();
             right_up_emitter_inflow_injection.injection.exec();
             right_down_emitter_inflow_injection.injection.exec();
@@ -725,7 +729,6 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
-
         compute_inlet_transient_flow_rate.exec();
         compute_inlet_transient_mass_flow_rate.exec();
         compute_outlet_up_transient_flow_rate.exec();
@@ -733,8 +736,12 @@ int main(int ac, char *av[])
         compute_outlet_down_transient_flow_rate.exec();
         compute_outlet_down_transient_mass_flow_rate.exec();
 
+        write_total_viscous_force_on_wall.writeToFile(number_of_iterations);
+        write_total_pressure_force_on_wall.writeToFile(number_of_iterations);
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
+
+        
     }
     TickCount t4 = TickCount::now();
 
@@ -742,7 +749,7 @@ int main(int ac, char *av[])
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds()
               << " seconds." << std::endl;
-    std::cout << std::fixed << std::setprecision(9) << "interval_computing_time_step ="
+    std::cout << std::fixed << std::setprecision(9) << "interval_computinGg_time_step ="
               << interval_computing_time_step.seconds() << "\n";
     std::cout << std::fixed << std::setprecision(9) << "interval_computing_pressure_relaxation = "
               << interval_computing_pressure_relaxation.seconds() << "\n";
