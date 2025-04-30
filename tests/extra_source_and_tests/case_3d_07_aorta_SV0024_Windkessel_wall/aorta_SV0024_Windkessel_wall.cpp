@@ -433,6 +433,7 @@ int main(int ac, char *av[])
     /** Impose transport velocity. */
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>>
         transport_velocity_correction(water_block_inner, water_block_contact);
+    InteractionDynamics<fluid_dynamics::HelicityInner> compute_helicity(water_block_inner);
 
     // bidirectional buffer
     //BodyAlignedCylinderByCell inlet_emitter(water_block, makeShared<AlignedCylinderShape>(xAxis, Transform(Rotation3d(inlet_emitter_rotation), Vec3d(inlet_buffer_translation)), inlet_half[1], inlet_half[0]));
@@ -521,7 +522,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0.0;
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 3.5;   /**< End time. */
+    Real end_time = 3.3;   /**< End time. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     /** statistics for computing CPU time. */
@@ -652,6 +653,7 @@ int main(int ac, char *av[])
             outflow_injection_5.tag_buffer_particles.exec();
         }
         TickCount t2 = TickCount::now();
+        compute_helicity.exec();
         body_states_recording.writeToFile();
         compute_inlet_transient_flow_rate.exec();
         compute_inlet_transient_mass_flow_rate.exec();

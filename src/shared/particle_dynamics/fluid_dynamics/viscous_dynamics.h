@@ -182,6 +182,22 @@ class VorticityInner : public LocalDynamics, public DataDelegateInner
     Vecd *vel_;
     AngularVecd *vorticity_;
 };
+
+class HelicityInner : public LocalDynamics, public DataDelegateInner
+{
+  public:
+    explicit HelicityInner(BaseInnerRelation &inner_relation);
+    virtual ~HelicityInner(){};
+
+    void interaction(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real *Vol_;
+    Vecd *vel_;
+    AngularVecd *vorticity_;
+    Real *normalized_helicity_;
+};
+
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // VISCOUS_DYNAMICS_H
