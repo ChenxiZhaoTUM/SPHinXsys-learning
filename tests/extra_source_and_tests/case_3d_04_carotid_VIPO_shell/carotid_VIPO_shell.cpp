@@ -29,7 +29,7 @@ Vec3d domain_lower_bound(-7.0 * scaling, -5.0 * scaling, -34.0 * scaling);
 Vec3d domain_upper_bound(13.0 * scaling, 11.0 * scaling, 25.0 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
 Real dp_0 = 0.2 * scaling;
-Real shell_resolution = dp_0 / 2;  /*thickness = 3.0 * shell_resolution*/ 
+Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/ 
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -616,8 +616,8 @@ int main(int ac, char *av[])
 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
-    //SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
-    SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
+    SimpleDynamics<FixBodyPartConstraint> constrain_holder(boundary_geometry);
+    //SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(boundary_geometry);
 
     //----------------------------------------------------------------------
     //	Fluid dynamics
