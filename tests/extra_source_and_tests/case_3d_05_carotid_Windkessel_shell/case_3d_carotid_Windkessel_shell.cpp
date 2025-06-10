@@ -18,17 +18,19 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-std::string full_path_to_file = "./input/carotid_fluid_geo.stl";
+std::string full_path_to_file = "./input/bif_artery.STL";
+std::string full_vtp_file_path = "./input/carotid_fluent_parsed_vtp.vtp";
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Vec3d translation(0.0, 0.0, 0.0);
 Real scaling = pow(10, -3);
-Vec3d domain_lower_bound(-6.0 * scaling, -4.0 * scaling, -32.5 * scaling);
-Vec3d domain_upper_bound(12.0 * scaling, 10.0 * scaling, 23.5 * scaling);
+Vec3d domain_lower_bound(-7.0 * scaling, -5.0 * scaling, -34.0 * scaling);
+Vec3d domain_upper_bound(13.0 * scaling, 11.0 * scaling, 25.0 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
 Real dp_0 = 0.2 * scaling;
-Real shell_resolution = dp_0 / 2;  /*thickness = 3.0 * shell_resolution*/ 
+//Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/ 
+Real shell_resolution = dp_0;  /*thickness = 1.0 * shell_resolution*/ 
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -61,9 +63,9 @@ public:
 //----------------------------------------------------------------------
 //	Shell particle generation.
 //----------------------------------------------------------------------
-class FromSTLFile;
+class FromVTPFile;
 template <>
-class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerator<SurfaceParticles>
+class ParticleGenerator<SurfaceParticles, FromVTPFile> : public ParticleGenerator<SurfaceParticles>
 {
     Real mesh_total_area_;
     Real particle_spacing_;
@@ -71,22 +73,23 @@ class ParticleGenerator<SurfaceParticles, FromSTLFile> : public ParticleGenerato
     Real avg_particle_volume_;
     size_t planned_number_of_particles_;
 
-    TriangleMeshShapeSTL* mesh_shape_;
+    std::vector<Vec3d> vertex_positions_;
+    std::vector<std::array<int, 3>> faces_;
     Shape &initial_shape_;
 
 public:
-    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, TriangleMeshShapeSTL* mesh_shape, Real shell_thickness) 
+    explicit ParticleGenerator(SPHBody& sph_body, SurfaceParticles &surface_particles, const std::string& vtp_file_path, Real shell_thickness) 
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
         mesh_total_area_(0),
         particle_spacing_(sph_body.sph_adaptation_->ReferenceSpacing()),
         thickness_(shell_thickness),
         avg_particle_volume_(pow(particle_spacing_, Dimensions - 1) * thickness_),
         planned_number_of_particles_(0),
-        mesh_shape_(mesh_shape), initial_shape_(sph_body.getInitialShape()) 
+        initial_shape_(sph_body.getInitialShape()) 
     {
-        if (!mesh_shape_)
+        if (!readVTPFile(vtp_file_path))
         {
-            std::cerr << "Error: Mesh shape is not set!" << std::endl;
+            std::cerr << "Error: VTP file could not be read!" << std::endl;
             return;
         }
 
@@ -101,28 +104,8 @@ public:
     virtual void prepareGeometricData() override
     {
         
-        // Preload vertex positions
-        std::vector<std::array<Real, 3>> vertex_positions;
-        int num_vertices = mesh_shape_->getTriangleMesh()->getNumVertices();
-        vertex_positions.reserve(num_vertices);
-        for (int i = 0; i < num_vertices; i++)
-        {
-            const auto &p = mesh_shape_->getTriangleMesh()->getVertexPosition(i);
-            vertex_positions.push_back({Real(p[0]), Real(p[1]), Real(p[2])});
-        }
-
-        // Preload face
-        std::vector<std::array<int, 3>> faces;
-        int num_faces = mesh_shape_->getTriangleMesh()->getNumFaces();
+        int num_faces = faces_.size();
         std::cout << "num_faces calculation = " << num_faces << std::endl;
-        faces.reserve(num_faces);
-        for (int i = 0; i < num_faces; i++)
-        {
-            auto f1 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 0);
-            auto f2 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 1);
-            auto f3 = mesh_shape_->getTriangleMesh()->getFaceVertex(i, 2);
-            faces.push_back({f1, f2, f3});
-        }
 
         // Calculate total volume
         std::vector<Real> face_areas(num_faces);
@@ -131,7 +114,7 @@ public:
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                const auto& pos = vertex_positions[faces[i][j]];
+                const auto& pos = vertex_positions_[faces_[i][j]];
                 vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
             }
 
@@ -158,7 +141,7 @@ public:
             Vec3d vertices[3];
             for (int j = 0; j < 3; ++j)
             {
-                const auto& pos = vertex_positions[faces[i][j]];
+                const auto& pos = vertex_positions_[faces_[i][j]];
                 vertices[j] = Vec3d(pos[0], pos[1], pos[2]);
             }
 
@@ -166,24 +149,110 @@ public:
             if (random_real <= interval && base_particles_.TotalRealParticles() < planned_number_of_particles_)
             {
                 // Generate particle at the center of this triangle face
-                // generateParticleAtFaceCenter(vertices);
+                //generateParticleAtFaceCenter(vertices);
                 
                 // Generate particles on this triangle face, unequal
                 int particles_per_face = std::max(1, int(planned_number_of_particles_ * (face_areas[i] / mesh_total_area_)));
                 generateParticlesOnFace(vertices, particles_per_face);
             }
         }
-
-        std::cout << "Shell particle generation finish!" << std::endl;
     }
 
 private:
+    bool readVTPFile(const std::string& vtp_file)
+    {
+        std::ifstream file(vtp_file);
+        if (!file.is_open())
+        {
+            std::cerr << "Could not open file: " << vtp_file << std::endl;
+            return false;
+        }
+
+        std::string line;
+        bool reading_points = false;
+        bool reading_faces = false;
+        bool reading_points_data = false;
+        bool reading_faces_data = false;
+
+        vertex_positions_.reserve(50000);
+        faces_.reserve(50000);
+
+        int read_face_num = 0;
+
+        while (std::getline(file, line))
+        {
+            if (line.find("<Points>") != std::string::npos)
+            {
+                reading_points = true;
+                continue;
+            }
+            if (line.find("</Points>") != std::string::npos)
+            {
+                reading_points = false;
+                continue;
+            }
+            if (line.find("<Polys>") != std::string::npos)
+            {
+                reading_faces = true;
+                continue;
+            }
+            if (line.find("</Polys>") != std::string::npos)
+            {
+                reading_faces = false;
+                continue;
+            }
+            if (reading_points && line.find("<DataArray") != std::string::npos)
+            {
+                reading_points_data = true;
+                continue;
+            }
+            if (reading_faces && line.find("<DataArray type=\"Int32\" Name=\"connectivity\"") != std::string::npos)
+            {
+                reading_faces_data = true;
+                continue;
+            }
+            if (reading_points_data && line.find("</DataArray>") != std::string::npos)
+            {
+                reading_points_data = false;
+                continue;
+            }
+            if (reading_faces_data && line.find("</DataArray>") != std::string::npos)
+            {
+                reading_faces_data = false;
+                continue;
+            }
+
+            if (reading_points_data)
+            {
+                std::istringstream iss(line);
+                Real x, y, z;
+                if (iss >> x >> y >> z)
+                {
+                    vertex_positions_.push_back({x, y, z});
+                }
+            }
+
+            if (reading_faces_data)
+            {
+                std::istringstream iss(line);
+                int v1, v2, v3;
+                if (iss >> v1 >> v2 >> v3)
+                {
+                    faces_.push_back({v1, v2, v3});
+                }
+            }
+        }
+
+        std::cout << "Read VTP file successfully!" << std::endl;
+
+        return true;
+    }
+
     Real calculateEachFaceArea(const Vec3d vertices[3])
     {
         Vec3d edge1 = vertices[1] - vertices[0];
         Vec3d edge2 = vertices[2] - vertices[0];
-        Real area = 0.5 * edge1.cross(edge2).norm();
-        return area;
+        return 0.5 * edge1.cross(edge2).norm();
     }
 
     void generateParticleAtFaceCenter(const Vec3d vertices[3])
@@ -251,32 +320,34 @@ RotationResult RotationCalculator(Vecd target_normal, Vecd standard_direction)
 
 Vecd standard_direction(1, 0, 0);
 
-// inlet R=2.9293, (1.5611, 5.8559, -30.8885), (0.1034, -0.0458, 0.9935)
-Real DW_in = 2.9293 * 2 * scaling;
+// inlet R=3.130, (1.583, 5.904, -31.850), (0.0, 0.0, 1.0)
+Real DW_in = 3.130 * 2 * scaling;
 Vec3d inlet_half = Vec3d(2.0 * dp_0, 3.5 * scaling, 3.5 * scaling);
-Vec3d inlet_normal(0.1034, -0.0458, 0.9935);
-Vec3d inlet_cut_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d inlet_buffer_translation = Vec3d(1.5611, 5.8559, -30.8885) * scaling + inlet_normal * 2.0 * dp_0;
+Vec3d inlet_normal(0.0, 0.0, 1.0);
+Vec3d inlet_cut_translation = Vec3d(1.583, 5.904, -31.850) * scaling - inlet_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d inlet_buffer_translation = Vec3d(1.583, 5.904, -31.850) * scaling + inlet_normal * 2.0 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
 
-// outlet1 R=1.3261, (9.0220, 0.9750, 18.6389), (-0.0399, 0.0693, 0.9972)
-Real DW_out_up = 1.3261 * 2 * scaling;
-Vec3d outlet_up_half = Vec3d(2.0 * dp_0, 2.0 * scaling, 2.0 * scaling);
-Vec3d outlet_up_normal(-0.0399, 0.0693, 0.9972);
-Vec3d outlet_up_cut_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling + outlet_up_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_up_buffer_translation = Vec3d(9.0220, 0.9750, 18.6389) * scaling - outlet_up_normal * 2.0 * dp_0;
+// outlet1 R=1.501, (8.993, 0.932, 19.124), (0.0, 0.0, 1.0)
+Real DW_out_up = 1.501 * 2 * scaling;
+Vec3d outlet_up_half = Vec3d(2.0 * dp_0, 3.0 * scaling, 3.0 * scaling);
+Vec3d outlet_up_normal(0.0, 0.0, 1.0);
+Vec3d outlet_up_cut_translation = Vec3d(8.993, 0.932, 19.124) * scaling + outlet_up_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_up_blood_cut_translation = Vec3d(8.993, 0.932, 19.124) * scaling + outlet_up_normal * 1.0 * dp_0;
+Vec3d outlet_up_buffer_translation = Vec3d(8.993, 0.932, 19.124) * scaling - outlet_up_normal * 3.0 * dp_0;
 RotationResult outlet_up_rotation_result = RotationCalculator(outlet_up_normal, standard_direction);
 Rotation3d outlet_up_disposer_rotation(outlet_up_rotation_result.angle, outlet_up_rotation_result.axis);
 Rotation3d outlet_up_emitter_rotation(outlet_up_rotation_result.angle + Pi, outlet_up_rotation_result.axis);
 
-// outlet2 R=1.9416, (-2.6975, -0.4330, 21.7855), (-0.3160, -0.0009, 0.9488)
-Real DW_out_down = 1.9416 * 2 * scaling;
-Vec3d outlet_down_half = Vec3d(2.0 * dp_0, 2.4 * scaling, 2.4 * scaling);
-Vec3d outlet_down_normal(-0.3160, -0.0009, 0.9488);
-Vec3d outlet_down_cut_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling + outlet_down_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
-Vec3d outlet_down_buffer_translation = Vec3d(-2.6975, -0.4330, 21.7855) * scaling - outlet_down_normal * 2.0 * dp_0;
+// outlet2 R=2.118, (-2.991, -0.416, 22.215), (-0.316, 0.0, 0.949)
+Real DW_out_down = 2.118 * 2 * scaling;
+Vec3d outlet_down_half = Vec3d(2.0 * dp_0, 3.0 * scaling, 3.0 * scaling);
+Vec3d outlet_down_normal(-0.316, 0.0, 0.949);
+Vec3d outlet_down_cut_translation = Vec3d(-2.991, -0.416, 22.215) * scaling + outlet_down_normal * (1.0 * dp_0 + 1.0 * (dp_0 - shell_resolution));
+Vec3d outlet_down_blood_cut_translation = Vec3d(-2.991, -0.416, 22.215) * scaling + outlet_down_normal * 1.0 * dp_0;
+Vec3d outlet_down_buffer_translation = Vec3d(-2.991, -0.416, 22.215) * scaling - outlet_down_normal * 3.0 * dp_0;
 RotationResult outlet_down_rotation_result = RotationCalculator(outlet_down_normal, standard_direction);
 Rotation3d outlet_down_disposer_rotation(outlet_down_rotation_result.angle, outlet_down_rotation_result.axis);
 Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, outlet_down_rotation_result.axis);
@@ -284,16 +355,19 @@ Rotation3d outlet_down_emitter_rotation(outlet_down_rotation_result.angle + Pi, 
 //	Global parameters on the fluid properties
 //----------------------------------------------------------------------
 Real rho0_f = 1060; /**< Reference density of fluid. */
-Real U_f = 2.0;    /**< Characteristic velocity. */
+Real U_f = 2.5;    /**< Characteristic velocity. */
 /** Reference sound speed needs to consider the flow speed in the narrow channels. */
 Real c_f = 10.0 * U_f ;
-Real mu_f = 0.004; /**< Dynamics viscosity. */
+Real mu_f = 0.0035; /**< Dynamics viscosity. */
 
-Real rho0_s = 1200;                /** Normalized density. */
-Real Youngs_modulus = 1.5e6;    /** Normalized Youngs Modulus. */
-Real poisson = 0.49;               /** Poisson ratio. */
+Real rho0_s = 1120;                /** Normalized density. */
+//Real Youngs_modulus = 1.106e7;    /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 1.106e6;    /** Normalized Youngs Modulus. */
+Real poisson = 0.45;               /** Poisson ratio. */
+//Real Youngs_modulus = 1.08e6;    /** Normalized Youngs Modulus. */
+//Real poisson = 0.49;               /** Poisson ratio. */
 // Real physical_viscosity = 0.25 * sqrt(rho0_s * Youngs_modulus) * 55.0 * scaling; /** physical damping */  //478
-Real physical_viscosity = 2000;
+Real physical_viscosity = 10000;
 //----------------------------------------------------------------------
 //	Inflow velocity
 //----------------------------------------------------------------------
@@ -329,12 +403,13 @@ struct InflowVelocity
 //	Pressure boundary definition.
 //----------------------------------------------------------------------
 // ref 0 mmHg
-Real Rp_up = 7.87E8;
-Real C_up = 6.62E-10;
-Real Rd_up = 3.54E9;
-Real Rp_down = 3.45E8;
-Real C_down = 1.51E-9;
-Real Rd_down = 1.55E9;
+Real Rp_up = 5.90E8;
+Real C_up = 8.83E-10;
+Real Rd_up = 2.65E9;
+Real Rp_down = 2.87E8;
+Real C_down = 1.81E-9;
+Real Rd_down = 1.29E9;
+
 //----------------------------------------------------------------------
 //	Boundary constrain
 //----------------------------------------------------------------------
@@ -353,9 +428,9 @@ class BoundaryGeometry : public BodyPartByParticle
     void tagManually(size_t index_i)
     {
         const Vecd &pos = base_particles_.ParticlePositions()[index_i];
-        Vecd center_point_inlet = Vecd(1.5611, 5.8559, -30.8885) * scaling;
-        Vecd center_point_outlet_up = Vecd(9.0220, 0.9750, 18.6389) * scaling;
-        Vecd center_point_outlet_down = Vecd(-2.6975, -0.4330, 21.7855) * scaling;
+        Vecd center_point_inlet = Vecd(1.583, 5.904, -31.850) * scaling;
+        Vecd center_point_outlet_up = Vecd(8.993, 0.932, 19.124) * scaling;
+        Vecd center_point_outlet_down = Vecd(-2.991, -0.416, 22.215) * scaling;
 
         Vecd relative_position_inlet = pos - center_point_inlet;
         Vecd relative_position_outlet_up = pos - center_point_outlet_up;
@@ -365,7 +440,7 @@ class BoundaryGeometry : public BodyPartByParticle
         Real projection_distance_outlet_up = relative_position_outlet_up.dot(-outlet_up_normal);
         Real projection_distance_outlet_down = relative_position_outlet_down.dot(-outlet_down_normal);
 
-        if (ABS(projection_distance_inlet) < 4 * dp_0 || (ABS(projection_distance_outlet_up) < 4 * dp_0 && pos[0] > 0.005) || (ABS(projection_distance_outlet_down) < 4 * dp_0 && pos[0] < 0.002))
+        if (ABS(projection_distance_inlet) < 4 * dp_0 || (ABS(projection_distance_outlet_up) < 20 * dp_0 && pos[0] > 0.005) || (ABS(projection_distance_outlet_down) < 4 * dp_0 && pos[0] < 0.002))
         {
             body_part_particles_.push_back(index_i);
         }
@@ -381,21 +456,25 @@ int main(int ac, char *av[])
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
     SPHSystem sph_system(system_domain_bounds, dp_0);
-    sph_system.setRunParticleRelaxation(false); // Tag for run particle relaxation for body-fitted distribution
-    sph_system.setReloadParticles(true);       // Tag for computation with save particles distribution
+    sph_system.setRunParticleRelaxation(true); // Tag for run particle relaxation for body-fitted distribution
+    sph_system.setReloadParticles(false);       // Tag for computation with save particles distribution
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.cd
     //----------------------------------------------------------------------
-    ShellShape body_from_mesh("BodyFromMesh");
-    TriangleMeshShapeSTL* mesh_shape = body_from_mesh.getMeshShape();
     SolidBody shell_body(sph_system, makeShared<ShellShape>("ShellBody"));
     shell_body.defineAdaptation<SPHAdaptation>(1.15, dp_0/shell_resolution);
-    shell_body.defineBodyLevelSetShape(2.0)->correctLevelSetSign();
     shell_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
-    (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
-        ? shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName())
-        : shell_body.generateParticles<SurfaceParticles, FromSTLFile>(mesh_shape, 4.0*dp_0);
+    if (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
+    {
+        shell_body.generateParticles<SurfaceParticles, Reload>(shell_body.getName());
+    }
+    else
+    {
+        shell_body.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
+        shell_body.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path, 3.0*dp_0);
+        //shell_body.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path, shell_resolution);
+    }
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineBodyLevelSetShape()->cleanLevelSet();
@@ -519,9 +598,9 @@ int main(int ac, char *av[])
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_velocity_damping(0.2, shell_inner, "Velocity", physical_viscosity);
+        shell_velocity_damping(0.5, shell_inner, "Velocity", physical_viscosity);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec3d, FixedDampingRate>>>
-        shell_rotation_damping(0.2, shell_inner, "AngularVelocity", physical_viscosity);
+        shell_rotation_damping(0.5, shell_inner, "AngularVelocity", physical_viscosity);
 
     /** Exert constrain on shell. */
     BoundaryGeometry boundary_geometry(shell_body, "BoundaryGeometry");
@@ -555,8 +634,7 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_emitter);
 
     ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_emitter, Pi * pow(DW_in/2, 2));
-    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_up_transient_flow_rate(right_up_emitter, Pi * pow(DW_out_up/2, 2));
-    ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_outlet_down_transient_flow_rate(right_down_emitter, Pi * pow(DW_out_down/2, 2));
+    ReduceDynamics<fluid_dynamics::SectionTransientMassFlowRate> compute_inlet_transient_mass_flow_rate(left_emitter, Pi * pow(DW_in/2, 2));
 
     //----------------------------------------------------------------------
     //	FSI
@@ -580,6 +658,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(shell_body, "NormalDirection");
     body_states_recording.addToWrite<Matd>(shell_body, "MidSurfaceCauchyStress");
+    body_states_recording.addDerivedVariableRecording<SimpleDynamics<Displacement>>(shell_body);
     body_states_recording.addToWrite<Real>(shell_body, "Average1stPrincipleCurvature");
     body_states_recording.addToWrite<Real>(shell_body, "Average2ndPrincipleCurvature");
     body_states_recording.addToWrite<Vecd>(shell_body, "WallShearStress");
@@ -607,7 +686,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = sph_system.RestartStep();
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 20.0;   /**< End time. */
+    Real end_time = 3.0;   /**< End time. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;          /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
@@ -675,8 +754,6 @@ int main(int ac, char *av[])
                 right_up_inflow_pressure_condition.exec(dt);
                 right_down_inflow_pressure_condition.exec(dt);
 
-                inflow_velocity_condition.exec();
-
                 density_relaxation.exec(dt);
 
                 Real dt_s_sum = 0.0;
@@ -701,6 +778,8 @@ int main(int ac, char *av[])
                 relaxation_time += dt;
                 integration_time += dt;
                 physical_time += dt;
+
+                //body_states_recording.writeToFile();
             }
             interval_computing_pressure_relaxation += TickCount::now() - time_instance;
 
@@ -714,10 +793,6 @@ int main(int ac, char *av[])
             number_of_iterations++;
 
             time_instance = TickCount::now();
-            
-            compute_inlet_transient_flow_rate.exec();
-            compute_outlet_up_transient_flow_rate.exec();
-            compute_outlet_down_transient_flow_rate.exec();
 
             left_buffer.injection.exec();
             right_up_buffer.injection.exec();
@@ -749,6 +824,9 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
+
+        compute_inlet_transient_flow_rate.exec();
+        compute_inlet_transient_mass_flow_rate.exec();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
