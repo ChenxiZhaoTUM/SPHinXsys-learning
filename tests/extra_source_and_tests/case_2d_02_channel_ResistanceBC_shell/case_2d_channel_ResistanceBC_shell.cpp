@@ -369,7 +369,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 2.0;               /**< End time. */
-    Real Output_Time = end_time / 20; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 200; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     Real accumulated_time = 0.01;

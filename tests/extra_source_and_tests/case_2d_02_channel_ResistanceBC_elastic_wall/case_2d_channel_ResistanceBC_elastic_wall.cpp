@@ -288,7 +288,7 @@ int main(int ac, char *av[])
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationPressureComplex> update_fluid_density(water_block_inner, water_block_contact);
     SimpleDynamics<fluid_dynamics::PressureCondition<fluid_dynamics::NonPrescribedPressure>> left_pressure_condition(left_buffer);
-    SimpleDynamics < fluid_dynamics::ResistanceBoundaryCondition> right_pressure_condition(right_buffer);
+    SimpleDynamics<fluid_dynamics::ResistanceBoundaryCondition> right_pressure_condition(right_buffer);
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
 
     ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_buffer, DH);
@@ -356,7 +356,7 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     Real end_time = 2.0;               /**< End time. */
-    Real Output_Time = end_time / 20; /**< Time stamps for output of body states. */
+    Real Output_Time = end_time / 200; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
     Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
     Real accumulated_time = 0.01;
