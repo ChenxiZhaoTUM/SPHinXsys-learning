@@ -84,5 +84,34 @@ class NablaWV<Contact<>>
 
 using NablaWVComplex = ComplexInteraction<NablaWV<Inner<>, Contact<>>>;
 
+template <typename... InteractionTypes>
+class WV;
+
+template <class DataDelegationType>
+class WV<DataDelegationType>
+    : public LocalDynamics, public DataDelegationType
+{
+  public:
+    template <class BaseRelationType>
+    explicit WV(BaseRelationType &base_relation);
+    virtual ~WV(){};
+
+  protected:
+    Real *real_kernel_sum_;
+};
+
+template <>
+class WV<Inner<>>
+    : public WV<DataDelegateInner>
+{
+  public:
+    explicit WV(BaseInnerRelation &inner_relation);
+    virtual ~WV(){};
+    void interaction(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real *Vol_;
+};
+
 } // namespace SPH
 #endif // KERNEL_SUMMATION_H

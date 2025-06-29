@@ -33,4 +33,20 @@ void NablaWV<Contact<>>::interaction(size_t index_i, Real dt)
     }
 }
 //=================================================================================================//
+WV<Inner<>>::
+    WV(BaseInnerRelation &inner_relation)
+    : WV<DataDelegateInner>(inner_relation),
+      Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")) {}
+//=================================================================================================//
+void WV<Inner<>>::interaction(size_t index_i, Real dt)
+{
+    real_kernel_sum_[index_i] = 0;
+    const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+    for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+    {
+        size_t index_j = inner_neighborhood.j_[n];
+        real_kernel_sum_[index_i] += inner_neighborhood.W_ij_[n] * Vol_[index_j];
+    }
+}
+//=================================================================================================//
 } // namespace SPH

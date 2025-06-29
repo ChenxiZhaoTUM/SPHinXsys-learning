@@ -11,4 +11,10 @@ NablaWV<DataDelegationType>::NablaWV(BaseRelationType &base_relation)
     : LocalDynamics(base_relation.getSPHBody()), DataDelegationType(base_relation),
       kernel_sum_(this->particles_->template registerStateVariable<Vecd>("KernelSummation")) {}
 //=================================================================================================//
+template <class DataDelegationType>
+template <class BaseRelationType>
+WV<DataDelegationType>::WV(BaseRelationType &base_relation)
+    : LocalDynamics(base_relation.getSPHBody()), DataDelegationType(base_relation),
+      real_kernel_sum_(this->particles_->template registerStateVariable<Real>("RealKernelSummation")) {}
+//=================================================================================================//
 } // namespace SPH
