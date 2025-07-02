@@ -30,7 +30,7 @@ Real U_f = 3.0;
 Real c_f = 10.0*U_f;
 
 Real scaling = 1.0E-2;
-Real dp_0 = 0.04 * scaling;
+Real dp_0 = 0.06 * scaling;
 Vecd translation(0.0, 0.0, 0.0);
 Real shell_resolution = dp_0;
 Real thickness = 0.25 * scaling;
@@ -79,9 +79,9 @@ Vec3d inlet_half = Vec3d(2.0 * dp_0, 1.6 * scaling, 1.6 * scaling);
 Vec3d inlet_vector(0.100, 0.167, 0.981);
 Vec3d inlet_normal = inlet_vector.normalized();
 Vec3d inlet_center = Vec3d(-1.015, 4.519, 2.719) * scaling;
-Vec3d inlet_cut_translation = inlet_center - inlet_normal * 2.0 * dp_0;
-Vec3d inlet_blood_cut_translation = inlet_center - inlet_normal * (1.0 * dp_0);
-Vec3d inlet_buffer_translation = inlet_center + inlet_normal * (2.0 * dp_0 + 1.0 * dp_0);
+Vec3d inlet_cut_translation = inlet_center - inlet_normal * 1.5 * dp_0;
+Vec3d inlet_blood_cut_translation = inlet_center;
+Vec3d inlet_buffer_translation = inlet_center + inlet_normal * 4.0 * dp_0;
 RotationResult inlet_rotation_result = RotationCalculator(inlet_normal, standard_direction);
 Rotation3d inlet_emitter_rotation(inlet_rotation_result.angle, inlet_rotation_result.axis);
 Rotation3d inlet_disposer_rotation(inlet_rotation_result.angle + Pi, inlet_rotation_result.axis);
@@ -92,9 +92,9 @@ Vec3d outlet_1_half = Vec3d(2.0 * dp_0, 0.5 * scaling, 0.5 * scaling);
 Vec3d outlet_1_vector(0.607, 0.373, 0.702);
 Vec3d outlet_1_normal = outlet_1_vector.normalized();
 Vec3d outlet_1_center = Vec3d(-0.947, 4.322, 10.110) * scaling;
-Vec3d outlet_1_cut_translation = outlet_1_center + outlet_1_normal * 2.0 * dp_0;
-Vec3d outlet_1_blood_cut_translation = outlet_1_center + outlet_1_normal * (1.0 * dp_0);
-Vec3d outlet_1_buffer_translation = outlet_1_center - outlet_1_normal * (2.0 * dp_0 + 1.0 * dp_0);
+Vec3d outlet_1_cut_translation = outlet_1_center + outlet_1_normal * 1.5 * dp_0;
+Vec3d outlet_1_blood_cut_translation = outlet_1_center;
+Vec3d outlet_1_buffer_translation = outlet_1_center - outlet_1_normal * 4.0 * dp_0;
 RotationResult outlet_1_rotation_result = RotationCalculator(outlet_1_normal, standard_direction);
 Rotation3d outlet_1_disposer_rotation(outlet_1_rotation_result.angle, outlet_1_rotation_result.axis);
 Rotation3d outlet_1_emitter_rotation(outlet_1_rotation_result.angle + Pi, outlet_1_rotation_result.axis);
@@ -105,9 +105,9 @@ Vec3d outlet_2_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
 Vec3d outlet_2_vector(-0.099, 0.048, 0.994);
 Vec3d outlet_2_normal = outlet_2_vector.normalized();
 Vec3d outlet_2_center = Vec3d(-2.650, 3.069, 10.911) * scaling;
-Vec3d outlet_2_cut_translation = outlet_2_center + outlet_2_normal * 2.0 * dp_0;
-Vec3d outlet_2_blood_cut_translation = outlet_2_center + outlet_2_normal * (1.0 * dp_0);
-Vec3d outlet_2_buffer_translation = outlet_2_center - outlet_2_normal * (2.0 * dp_0 + 1.0 * dp_0);
+Vec3d outlet_2_cut_translation = outlet_2_center + outlet_2_normal * 1.5 * dp_0;
+Vec3d outlet_2_blood_cut_translation = outlet_2_center;
+Vec3d outlet_2_buffer_translation = outlet_2_center - outlet_2_normal * 4.0 * dp_0;
 RotationResult outlet_2_rotation_result = RotationCalculator(outlet_2_normal, standard_direction);
 Rotation3d outlet_2_disposer_rotation(outlet_2_rotation_result.angle, outlet_2_rotation_result.axis);
 Rotation3d outlet_2_emitter_rotation(outlet_2_rotation_result.angle + Pi, outlet_2_rotation_result.axis);
@@ -119,9 +119,9 @@ Vec3d outlet_3_half = Vec3d(2.0 * dp_0, 0.4 * scaling, 0.4 * scaling);
 Vec3d outlet_3_vector(-0.146, -0.174, 0.974);
 Vec3d outlet_3_normal = outlet_3_vector.normalized();
 Vec3d outlet_3_center = Vec3d(-2.946, 1.789, 10.007) * scaling;
-Vec3d outlet_3_cut_translation = outlet_3_center + outlet_3_normal * 2.0 * dp_0;
-Vec3d outlet_3_blood_cut_translation = outlet_3_center + outlet_3_normal * (1.0 * dp_0);
-Vec3d outlet_3_buffer_translation = outlet_3_center - outlet_3_normal * (2.0 * dp_0 + 1.0 * dp_0);
+Vec3d outlet_3_cut_translation = outlet_3_center + outlet_3_normal * 1.5 * dp_0;
+Vec3d outlet_3_blood_cut_translation = outlet_3_center;
+Vec3d outlet_3_buffer_translation = outlet_3_center - outlet_3_normal * 4.0 * dp_0;
 RotationResult outlet_3_rotation_result = RotationCalculator(outlet_3_normal, standard_direction);
 Rotation3d outlet_3_disposer_rotation(outlet_3_rotation_result.angle, outlet_3_rotation_result.axis);
 Rotation3d outlet_3_emitter_rotation(outlet_3_rotation_result.angle + Pi, outlet_3_rotation_result.axis);
@@ -132,9 +132,9 @@ Vec3d outlet_4_half = Vec3d(2.0 * dp_0, 1.0 * scaling, 1.0 * scaling);
 Vec3d outlet_4_vector(0.568, 0.428, 0.703);
 Vec3d outlet_4_normal = outlet_4_vector.normalized();
 Vec3d outlet_4_center = Vec3d(-1.052, 1.152, 9.669) * scaling;
-Vec3d outlet_4_cut_translation = outlet_4_center + outlet_4_normal * 2.0 * dp_0;
-Vec3d outlet_4_blood_cut_translation = outlet_4_center + outlet_4_normal * (1.0 * dp_0);
-Vec3d outlet_4_buffer_translation = outlet_4_center - outlet_4_normal * (2.0 * dp_0 + 1.0 * dp_0);
+Vec3d outlet_4_cut_translation = outlet_4_center + outlet_4_normal * 1.5 * dp_0;
+Vec3d outlet_4_blood_cut_translation = outlet_4_center;
+Vec3d outlet_4_buffer_translation = outlet_4_center - outlet_4_normal * 4.0 * dp_0;
 RotationResult outlet_4_rotation_result = RotationCalculator(outlet_4_normal, standard_direction);
 Rotation3d outlet_4_disposer_rotation(outlet_4_rotation_result.angle, outlet_4_rotation_result.axis);
 Rotation3d outlet_4_emitter_rotation(outlet_4_rotation_result.angle + Pi, outlet_4_rotation_result.axis);
@@ -145,9 +145,9 @@ Vec3d outlet_5_half = Vec3d(2.0 * dp_0, 1.5 * scaling, 1.5 * scaling);
 Vec3d outlet_5_vector(-0.033, 0.073, -0.997);
 Vec3d outlet_5_normal = outlet_5_vector.normalized();
 Vec3d outlet_5_center = Vec3d(-1.589, -0.797, 0.247) * scaling;
-Vec3d outlet_5_cut_translation = outlet_5_center + outlet_5_normal * 2.0 * dp_0;
-Vec3d outlet_5_blood_cut_translation = outlet_5_center + outlet_5_normal * (1.0 * dp_0);
-Vec3d outlet_5_buffer_translation = outlet_5_center - outlet_5_normal * (2.0 * dp_0 + 1.0 * dp_0);
+Vec3d outlet_5_cut_translation = outlet_5_center + outlet_5_normal * 1.5 * dp_0;
+Vec3d outlet_5_blood_cut_translation = outlet_5_center;
+Vec3d outlet_5_buffer_translation = outlet_5_center - outlet_5_normal * 4.0 * dp_0;
 RotationResult outlet_5_rotation_result = RotationCalculator(outlet_5_normal, standard_direction);
 Rotation3d outlet_5_disposer_rotation(outlet_5_rotation_result.angle, outlet_5_rotation_result.axis);
 Rotation3d outlet_5_emitter_rotation(outlet_5_rotation_result.angle + Pi, outlet_5_rotation_result.axis);
@@ -356,12 +356,9 @@ struct InflowVelocity
         {
             u_ave = u_ave + a[i] * cos(w * (i + 1) * t_in_cycle) + b[i] * sin(w * (i + 1) * t_in_cycle);
         }
-            
         target_velocity[0] = 2.0 * u_ave * (1.0 - (position[1] * position[1] + position[2] * position[2]) / radius_inlet / radius_inlet);
-
-
         target_velocity[1] = 0.0;
-        target_velocity[2] = 0.0;
+        target_velocity[2] = 0.0;    
 
         return target_velocity;
     }
@@ -526,7 +523,7 @@ int main(int ac, char *av[])
         //	Particle relaxation time stepping start here.
         //----------------------------------------------------------------------
         int ite_p = 0;
-        while (ite_p < 5000)
+        while (ite_p < 10000)
         {
             relaxation_step_inner.exec();
             relaxation_step_blood.exec();
