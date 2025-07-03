@@ -36,17 +36,19 @@ void NablaWV<Contact<>>::interaction(size_t index_i, Real dt)
 WV<Inner<>>::
     WV(BaseInnerRelation &inner_relation)
     : WV<DataDelegateInner>(inner_relation),
-      Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")) {}
+      Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+      W0_(this->sph_body_.sph_adaptation_->getKernel()->W0(ZeroVecd)) {}
 //=================================================================================================//
 void WV<Inner<>>::interaction(size_t index_i, Real dt)
 {
-    real_kernel_sum_[index_i] = 0;
+    Real sigma = W0_ * Vol_[index_i];
     const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
     for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
     {
         size_t index_j = inner_neighborhood.j_[n];
-        real_kernel_sum_[index_i] += inner_neighborhood.W_ij_[n] * Vol_[index_j];
+        sigma += inner_neighborhood.W_ij_[n] * Vol_[index_j];
     }
+    real_kernel_sum_[index_i] = sigma;
 }
 //=================================================================================================//
 } // namespace SPH

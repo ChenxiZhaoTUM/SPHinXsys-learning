@@ -111,6 +111,7 @@ class WV<Inner<>>
 
   protected:
     Real *Vol_;
+    Real W0_;
 };
 
 } // namespace SPH
