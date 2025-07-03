@@ -794,7 +794,7 @@ int main(int ac, char *av[])
     TimeInterval interval_computing_pressure_relaxation;
     TimeInterval interval_updating_configuration;
     TickCount time_instance;
-    Real accumulated_time = 0.003;
+    Real accumulated_time = 0.006;
     int updateP_n = 0;
 
     /** Output the start states of bodies. */
