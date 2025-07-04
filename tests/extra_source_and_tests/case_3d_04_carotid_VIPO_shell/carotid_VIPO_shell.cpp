@@ -29,7 +29,8 @@ Vec3d domain_lower_bound(-7.0 * scaling, -5.0 * scaling, -34.0 * scaling);
 Vec3d domain_upper_bound(13.0 * scaling, 11.0 * scaling, 25.0 * scaling);
 BoundingBox system_domain_bounds(domain_lower_bound, domain_upper_bound);
 Real dp_0 = 0.2 * scaling;
-Real shell_resolution = dp_0 / 2;  /*thickness = 1.0 * shell_resolution*/ 
+Real shell_resolution = dp_0 / 2.0;
+Real thickness = 0.6 * scaling;
 //----------------------------------------------------------------------
 //	define the imported model.
 //----------------------------------------------------------------------
@@ -468,7 +469,7 @@ int main(int ac, char *av[])
     else
     {
         shell_body.defineBodyLevelSetShape()->correctLevelSetSign()->writeLevelSet(sph_system);
-        shell_body.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path, shell_resolution);
+        shell_body.generateParticles<SurfaceParticles, FromVTPFile>(full_vtp_file_path, thickness);
     }
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
