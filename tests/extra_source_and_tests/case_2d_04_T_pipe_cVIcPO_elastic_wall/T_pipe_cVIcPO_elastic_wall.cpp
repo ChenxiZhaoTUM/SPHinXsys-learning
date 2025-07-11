@@ -16,14 +16,15 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DL = 0.2;                                               /**< Reference length. */
+Real DL = 0.3;                                               /**< Reference length. */
 Real DH = 0.1;                                               /**< Reference and the height of main channel. */
-Real DL1 = 0.75 * DL;                                        /**< The length of the main channel. */
-Real resolution_ref = 0.005;                                 /**< Initial reference particle spacing. */
+Real DL1 = 0.25;                                       /**< The length of the main channel. */
+Real BW = 0.01;
+
+Real resolution_ref = BW/8; /**< Initial reference particle spacing. */
 Real resolution_wall = resolution_ref;
-Real BW = resolution_ref * 4;                                /**< Reference size of the emitter. */
-Real buffer_width = resolution_ref * 4.0;                    /**< Reference size of the emitter. */
-Real DL_sponge = resolution_ref * 20;                        /**< Reference size of the emitter buffer to impose inflow condition. */
+
+Real buffer_width = 0.02;                    /**< Reference size of the emitter. */
 //StdVec<Vecd> observer_location = {Vecd(0.5 * DL, 0.5 * DH)}; /**< Displacement observation point. */
 StdVec<Vecd> observer_location = {Vecd(DL - 0.5 * (DL - DL1), 0.5 * DH)};
 //----------------------------------------------------------------------
@@ -40,8 +41,8 @@ Vec2d normal = Vec2d(1.0, 0.0);
 //	Material parameters of the wall.
 //----------------------------------------------------------------------
 Real rho0_s = 1200;         /** Normalized density. */
-Real Youngs_modulus = 5.0e6; /** Normalized Youngs Modulus. */
-Real poisson = 0.3;          /** Poisson ratio. */
+Real Youngs_modulus = 1.0e7; /** Normalized Youngs Modulus. */
+Real poisson = 0.45;          /** Poisson ratio. */
 Real physical_viscosity = DH / DL / 4 * sqrt(rho0_s * Youngs_modulus) * DH;
 //----------------------------------------------------------------------
 //	Pressure boundary definition.
@@ -111,16 +112,17 @@ struct InflowVelocity
 //----------------------------------------------------------------------
 /** the water block in T shape polygon. */
 std::vector<Vecd> water_block_shape{
-    Vecd(-DL_sponge, 0.0), Vecd(-DL_sponge, DH), Vecd(DL1, DH), Vecd(DL1, 2.0 * DH),
-    Vecd(DL, 2.0 * DH), Vecd(DL, -DH), Vecd(DL1, -DH), Vecd(DL1, 0.0), Vecd(-DL_sponge, 0.0)};
+    Vecd(0.0, 0.0), Vecd(0.0, DH), Vecd(DL1, DH), Vecd(DL1, 2.0 * DH),
+    Vecd(DL, 2.0 * DH), Vecd(DL, -DH), Vecd(DL1, -DH), Vecd(DL1, 0.0), Vecd(0.0, 0.0)};
 /** the outer wall polygon. */
 std::vector<Vecd> outer_wall_shape{
-    Vecd(-DL_sponge, -BW), Vecd(-DL_sponge, DH + BW), Vecd(DL1 - BW, DH + BW), Vecd(DL1 - BW, 2.0 * DH),
-    Vecd(DL + BW, 2.0 * DH), Vecd(DL + BW, -DH), Vecd(DL1 - BW, -DH), Vecd(DL1 - BW, -BW), Vecd(-DL_sponge, -BW)};
+    Vecd(0.0, -BW), Vecd(0.0, DH + BW), Vecd(DL1 - BW, DH + BW), Vecd(DL1 - BW, 2.0 * DH),
+    Vecd(DL + BW, 2.0 * DH), Vecd(DL + BW, -DH), Vecd(DL1 - BW, -DH), Vecd(DL1 - BW, -BW), Vecd(0.0, -BW)};
 /** the inner wall polygon. */
 std::vector<Vecd> inner_wall_shape{
-    Vecd(-DL_sponge - BW, 0.0), Vecd(-DL_sponge - BW, DH), Vecd(DL1, DH), Vecd(DL1, 2.0 * DH + BW),
-    Vecd(DL, 2.0 * DH + BW), Vecd(DL, -DH - BW), Vecd(DL1, -DH - BW), Vecd(DL1, 0.0), Vecd(-DL_sponge - BW, 0.0)};
+    Vecd(0.0 - BW, 0.0), Vecd(0.0 - BW, DH), Vecd(DL1, DH), Vecd(DL1, 2.0 * DH + BW),
+    Vecd(DL, 2.0 * DH + BW), Vecd(DL, -DH - BW), Vecd(DL1, -DH - BW), Vecd(DL1, 0.0), Vecd(0.0 - BW, 0.0)};
+
 //----------------------------------------------------------------------
 //	Define case dependent body shapes.
 //----------------------------------------------------------------------
@@ -157,9 +159,12 @@ class BoundaryGeometry : public BodyPartByParticle
   private:
     void tagManually(size_t index_i)
     {
-        if (base_particles_.ParticlePositions()[index_i][0] < -DL_sponge + buffer_width ||
-            base_particles_.ParticlePositions()[index_i][1] > 2.0 * DH - buffer_width ||
-            base_particles_.ParticlePositions()[index_i][1] < -DH + buffer_width)
+        if (base_particles_.ParticlePositions()[index_i][0] <= 0.005 && (base_particles_.ParticlePositions()[index_i][1] <= DH + 0.005 && base_particles_.ParticlePositions()[index_i][1] >= DH)||
+            base_particles_.ParticlePositions()[index_i][0] <= 0.005 && (base_particles_.ParticlePositions()[index_i][1] >= -0.005 && base_particles_.ParticlePositions()[index_i][1] <= 0) ||
+            base_particles_.ParticlePositions()[index_i][1] >= 2.0 * DH - 0.005 && (base_particles_.ParticlePositions()[index_i][0] >= DL1 - 0.005 && base_particles_.ParticlePositions()[index_i][0] <= DL1) ||
+            base_particles_.ParticlePositions()[index_i][1] >= 2.0 * DH - 0.005 && (base_particles_.ParticlePositions()[index_i][0] >= DL && base_particles_.ParticlePositions()[index_i][0] <= DL + 0.005) ||
+            base_particles_.ParticlePositions()[index_i][1] <= -DH + 0.005 && (base_particles_.ParticlePositions()[index_i][0] >= DL1 - 0.005 && base_particles_.ParticlePositions()[index_i][0] <= DL1) ||
+            base_particles_.ParticlePositions()[index_i][1] <= -DH + 0.005 && (base_particles_.ParticlePositions()[index_i][0] >=DL && base_particles_.ParticlePositions()[index_i][0] <= DL + 0.005))
         {
             body_part_particles_.push_back(index_i);
         }
@@ -184,7 +189,7 @@ StdVec<Vecd> createRadialObservationPoints(
 
 StdVec<Vecd> displacement_observation_location = {
     Vecd(0.0, DH + 0.5 * resolution_wall), 
-    Vecd((DL1-DL_sponge)/2, DH + 0.5 * resolution_wall), 
+    Vecd(DL1/2, DH + 0.5 * resolution_wall), 
     Vecd(DL1 - 0.5 * resolution_wall, 1.5 * DH), 
     Vecd(DL + 0.5 * resolution_wall, 0.5 * DH),
     Vecd(DL + 0.5 * resolution_wall, 1.5 * DH) };
@@ -197,7 +202,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
-    BoundingBox system_domain_bounds(Vec2d(-DL_sponge - BW, -DH - BW), Vec2d(DL + BW, 2.0 * DH + BW));
+    BoundingBox system_domain_bounds(Vec2d(-BW, -DH - BW), Vec2d(DL + BW, 2.0 * DH + BW));
     SPHSystem sph_system(system_domain_bounds, resolution_ref);
     sph_system.setGenerateRegressionData(false);
     sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
@@ -218,7 +223,7 @@ int main(int ac, char *av[])
     velocity_observer.generateParticles<ObserverParticles>(observer_location);
 
     ObserverBody fluid_radial_observer(sph_system, "fluid_observer_radial");
-    fluid_radial_observer.generateParticles<ObserverParticles>(createRadialObservationPoints((DL1-DL_sponge)/2, DH, 50));
+    fluid_radial_observer.generateParticles<ObserverParticles>(createRadialObservationPoints(DL1/2, DH, 50));
     ObserverBody wall_displacement_observer(sph_system, "wall_observer_displacement");
     wall_displacement_observer.generateParticles<ObserverParticles>(displacement_observation_location);
     
@@ -250,11 +255,12 @@ int main(int ac, char *av[])
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
+    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> kernel_correction_complex(water_block_inner, water_block_contact);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_block_contact);
 
-    Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
-    Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> density_relaxation(water_block_inner, water_block_contact);
+    Dynamics1Level<fluid_dynamics::Integration1stHalfCorrectionWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
+    Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallNoRiemann> density_relaxation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> viscous_acceleration(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_block_contact);
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> get_fluid_advection_time_step_size(water_block, U_f);
@@ -264,7 +270,7 @@ int main(int ac, char *av[])
     // Left buffer
     //----------------------------------------------------------------------
     Vec2d left_buffer_halfsize = Vec2d(0.5 * buffer_width, 0.5 * DH);
-    Vec2d left_buffer_translation = Vec2d(-DL_sponge, 0.0) + left_buffer_halfsize;
+    Vec2d left_buffer_translation = Vec2d(0.0, 0.0) + left_buffer_halfsize;
     BodyAlignedBoxByCell left_emitter(water_block, makeShared<AlignedBoxShape>(xAxis, Transform(Vec2d(left_buffer_translation)), left_buffer_halfsize));
     fluid_dynamics::BidirectionalBuffer<LeftInflowPressure> left_bidirection_buffer(left_emitter, in_outlet_particle_buffer);
     //----------------------------------------------------------------------
@@ -327,6 +333,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Real>(water_block, "Density");
     body_states_recording.addToWrite<int>(water_block, "BufferParticleIndicator");
     body_states_recording.addToWrite<Vecd>(wall_boundary, "WallShearStress");
+    body_states_recording.addDerivedVariableRecording<SimpleDynamics<VonMisesStress>>(wall_boundary);
+    body_states_recording.addDerivedVariableRecording<SimpleDynamics<Displacement>>(wall_boundary);
     ObservedQuantityRecording<Vecd> write_centerline_velocity("Velocity", velocity_observer_contact);
     ObservedQuantityRecording<Vecd> write_wall_WSS_axial("WallShearStress", wall_observer_contact_displacement);
     AxialVelocityRecording write_fluid_velocity_radial(fluid_observer_contact_radial);
@@ -355,8 +363,8 @@ int main(int ac, char *av[])
     size_t number_of_iterations = 0;
     int screen_output_interval = 100;
     int observation_sample_interval = screen_output_interval * 2;
-    Real end_time = 15.0;                /**< End time. */
-    Real Output_Time = end_time / 150; /**< Time stamps for output of body states. */
+    Real end_time = 5.0;                /**< End time. */
+    Real Output_Time = end_time / 50; /**< Time stamps for output of body states. */
     Real dt = 0.0;                       /**< Default acoustic time step sizes. */
     Real dt_s = 0.0;
     //----------------------------------------------------------------------
@@ -384,6 +392,7 @@ int main(int ac, char *av[])
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
             update_fluid_density.exec();
+            kernel_correction_complex.exec();
             viscous_acceleration.exec();
             transport_velocity_correction.exec();
 
@@ -479,8 +488,6 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
-        TickCount t3 = TickCount::now();
-        interval += t3 - t2;
 
         /** Update observer and write output of observer. */
         fluid_observer_contact_radial.updateConfiguration();
@@ -492,6 +499,9 @@ int main(int ac, char *av[])
 
         write_total_viscous_force_on_wall.writeToFile(number_of_iterations);
         write_total_pressure_force_on_wall.writeToFile(number_of_iterations);
+        
+        TickCount t3 = TickCount::now();
+        interval += t3 - t2;
     }
     TickCount t4 = TickCount::now();
 
