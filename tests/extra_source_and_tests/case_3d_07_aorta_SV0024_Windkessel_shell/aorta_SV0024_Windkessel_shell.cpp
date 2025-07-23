@@ -1,5 +1,5 @@
 /**
- * @file 	aorta_SV0024_Windkessel_rigid_shell.cpp
+ * @file 	aorta_SV0024_Windkessel_shell.cpp
  * @brief 
  */
 #include "sphinxsys.h"
