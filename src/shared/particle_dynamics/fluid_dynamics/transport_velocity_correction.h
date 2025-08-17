@@ -143,6 +143,9 @@ template <class ParticleScope>
 using MultiPhaseTransportVelocityCorrectionComplex =
     BaseMultiPhaseTransportVelocityCorrectionComplex<SingleResolution, NoKernelCorrection, ParticleScope>;
 
+using TransportVelocityCorrectionComplexWithMultiBody = ComplexInteraction<TransportVelocityCorrection<Inner<SingleResolution, NoLimiter>, Contact<Boundary>, Contact<Boundary>>, NoKernelCorrection, BulkParticles>;
+
+
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // TRANSPORT_VELOCITY_CORRECTION_H
