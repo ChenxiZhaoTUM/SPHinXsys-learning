@@ -398,7 +398,7 @@ int main(int ac, char *av[])
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
     //----------------------------------------------------------------------
-    BodyStatesRecordingToVtp body_states_recording(sph_system);
+    BodyStatesRecordingToPlt body_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
     body_states_recording.addToWrite<int>(water_block, "Indicator");
     body_states_recording.addToWrite<Real>(water_block, "Density");
@@ -559,7 +559,7 @@ int main(int ac, char *av[])
             right_down_bidirection_buffer.tag_buffer_particles.exec();
         }
         TickCount t2 = TickCount::now();
-        body_states_recording.writeToFile();
+        /*body_states_recording.writeToFile();
 
         fluid_observer_contact_radial.updateConfiguration();
         write_fluid_velocity_radial.writeToFile(number_of_iterations);
@@ -568,13 +568,13 @@ int main(int ac, char *av[])
         write_shell_WSS_axial.writeToFile(number_of_iterations);
 
         write_total_viscous_force_on_wall.writeToFile(number_of_iterations);
-        write_total_pressure_force_on_wall.writeToFile(number_of_iterations);
+        write_total_pressure_force_on_wall.writeToFile(number_of_iterations);*/
 
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
     TickCount t4 = TickCount::now();
-
+    body_states_recording.writeToFile();
     TimeInterval tt;
     tt = t4 - t1 - interval;
     std::cout << "Total wall time for computation: " << tt.seconds()
