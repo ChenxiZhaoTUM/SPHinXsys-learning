@@ -53,7 +53,7 @@ Real c_f = 10.0 * U_max; /**< Reference sound speed. */
 Real mu_f = 0.004;
 
 Real rho0_s = 1200;           /** Normalized density. */
-Real Youngs_modulus = 5.0e7; /** Normalized Youngs Modulus. */
+Real Youngs_modulus = 5.0e9; /** Normalized Youngs Modulus. */
 Real poisson = 0.3;          /** Poisson ratio. */
 Real physical_viscosity = diameter/full_length/4 * sqrt(rho0_s*Youngs_modulus) * diameter;
 //Real physical_viscosity = 200;
@@ -249,7 +249,7 @@ int main(int ac, char *av[])
     SolidBody shell_boundary(system, makeShared<DefaultShape>("Shell"));
     shell_boundary.defineAdaptation<SPH::SPHAdaptation>(1.15, resolution_ref / resolution_shell);
     shell_boundary.defineMaterial<NeoHookeanSolid>(rho0_s, Youngs_modulus, poisson);
-    shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, wall_thickness);
+    shell_boundary.generateParticles<SurfaceParticles, ShellBoundary>(resolution_shell, resolution_ref);
 
     ObserverBody fluid_axial_observer(system, "fluid_observer_axial");
     fluid_axial_observer.generateParticles<ObserverParticles>(createAxialObservationPoints(full_length));

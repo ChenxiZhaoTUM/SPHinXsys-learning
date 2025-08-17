@@ -217,10 +217,10 @@ int main(int ac, char *av[])
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
-    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> kernel_correction_complex(water_block_inner, water_block_contact);
+    //InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> kernel_correction_complex(water_block_inner, water_block_contact);
     InteractionDynamics<NablaWVComplex> kernel_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<SpatialTemporalFreeSurfaceIndicationComplex> boundary_indicator(water_block_inner, water_block_contact);
-    Dynamics1Level<fluid_dynamics::Integration1stHalfCorrectionWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
+    Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> pressure_relaxation(water_block_inner, water_block_contact);
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> density_relaxation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::TransportVelocityCorrectionComplex<BulkParticles>> transport_velocity_correction(water_block_inner, water_block_contact);
 
@@ -240,7 +240,6 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>> inflow_velocity_condition(left_buffer);
 
     ReduceDynamics<fluid_dynamics::SectionTransientFlowRate> compute_inlet_transient_flow_rate(left_buffer, DH);
-
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //----------------------------------------------------------------------
@@ -275,7 +274,7 @@ int main(int ac, char *av[])
     Real end_time = 5.0;               /**< End time. */
     Real Output_Time = 0.01; /**< Time stamps for output of body states. */
     Real dt = 0.0;                     /**< Default acoustic time step sizes. */
-    Real accumulated_time = 0.01;
+    Real accumulated_time = 0.02;
     int updateP_n = 0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
@@ -292,7 +291,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     body_states_recording.writeToFile(0);
     right_pressure_condition.getTargetPressure()->setWindkesselParams(1.52E6, 1.96E-7, 6.85E6, accumulated_time);
-    
+    right_pressure_condition.getTargetPressure()->setInitialFlowRate(0.1559 * 6.35 * scale, rho0_f);
+
     //----------------------------------------------------------------------
     //	Main loop starts here.
     //----------------------------------------------------------------------
@@ -306,7 +306,7 @@ int main(int ac, char *av[])
             time_instance = TickCount::now();
             Real Dt = get_fluid_advection_time_step_size.exec();
             update_fluid_density.exec();
-            kernel_correction_complex.exec();
+            //kernel_correction_complex.exec();
             transport_velocity_correction.exec();
 
             interval_computing_time_step += TickCount::now() - time_instance;
@@ -377,14 +377,15 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         body_states_recording.writeToFile();
-        TickCount t3 = TickCount::now();
-        interval += t3 - t2;
 
         /** Update observer and write output of observer. */
         fluid_observer_contact_axial.updateConfiguration();
         write_fluid_velocity_axial.writeToFile(number_of_iterations);  
         fluid_observer_contact_radial.updateConfiguration();
         write_fluid_velocity_radial.writeToFile(number_of_iterations);
+
+        TickCount t3 = TickCount::now();
+        interval += t3 - t2;
     }
     TickCount t4 = TickCount::now();
 
