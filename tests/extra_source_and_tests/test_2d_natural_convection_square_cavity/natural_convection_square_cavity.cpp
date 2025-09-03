@@ -125,7 +125,7 @@ int main(int ac, char *av[])
             Real Dt = get_fluid_advection_time_step.exec();
             update_density_by_summation.exec();
             kernel_correction_complex.exec();
-            viscous_force.exec();    
+            viscous_force.exec();
             transport_velocity_correction.exec();
 
             size_t inner_ite_dt = 0;

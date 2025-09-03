@@ -12,8 +12,8 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real L = 0.0386;
-Real H = 0.0386;
+Real L = 0.03628;
+Real H = 0.03628;
 Real resolution_ref = H / 150.0;
 Real BW = resolution_ref * 3.0;
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
@@ -21,9 +21,9 @@ BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
 Real rho0_f = 1.204;                  /**< Reference density of fluid. */
-Real U_f = 1.0;                     /**< Characteristic velocity. */
-Real c_f = 100.0 * U_f;              /**< Reference sound speed. */
-Real mu_f = 1.506E-5;               /**< Dynamics viscosity. */
+Real U_f = 0.5;                     /**< Characteristic velocity. */
+Real c_f = 30.0 * U_f;              /**< Reference sound speed. */
+Real mu_f = 1.506E-5 * rho0_f;               /**< Dynamics viscosity. */
 Real C_p = 1.006E3;
 Real k = 0.02587;
 Real diffusion_coeff = k/(rho0_f*C_p);
