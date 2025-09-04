@@ -25,6 +25,10 @@ int main(int ac, char *av[])
         ConstructArgs(rho0_f, c_f), mu_f, ConstructArgs(diffusion_species_name, diffusion_coeff));
     diffusion_body.generateParticles<BaseParticles, Lattice>();
 
+    SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("EntireWallBoundary"));
+    wall_boundary.defineMaterial<Solid>();
+    wall_boundary.generateParticles<BaseParticles, Lattice>();
+
     SolidBody wall_Dirichlet(sph_system, makeShared<DirichletWallBoundary>("DirichletWallBoundary"));
     wall_Dirichlet.defineMaterial<Solid>();
     wall_Dirichlet.generateParticles<BaseParticles, Lattice>();
@@ -46,7 +50,7 @@ int main(int ac, char *av[])
     ContactRelation diffusion_body_contact_Dirichlet(diffusion_body, {&wall_Dirichlet});
     ContactRelation diffusion_body_contact_Neumann(diffusion_body, {&wall_Neumann});
 
-    ContactRelation fluid_body_contact(diffusion_body, {&wall_Dirichlet, &wall_Neumann});
+    ContactRelation fluid_body_contact(diffusion_body, {&wall_boundary});
     ComplexRelation fluid_body_complex(diffusion_body_inner, fluid_body_contact);
     //ContactRelation temperature_observer_contact(temperature_observer, {&diffusion_body});
     //----------------------------------------------------------------------
@@ -54,6 +58,7 @@ int main(int ac, char *av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     SimpleDynamics<NormalDirectionFromBodyShape> diffusion_body_normal_direction(diffusion_body);
+    SimpleDynamics<NormalDirectionFromBodyShape> entire_wall_normal_direction(wall_boundary);
     SimpleDynamics<NormalDirectionFromBodyShape> Dirichlet_wall_normal_direction(wall_Dirichlet);
     SimpleDynamics<NormalDirectionFromBodyShape> Neumann_wall_normal_direction(wall_Neumann);
 
@@ -80,7 +85,12 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp write_states(sph_system);
     write_states.addToWrite<Real>(diffusion_body, "Pressure");
     write_states.addToWrite<Vecd>(diffusion_body, "BuoyancyForce");
+    write_states.addToWrite<Vecd>(diffusion_body, "ViscousForce");
     write_states.addToWrite<Vecd>(diffusion_body, "ForcePrior");
+    write_states.addToWrite<Vecd>(diffusion_body, "Force");
+    write_states.addToWrite<Vecd>(wall_boundary, "NormalDirection");
+    write_states.addToWrite<Vecd>(wall_Dirichlet, "NormalDirection");
+    write_states.addToWrite<Vecd>(wall_Neumann, "NormalDirection");
     //ObservedQuantityRecording<Real> write_solid_temperature(diffusion_species_name, temperature_observer_contact);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -92,6 +102,7 @@ int main(int ac, char *av[])
     setup_boundary_condition_Dirichlet.exec();
     setup_boundary_condition_Neumann.exec();
     diffusion_body_normal_direction.exec();
+    entire_wall_normal_direction.exec();
     Dirichlet_wall_normal_direction.exec();
     Neumann_wall_normal_direction.exec();
     //----------------------------------------------------------------------
@@ -99,10 +110,10 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real End_Time = 0.1;
+    Real End_Time = 5;
     Real output_interval = End_Time / 100.0; /**< time stamps for output,WriteToFile*/
     int number_of_iterations = 0;
-    int screen_output_interval = 20;
+    int screen_output_interval = 50;
     Real dt = 0.0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
@@ -150,7 +161,7 @@ int main(int ac, char *av[])
                           << physical_time
                           << "	Dt = " << Dt << "	Dt / dt = " << inner_ite_dt << "\n";
 
-                write_states.writeToFile();
+                //write_states.writeToFile();
             }
             number_of_iterations++;
 

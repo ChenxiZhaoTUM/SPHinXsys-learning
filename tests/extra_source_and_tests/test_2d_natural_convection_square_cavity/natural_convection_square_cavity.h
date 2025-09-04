@@ -21,8 +21,8 @@ BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
 Real rho0_f = 1.204;                  /**< Reference density of fluid. */
-Real U_f = 0.5;                     /**< Characteristic velocity. */
-Real c_f = 30.0 * U_f;              /**< Reference sound speed. */
+Real U_f = 0.2;                     /**< Characteristic velocity. */
+Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
 Real mu_f = 1.506E-5 * rho0_f;               /**< Dynamics viscosity. */
 Real C_p = 1.006E3;
 Real k = 0.02587;
@@ -35,6 +35,8 @@ std::string diffusion_species_name = "Phi";
 Real initial_temperature = 293.0;
 Real left_temperature = 303.0;
 Real right_temperature = 283.0;
+//Real left_temperature = 293.0;
+//Real right_temperature = 293.0;
 Real heat_flux = 0;
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
@@ -49,6 +51,18 @@ std::vector<Vecd> createThermalDomain()
     thermalDomainShape.push_back(Vecd(0.0, 0.0));
 
     return thermalDomainShape;
+}
+
+std::vector<Vecd> createWallDomain()
+{
+    std::vector<Vecd> WallDomainShape;
+    WallDomainShape.push_back(Vecd(-BW, -BW));
+    WallDomainShape.push_back(Vecd(L+BW, -BW));
+    WallDomainShape.push_back(Vecd(L+BW, H+BW));
+    WallDomainShape.push_back(Vecd(-BW, H+BW));
+    WallDomainShape.push_back(Vecd(-BW, -BW));
+
+    return WallDomainShape;
 }
 
 std::vector<Vecd> left_temperature_region{
@@ -82,6 +96,16 @@ class DiffusionBody : public MultiPolygonShape
     explicit DiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
         multi_polygon_.addAPolygon(createThermalDomain(), ShapeBooleanOps::add);
+    }
+};
+
+class WallBoundary : public MultiPolygonShape
+{
+  public:
+    explicit WallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    {
+        multi_polygon_.addAPolygon(createWallDomain(), ShapeBooleanOps::add);
+        multi_polygon_.addAPolygon(createThermalDomain(), ShapeBooleanOps::sub);
     }
 };
 
