@@ -40,6 +40,7 @@ namespace fluid_dynamics
 class BuoyancyForce : public ForcePrior
 {
   protected:
+    Real* mass_;
     Vecd gravity_;
     Real thermal_expansion_coeff_, phi_ref_;
     Real* phi_;
