@@ -51,6 +51,58 @@ class BuoyancyForce : public ForcePrior
     void update(size_t index_i, Real dt = 0.0);
 };
 
+template <typename... InteractionTypes>
+class PhiGradient;
+
+template <class DataDelegationType>
+class PhiGradient<DataDelegationType>
+    : public LocalDynamics, public DataDelegationType
+{
+  public:
+    template <class BaseRelationType>
+    explicit PhiGradient(BaseRelationType &base_relation);
+    virtual ~PhiGradient(){};
+
+  protected:
+    Real *Vol_;
+    Real *phi_;
+    Vecd *phi_grad_;
+};
+
+template <class KernelCorrectionType>
+class PhiGradient<Inner<KernelCorrectionType>>
+    : public PhiGradient<DataDelegateInner>
+{
+  public:
+    explicit PhiGradient(BaseInnerRelation &inner_relation);
+    virtual ~PhiGradient(){};
+    void interaction(size_t index_i, Real dt = 0.0);
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    KernelCorrectionType kernel_correction_;
+};
+using PhiGradientInner = PhiGradient<Inner<NoKernelCorrection>>;
+
+template <>
+class PhiGradient<Contact<Wall>> : public InteractionWithWall<PhiGradient>
+{
+  public:
+    explicit PhiGradient(BaseContactRelation &wall_contact_relation);
+    virtual ~PhiGradient(){};
+    void interaction(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Vecd *distance_from_wall_;
+    StdVec<Real *> wall_phi_;
+};
+
+template <class KernelCorrectionType>
+using PhiGradientWithWall = ComplexInteraction<PhiGradient<Inner<KernelCorrectionType>, Contact<Wall>>>;
+
+
+
+
 /**
  * @class NusseltNumInner
  * @brief  compute Nusselt number in the fluid field

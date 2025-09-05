@@ -20,5 +20,42 @@ void BuoyancyForce::update(size_t index_i, Real dt)
     ForcePrior::update(index_i, dt);
 }
 //=================================================================================================//
+PhiGradient<Contact<Wall>>::PhiGradient(BaseContactRelation &wall_contact_relation)
+    : InteractionWithWall<PhiGradient>(wall_contact_relation),
+      distance_from_wall_(particles_->getVariableDataByName<Vecd>("DistanceFromWall")) 
+{
+    for (size_t k = 0; k != this->contact_particles_.size(); ++k)
+    {
+        wall_phi_.push_back(this->contact_particles_[k]->template getVariableDataByName<Real>("Phi"));
+    }
+}
+//=================================================================================================//
+void PhiGradient<Contact<Wall>>::interaction(size_t index_i, Real dt)
+{
+    Vecd phi_grad = Vecd::Zero();
+    const Vecd &distance_from_wall = distance_from_wall_[index_i];
+    for (size_t k = 0; k < contact_configuration_.size(); ++k)
+    {
+        Real *phi_ave_k = wall_phi_[k];
+        Real *Vol_k = wall_Vol_[k];
+        Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+        for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = contact_neighborhood.j_[n];
+            const Vecd &e_ij = contact_neighborhood.e_ij_[n];
+
+            Vecd distance_diff = distance_from_wall - contact_neighborhood.r_ij_[n] * e_ij;
+            Real factor = 1.0 - distance_from_wall.dot(distance_diff) / distance_from_wall.squaredNorm();
+            Vecd nablaW_ijV_j = contact_neighborhood.dW_ij_[n] * Vol_k[index_j] * e_ij;
+            //phi_grad -= factor * (phi_[index_i] - phi_ave_k[index_j]) * nablaW_ijV_j;
+
+
+            phi_grad -= (phi_[index_i] - phi_ave_k[index_j]) * nablaW_ijV_j;
+        }
+    }
+
+    phi_grad_[index_i] += phi_grad;
+}
+//=================================================================================================//
 } // namespace fluid_dynamics
 } // namespace SPH
