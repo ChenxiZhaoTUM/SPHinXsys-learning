@@ -93,33 +93,31 @@ class PhiGradient<Contact<Wall>> : public InteractionWithWall<PhiGradient>
     void interaction(size_t index_i, Real dt = 0.0);
 
   protected:
-    Vecd *distance_from_wall_;
     StdVec<Real *> wall_phi_;
 };
 
 template <class KernelCorrectionType>
 using PhiGradientWithWall = ComplexInteraction<PhiGradient<Inner<KernelCorrectionType>, Contact<Wall>>>;
 
-
-
-
 /**
- * @class NusseltNumInner
+ * @class LocalNusseltNum
  * @brief  compute Nusselt number in the fluid field
  */
-//class NusseltNumInner : public LocalDynamics, public DataDelegateInner
-//{
-//  public:
-//    explicit NusseltNumInner(BaseInnerRelation &inner_relation);
-//    virtual ~NusseltNumInner() {};
-//
-//    void interaction(size_t index_i, Real dt = 0.0);
-//
-//  protected:
-//    Real *Vol_;
-//    Vecd *vel_;
-//    AngularVecd *vorticity_;
-//};
+class LocalNusseltNum : public LocalDynamics
+{
+  public:
+    explicit LocalNusseltNum(SPHBody &sph_body, Real nu_coeff);
+    virtual ~LocalNusseltNum() {};
+
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real nu_coeff_, spacing_ref_;
+    Vecd *distance_from_wall_;
+    Vecd *phi_grad_;
+    Real *nu_num_;
+};
+
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // BUOYANCY_FORCE_H

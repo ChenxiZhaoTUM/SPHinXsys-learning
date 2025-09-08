@@ -21,8 +21,7 @@ void BuoyancyForce::update(size_t index_i, Real dt)
 }
 //=================================================================================================//
 PhiGradient<Contact<Wall>>::PhiGradient(BaseContactRelation &wall_contact_relation)
-    : InteractionWithWall<PhiGradient>(wall_contact_relation),
-      distance_from_wall_(particles_->getVariableDataByName<Vecd>("DistanceFromWall")) 
+    : InteractionWithWall<PhiGradient>(wall_contact_relation)
 {
     for (size_t k = 0; k != this->contact_particles_.size(); ++k)
     {
@@ -33,7 +32,6 @@ PhiGradient<Contact<Wall>>::PhiGradient(BaseContactRelation &wall_contact_relati
 void PhiGradient<Contact<Wall>>::interaction(size_t index_i, Real dt)
 {
     Vecd phi_grad = Vecd::Zero();
-    const Vecd &distance_from_wall = distance_from_wall_[index_i];
     for (size_t k = 0; k < contact_configuration_.size(); ++k)
     {
         Real *phi_ave_k = wall_phi_[k];
@@ -43,18 +41,35 @@ void PhiGradient<Contact<Wall>>::interaction(size_t index_i, Real dt)
         {
             size_t index_j = contact_neighborhood.j_[n];
             const Vecd &e_ij = contact_neighborhood.e_ij_[n];
-
-            Vecd distance_diff = distance_from_wall - contact_neighborhood.r_ij_[n] * e_ij;
-            Real factor = 1.0 - distance_from_wall.dot(distance_diff) / distance_from_wall.squaredNorm();
             Vecd nablaW_ijV_j = contact_neighborhood.dW_ij_[n] * Vol_k[index_j] * e_ij;
-            //phi_grad -= factor * (phi_[index_i] - phi_ave_k[index_j]) * nablaW_ijV_j;
-
-
             phi_grad -= (phi_[index_i] - phi_ave_k[index_j]) * nablaW_ijV_j;
         }
     }
 
     phi_grad_[index_i] += phi_grad;
+}
+//=================================================================================================//
+LocalNusseltNum::LocalNusseltNum(SPHBody& sph_body, Real nu_coeff)
+    : LocalDynamics(sph_body), nu_coeff_(nu_coeff),
+    spacing_ref_(sph_body_.getSPHAdaptation().ReferenceSpacing()),
+    distance_from_wall_(particles_->getVariableDataByName<Vecd>("DistanceFromWall")),
+    phi_grad_(particles_->getVariableDataByName<Vecd>("PhiGradient")),
+    nu_num_(particles_->registerStateVariableData<Real>("LocalNusseltNumber")) {}
+//=================================================================================================//
+void LocalNusseltNum::update(size_t index_i, Real dt)
+{
+    const Vecd &distance_from_wall = distance_from_wall_[index_i];
+    Real dist = distance_from_wall.norm();
+    if (dist < 1.3 * spacing_ref_)
+    {
+        Vecd n_out = -(distance_from_wall / (dist + TinyReal));
+        Real dTdn = n_out.dot(phi_grad_[index_i]);
+        nu_num_[index_i] = -nu_coeff_ * dTdn;
+    }
+    else
+    {
+        nu_num_[index_i] = 0.0;
+    }
 }
 //=================================================================================================//
 } // namespace fluid_dynamics
