@@ -222,8 +222,8 @@ class NeumannWallBoundaryInitialCondition : public LocalDynamics
 //----------------------------------------------------------------------
 //	Specify diffusion relaxation method.
 //----------------------------------------------------------------------
-using DiffusionBodyRelaxation = DiffusionBodyRelaxationComplex<
-    IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Neumann>;
+using MultiPhaseDiffusionBodyRelaxation = MultiPhaseDiffusionBodyRelaxationComplex<
+    IsotropicThermalDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Neumann>;
 
 StdVec<Vecd> createVerticalVelObservationPoints()
 {

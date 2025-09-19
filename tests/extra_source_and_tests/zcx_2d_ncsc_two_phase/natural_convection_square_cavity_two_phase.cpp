@@ -21,13 +21,13 @@ int main(int ac, char *av[])
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------
     FluidBody UpPhase_diffusion_body(sph_system, makeShared<UpPhaseDiffusionBody>("UpPhaseDiffusionBody"));
-    UpPhase_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicDiffusion>(
-        ConstructArgs(rho0_f, c_f), mu_f_up, ConstructArgs(diffusion_species_name, diffusion_coeff));
+    UpPhase_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicThermalDiffusion>(
+        ConstructArgs(rho0_f, c_f), mu_f_up, ConstructArgs(diffusion_species_name, k, rho0_f, C_p));
     UpPhase_diffusion_body.generateParticles<BaseParticles, Lattice>();
 
     FluidBody DownPhase_diffusion_body(sph_system, makeShared<DownPhaseDiffusionBody>("DownPhaseDiffusionBody"));
-    DownPhase_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicDiffusion>(
-        ConstructArgs(rho0_f, c_f), mu_f_down, ConstructArgs(diffusion_species_name, diffusion_coeff));
+    DownPhase_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicThermalDiffusion>(
+        ConstructArgs(rho0_f, c_f), mu_f_down, ConstructArgs(diffusion_species_name, k, rho0_f, C_p));
     DownPhase_diffusion_body.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("EntireWallBoundary"));
@@ -77,13 +77,13 @@ int main(int ac, char *av[])
     SimpleDynamics<NormalDirectionFromBodyShape> Dirichlet_wall_normal_direction(wall_Dirichlet);
     SimpleDynamics<NormalDirectionFromBodyShape> Neumann_wall_normal_direction(wall_Neumann);
 
-    DiffusionBodyRelaxation up_temperature_relaxation(
-        up_diffusion_inner, up_diffusion_contact_Dirichlet, up_diffusion_contact_Neumann);
+    MultiPhaseDiffusionBodyRelaxation up_temperature_relaxation(
+        up_diffusion_inner, up_down_contact, up_diffusion_contact_Dirichlet, up_diffusion_contact_Neumann);
     GetDiffusionTimeStepSize up_thermal_time_step(UpPhase_diffusion_body);
     SimpleDynamics<DiffusionInitialCondition> up_diffusion_initial_condition(UpPhase_diffusion_body);
 
-    DiffusionBodyRelaxation down_temperature_relaxation(
-        down_diffusion_inner, down_diffusion_contact_Dirichlet, down_diffusion_contact_Neumann);
+    MultiPhaseDiffusionBodyRelaxation down_temperature_relaxation(
+        down_diffusion_inner, down_up_contact, down_diffusion_contact_Dirichlet, down_diffusion_contact_Neumann);
     GetDiffusionTimeStepSize down_thermal_time_step(DownPhase_diffusion_body);
     SimpleDynamics<DiffusionInitialCondition> down_diffusion_initial_condition(DownPhase_diffusion_body);
 
