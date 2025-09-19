@@ -101,6 +101,37 @@ class IsotropicDiffusion : public BaseDiffusion
 };
 
 /**
+ * @class IsotropicThermalDiffusion
+ * @brief isotropic diffusion property with complete material parameters.
+ */
+class IsotropicThermalDiffusion : public BaseDiffusion
+{
+  protected:
+    Real thermal_conductivity_;
+    Real ref_density_;
+    Real specific_heat_;
+    Real diff_cf_; /**< diffusion coefficient. */
+
+  public:
+    IsotropicThermalDiffusion(const std::string &diffusion_species_name,
+                       const std::string &gradient_species_name,
+                       Real thermal_conductivity = 1.0, Real ref_density = 1.0, Real specific_heat = 1.0);
+    IsotropicThermalDiffusion(const std::string &species_name, Real thermal_conductivity = 1.0, Real ref_density = 1.0, Real specific_heat = 1.0);
+    virtual ~IsotropicThermalDiffusion() {};
+
+    virtual Real getReferenceDiffusivity() override { return diff_cf_; };
+    virtual Real getDiffusionCoeffWithBoundary(size_t index_i) override { return diff_cf_; }
+    virtual Real getInterParticleDiffusionCoeff(size_t index_i, size_t index_j, const Vecd &e_ij) override
+    {
+        return diff_cf_;
+    };
+
+    Real getThermalConductivity() { return thermal_conductivity_; };
+    Real getRefDensity() { return ref_density_; };
+    Real getSpecificHeat() { return specific_heat_; };
+};
+
+/**
  * @class LocalIsotropicDiffusion
  * @brief diffusion coefficient is locally different (k is not uniformly distributed).
  * TODO: The difference between algebraic and geometric average should be identified.

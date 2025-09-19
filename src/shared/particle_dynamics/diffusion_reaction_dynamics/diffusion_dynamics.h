@@ -49,31 +49,6 @@ class GetDiffusionTimeStepSize : public BaseDynamics<Real>
     Real diff_time_step_;
 };
 
-template <typename... InteractionTypes>
-class DiffusionRelaxation;
-
-template <class DataDelegationType, class DiffusionType>
-class DiffusionRelaxation<DataDelegationType, DiffusionType>
-    : public LocalDynamics,
-      public DataDelegationType
-{
-  protected:
-    Real *Vol_;
-    StdVec<DiffusionType *> diffusions_;
-    StdVec<Real *> diffusion_species_;
-    StdVec<Real *> gradient_species_;
-    StdVec<Real *> diffusion_dt_;
-
-  public:
-    template <class BodyRelationType>
-    explicit DiffusionRelaxation(BodyRelationType &body_relation);
-    void initialization(size_t index_i, Real dt = 0.0); // for contact diffusion integrated independently.
-    void update(size_t index_i, Real dt = 0.0);
-
-  private:
-    void getDiffusions();
-};
-
 class KernelGradientInner
 {
   public:
@@ -95,25 +70,6 @@ class CorrectedKernelGradientInner
     {
         return 0.5 * dW_ijV_j * (B_[index_i] + B_[index_j]) * e_ij;
     };
-};
-
-/**
- * @class DiffusionRelaxationInner
- * @brief Compute the diffusion relaxation process of all species
- */
-template <class KernelGradientType, class DiffusionType>
-class DiffusionRelaxation<Inner<KernelGradientType>, DiffusionType>
-    : public DiffusionRelaxation<DataDelegateInner, DiffusionType>
-{
-  protected:
-    KernelGradientType kernel_gradient_;
-
-  public:
-    template <typename... Args>
-    explicit DiffusionRelaxation(Args &&... args);
-
-    virtual ~DiffusionRelaxation(){};
-    inline void interaction(size_t index_i, Real dt = 0.0);
 };
 
 class KernelGradientContact
@@ -141,6 +97,50 @@ class CorrectedKernelGradientContact
     };
 };
 
+template <typename... InteractionTypes>
+class DiffusionRelaxation;
+
+template <class DataDelegationType, class DiffusionType>
+class DiffusionRelaxation<DataDelegationType, DiffusionType>
+    : public LocalDynamics,
+      public DataDelegationType
+{
+  protected:
+    Real *Vol_;
+    StdVec<DiffusionType *> diffusions_;
+    StdVec<Real *> diffusion_species_;
+    StdVec<Real *> gradient_species_;
+    StdVec<Real *> diffusion_dt_;
+
+  public:
+    template <class BodyRelationType>
+    explicit DiffusionRelaxation(BodyRelationType &body_relation);
+    void initialization(size_t index_i, Real dt = 0.0); // for contact diffusion integrated independently.
+    void update(size_t index_i, Real dt = 0.0);
+
+  private:
+    void getDiffusions();
+};
+
+/**
+ * @class DiffusionRelaxationInner
+ * @brief Compute the diffusion relaxation process of all species
+ */
+template <class KernelGradientType, class DiffusionType>
+class DiffusionRelaxation<Inner<KernelGradientType>, DiffusionType>
+    : public DiffusionRelaxation<DataDelegateInner, DiffusionType>
+{
+  protected:
+    KernelGradientType kernel_gradient_;
+
+  public:
+    template <typename... Args>
+    explicit DiffusionRelaxation(Args &&... args);
+
+    virtual ~DiffusionRelaxation(){};
+    inline void interaction(size_t index_i, Real dt = 0.0);
+};
+
 template <class ContactKernelGradientType, class DiffusionType>
 class DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>
     : public DiffusionRelaxation<DataDelegateContact, DiffusionType>
@@ -158,6 +158,54 @@ class DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>
     explicit DiffusionRelaxation(Args &&... args);
     virtual ~DiffusionRelaxation(){};
 };
+
+template <class DiffusionType, class ContactDiffusionType>
+class DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionType>
+    : public DiffusionRelaxation<DataDelegateContact, DiffusionType>
+{
+  protected:
+    StdVec<StdVec<ContactDiffusionType *>> contact_diffusions_;
+    StdVec<StdVec<Real *>> contact_gradient_species_, contact_flux_dt_;
+    //StdVec<StdVec<Real *>> contact_flux_;
+
+  public:
+    template <class BodyRelationType>
+    explicit DiffusionRelaxation(BodyRelationType &contact_body_relation);
+
+  private:
+    void getContactDiffusions();
+};
+
+
+template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
+class DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>
+    : public DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionType>
+{
+  protected:
+    StdVec<ContactKernelGradientType> contact_kernel_gradients_;
+    StdVec<Real *> contact_Vol_;
+    StdVec<StdVec<Real *>> contact_transfer_;
+
+    void resetContactTransfer(size_t index_i);
+    void accumulateDiffusionRate(size_t index_i);
+    void initialization(size_t index_i, Real dt = 0.0);
+    void update(size_t index_i, Real dt = 0.0);
+
+    inline Real getMultiPhaseInterThermalConductivity(Real thermal_conductivity_i, Real thermal_conductivity_j)
+    {
+        return 2 * thermal_conductivity_i * thermal_conductivity_j / (thermal_conductivity_i + thermal_conductivity_j);
+    };
+
+    void getDiffusionChangeRateMultiPhaseContact(size_t particle_i, size_t particle_j, Vecd &e_ij, Real factor_ij, Real surface_area_ij, Real cross_section, 
+        const StdVec<Real *> &gradient_species_k, const StdVec<ContactDiffusionType *> &contact_diffusions_k, StdVec<Real *> &flux_contact_dt_k);
+
+  public:
+    template <typename... Args>
+    explicit DiffusionRelaxation(Args &&... args);
+    virtual ~DiffusionRelaxation(){};
+    void interaction(size_t index_i, Real dt = 0.0);
+};
+
 
 template <typename... ControlTypes>
 class Dirichlet; /**< Contact interaction with Dirichlet boundary condition */
@@ -317,5 +365,30 @@ class DiffusionBodyRelaxationComplex
                                  DiffusionType>>(first_arg, std::forward<OtherArgs>(other_args)...){};
     virtual ~DiffusionBodyRelaxationComplex(){};
 };
+
+
+template <class DiffusionType, class ContactDiffusionType, class KernelGradientType, class ContactKernelGradientType,
+          template <typename... Parameters> typename... ContactInteractionTypes>
+class MultiPhaseDiffusionBodyRelaxationComplex
+    : public DiffusionRelaxationRK2<
+          ComplexInteraction<DiffusionRelaxation<
+                             Inner<KernelGradientType>, 
+                             Contact<ContactKernelGradientType, ContactDiffusionType>,
+                             ContactInteractionTypes<ContactKernelGradientType>...>,
+                             DiffusionType>>
+{
+  public:
+    template <typename FirstArg, typename... OtherArgs>
+    explicit MultiPhaseDiffusionBodyRelaxationComplex(FirstArg &&first_arg, OtherArgs &&... other_args)
+        : DiffusionRelaxationRK2<
+              ComplexInteraction<DiffusionRelaxation<
+                                Inner<KernelGradientType>, 
+                                Contact<ContactKernelGradientType, ContactDiffusionType>,
+                                ContactInteractionTypes<ContactKernelGradientType>...>,
+                                DiffusionType>>(first_arg, std::forward<OtherArgs>(other_args)...){};
+    virtual ~MultiPhaseDiffusionBodyRelaxationComplex(){};
+};
+
+
 } // namespace SPH
 #endif // DIFFUSION_DYNAMICS_H
