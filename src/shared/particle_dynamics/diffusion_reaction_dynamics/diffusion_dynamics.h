@@ -159,35 +159,19 @@ class DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>
     virtual ~DiffusionRelaxation(){};
 };
 
-template <class DiffusionType, class ContactDiffusionType>
-class DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionType>
-    : public DiffusionRelaxation<DataDelegateContact, DiffusionType>
+
+template <typename... Args>
+class MultiPhaseContact;
+
+template <class ContactKernelGradientType, class DiffusionType>
+class DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, DiffusionType>
+    : public DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>
 {
   protected:
-    StdVec<StdVec<ContactDiffusionType *>> contact_diffusions_;
+    StdVec<StdVec<DiffusionType *>> contact_diffusions_;
     StdVec<StdVec<Real *>> contact_gradient_species_, contact_flux_dt_;
     //StdVec<StdVec<Real *>> contact_flux_;
 
-  public:
-    template <class BodyRelationType>
-    explicit DiffusionRelaxation(BodyRelationType &contact_body_relation);
-
-  private:
-    void getContactDiffusions();
-};
-
-
-template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
-class DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>
-    : public DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionType>
-{
-  protected:
-    StdVec<ContactKernelGradientType> contact_kernel_gradients_;
-    StdVec<Real *> contact_Vol_;
-    StdVec<StdVec<Real *>> contact_transfer_;
-
-    void resetContactTransfer(size_t index_i);
-    void accumulateDiffusionRate(size_t index_i);
     void initialization(size_t index_i, Real dt = 0.0);
     void update(size_t index_i, Real dt = 0.0);
 
@@ -197,13 +181,16 @@ class DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionTyp
     };
 
     void getDiffusionChangeRateMultiPhaseContact(size_t particle_i, size_t particle_j, Vecd &e_ij, Real factor_ij, Real surface_area_ij, Real cross_section, 
-        const StdVec<Real *> &gradient_species_k, const StdVec<ContactDiffusionType *> &contact_diffusions_k, StdVec<Real *> &flux_contact_dt_k);
+        const StdVec<Real *> &gradient_species_k, const StdVec<DiffusionType *> &contact_diffusions_k, StdVec<Real *> &flux_contact_dt_k);
 
   public:
     template <typename... Args>
     explicit DiffusionRelaxation(Args &&... args);
     virtual ~DiffusionRelaxation(){};
     void interaction(size_t index_i, Real dt = 0.0);
+
+  private:
+    void getContactDiffusions();
 };
 
 
@@ -367,13 +354,13 @@ class DiffusionBodyRelaxationComplex
 };
 
 
-template <class DiffusionType, class ContactDiffusionType, class KernelGradientType, class ContactKernelGradientType,
+template <class DiffusionType, class KernelGradientType, class ContactKernelGradientType,
           template <typename... Parameters> typename... ContactInteractionTypes>
 class MultiPhaseDiffusionBodyRelaxationComplex
     : public DiffusionRelaxationRK2<
           ComplexInteraction<DiffusionRelaxation<
                              Inner<KernelGradientType>, 
-                             Contact<ContactKernelGradientType, ContactDiffusionType>,
+                             MultiPhaseContact<ContactKernelGradientType>,
                              ContactInteractionTypes<ContactKernelGradientType>...>,
                              DiffusionType>>
 {
@@ -383,12 +370,11 @@ class MultiPhaseDiffusionBodyRelaxationComplex
         : DiffusionRelaxationRK2<
               ComplexInteraction<DiffusionRelaxation<
                                 Inner<KernelGradientType>, 
-                                Contact<ContactKernelGradientType, ContactDiffusionType>,
+                                MultiPhaseContact<ContactKernelGradientType>,
                                 ContactInteractionTypes<ContactKernelGradientType>...>,
                                 DiffusionType>>(first_arg, std::forward<OtherArgs>(other_args)...){};
     virtual ~MultiPhaseDiffusionBodyRelaxationComplex(){};
 };
-
 
 } // namespace SPH
 #endif // DIFFUSION_DYNAMICS_H

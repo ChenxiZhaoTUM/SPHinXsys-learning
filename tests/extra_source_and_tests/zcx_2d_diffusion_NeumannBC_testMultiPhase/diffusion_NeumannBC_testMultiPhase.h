@@ -188,7 +188,7 @@ class NeumannWallBoundaryInitialCondition : public LocalDynamics
 //----------------------------------------------------------------------
 
 using MultiPhaseDiffusionBodyRelaxation = MultiPhaseDiffusionBodyRelaxationComplex<
-    IsotropicThermalDiffusion, IsotropicThermalDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Neumann>;
+    IsotropicThermalDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Neumann>;
 
 //StdVec<Vecd> createObservationPoints()
 //{

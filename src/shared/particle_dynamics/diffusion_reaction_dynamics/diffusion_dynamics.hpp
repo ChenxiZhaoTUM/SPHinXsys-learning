@@ -148,11 +148,11 @@ void DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>::
     }
 }
 //=================================================================================================//
-template <class DiffusionType, class ContactDiffusionType>
-template <class BodyRelationType>
-DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionType>::
-    DiffusionRelaxation(BodyRelationType &contact_body_relation)
-    : DiffusionRelaxation<DataDelegateContact, DiffusionType>(contact_body_relation)
+template <class ContactKernelGradientType, class DiffusionType>
+template <typename... Args>
+DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, DiffusionType>::
+    DiffusionRelaxation(Args &&...args)
+    : DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>(std::forward<Args>(args)...)
 {
     contact_diffusions_.resize(this->contact_particles_.size());
     contact_gradient_species_.resize(this->contact_particles_.size());
@@ -184,8 +184,8 @@ DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionType>::
     }
 }
 //=================================================================================================//
-template <class DiffusionType, class ContactDiffusionType>
-void DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionType>::getContactDiffusions()
+template <class ContactKernelGradientType, class DiffusionType>
+void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, DiffusionType>::getContactDiffusions()
 {
     for (size_t k = 0; k != this->contact_particles_.size(); ++k)
     {
@@ -193,63 +193,14 @@ void DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionTyp
         StdVec<AbstractDiffusion *> all_contact_diffusions_k = abstract_contact_diffusion_k.AllDiffusions();
         for (auto &contact_diffusion_k : all_contact_diffusions_k)
         {
-            contact_diffusions_[k].push_back(DynamicCast<ContactDiffusionType>(this, contact_diffusion_k));
+            contact_diffusions_[k].push_back(DynamicCast<DiffusionType>(this, contact_diffusion_k));
         }
     }
 }
-//=================================================================================================//
-template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
-template <typename... Args>
-DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>::
-    DiffusionRelaxation(Args &&...args)
-    : DiffusionRelaxation<DataDelegateContact, DiffusionType, ContactDiffusionType>(
-          std::forward<Args>(args)...)
-{
-    contact_transfer_.resize(this->contact_particles_.size());
-    for (size_t k = 0; k != this->contact_particles_.size(); ++k)
-    {
-        BaseParticles *contact_particles_k = this->contact_particles_[k];
-        contact_kernel_gradients_.push_back(ContactKernelGradientType(this->particles_, contact_particles_k));
-        contact_Vol_.push_back(contact_particles_k->template registerStateVariable<Real>("VolumetricMeasure"));
 
-        std::string diffusion_direction = "From" + this->contact_bodies_[k]->getName();
-        for (auto &contact_diffusion_k : this->contact_diffusions_[k])
-        {
-            std::string variable_name = contact_diffusion_k->GradientSpeciesName() + "Transfer" + diffusion_direction;
-            contact_transfer_[k].push_back(
-                this->particles_->template registerStateVariable<Real>(variable_name));
-        }
-    }
-}
 //=================================================================================================//
-template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
-void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>::
-    resetContactTransfer(size_t index_i)
-{
-    for (size_t k = 0; k < this->contact_particles_.size(); ++k)
-    {
-        for (size_t m = 0; m < this->contact_diffusions_[k].size(); ++m)
-        {
-            this->contact_transfer_[k][m][index_i] = 0.0;
-        }
-    }
-}
-//=================================================================================================//
-template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
-void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>::
-    accumulateDiffusionRate(size_t index_i)
-{
-    for (size_t k = 0; k < this->contact_particles_.size(); ++k)
-    {
-        for (size_t m = 0; m < this->contact_diffusions_[k].size(); ++m)
-        {
-            this->diffusion_dt_[m][index_i] += this->contact_transfer_[k][m][index_i];
-        }
-    }
-}
-//=================================================================================================//
-template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
-void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>::
+template <class ContactKernelGradientType, class DiffusionType>
+void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, DiffusionType>::
     initialization(size_t index_i, Real dt)
 {
     for (size_t m = 0; m < this->diffusions_.size(); ++m)
@@ -267,8 +218,8 @@ void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType
     }
 }
 //=================================================================================================//
-template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
-void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>::
+template <class ContactKernelGradientType, class DiffusionType>
+void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, DiffusionType>::
     update(size_t index_i, Real dt)
 {
     for (size_t m = 0; m < this->diffusions_.size(); ++m)
@@ -277,10 +228,10 @@ void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType
     }
 }
 //=================================================================================================//
-template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
-void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>::
+template <class ContactKernelGradientType, class DiffusionType>
+void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, DiffusionType>::
     getDiffusionChangeRateMultiPhaseContact(size_t particle_i, size_t particle_j, Vecd &e_ij, Real factor_ij, Real surface_area_ij, Real cross_section, 
-        const StdVec<Real *> &contact_gradient_species_k, const StdVec<ContactDiffusionType *> &contact_diffusions_k, StdVec<Real *> &contact_flux_dt_k)
+        const StdVec<Real *> &contact_gradient_species_k, const StdVec<DiffusionType *> &contact_diffusions_k, StdVec<Real *> &contact_flux_dt_k)
 {
     for (size_t m = 0; m < this->diffusions_.size(); ++m)
     {
@@ -298,15 +249,15 @@ void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType
     }
 }
 //=================================================================================================//
-template <class ContactKernelGradientType, class DiffusionType, class ContactDiffusionType>
-void DiffusionRelaxation<Contact<ContactKernelGradientType, ContactDiffusionType>, DiffusionType>::
+template <class ContactKernelGradientType, class DiffusionType>
+void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, DiffusionType>::
     interaction(size_t index_i, Real dt)
 {
     for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
     {
         StdVec<Real *> &gradient_species_k = this->contact_gradient_species_[k];
         StdVec<Real *> &contact_flux_dt_k = this->contact_flux_dt_[k];
-        StdVec<ContactDiffusionType *> &contact_diffusions_k = this->contact_diffusions_[k];
+        StdVec<DiffusionType *> &contact_diffusions_k = this->contact_diffusions_[k];
         Real *contact_Vol_k = this->contact_Vol_[k];
         Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
         for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
