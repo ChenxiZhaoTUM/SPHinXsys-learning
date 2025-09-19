@@ -42,6 +42,9 @@ IsotropicThermalDiffusion::IsotropicThermalDiffusion(const std::string &diffusio
 IsotropicThermalDiffusion::IsotropicThermalDiffusion(const std::string &species_name, Real thermal_conductivity, Real ref_density, Real specific_heat)
     : IsotropicThermalDiffusion(species_name, species_name, thermal_conductivity, ref_density, specific_heat) {}
 //=================================================================================================//
+IsotropicThermalDiffusion::IsotropicThermalDiffusion(ConstructArgs<std::string, Real, Real, Real> args)
+    : IsotropicThermalDiffusion(std::get<0>(args), std::get<1>(args), std::get<2>(args), std::get<3>(args)) {}
+//=================================================================================================//
 LocalIsotropicDiffusion::LocalIsotropicDiffusion(const std::string &diffusion_species_name,
                                                  const std::string &gradient_species_name,
                                                  Real diff_background, Real diff_max)

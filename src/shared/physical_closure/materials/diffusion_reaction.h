@@ -117,6 +117,7 @@ class IsotropicThermalDiffusion : public BaseDiffusion
                        const std::string &gradient_species_name,
                        Real thermal_conductivity = 1.0, Real ref_density = 1.0, Real specific_heat = 1.0);
     IsotropicThermalDiffusion(const std::string &species_name, Real thermal_conductivity = 1.0, Real ref_density = 1.0, Real specific_heat = 1.0);
+    explicit IsotropicThermalDiffusion(ConstructArgs<std::string, Real, Real, Real> args);
     virtual ~IsotropicThermalDiffusion() {};
 
     virtual Real getReferenceDiffusivity() override { return diff_cf_; };
