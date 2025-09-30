@@ -150,6 +150,21 @@ class TargetFluidParticles : public DistanceFromWall
     int *second_layer_indicatior_;
 };
 
+class FluidLocalVerticalHeatFlux : public BaseLocalDynamics<BodyPartByCell>
+{
+  public:
+    explicit FluidLocalVerticalHeatFlux(BodyPartByCell &body_part, Real coeff, Real kappa);
+    virtual ~FluidLocalVerticalHeatFlux() {};
+
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real coeff_, kappa_;
+    Vecd *vel_, *phi_grad_;
+    Real *phi_, *fluid_local_heat_flux_y_;
+};
+
+
 } // namespace fluid_dynamics
 
 namespace solid_dynamics

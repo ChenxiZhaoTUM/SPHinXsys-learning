@@ -135,6 +135,21 @@ void TargetFluidParticles::update(size_t index_i, Real dt)
     }
 }
 //=================================================================================================//
+FluidLocalVerticalHeatFlux::FluidLocalVerticalHeatFlux(BodyPartByCell &body_part, Real coeff, Real kappa)
+    : BaseLocalDynamics<BodyPartByCell>(body_part), coeff_(coeff), kappa_(kappa),
+    vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
+    phi_grad_(particles_->getVariableDataByName<Vecd>("PhiGradient")),
+    phi_(this->particles_->template getVariableDataByName<Real>("Phi")),
+    fluid_local_heat_flux_y_(particles_->registerStateVariable<Real>("FluidLocalVerticalHeatFlux")) {}
+//=================================================================================================//
+void FluidLocalVerticalHeatFlux::update(size_t index_i, Real dt)
+{
+    Real vT = vel_[index_i][1] * phi_[index_i];
+    Real dTdy = phi_grad_[index_i][1];
+    Real Qy = vT - kappa_ * dTdy;
+    fluid_local_heat_flux_y_[index_i] = coeff_ * Qy;
+}
+//=================================================================================================//
 } // namespace fluid_dynamics
 
 namespace solid_dynamics
