@@ -89,7 +89,6 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> get_fluid_advection_time_step(diffusion_body, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> get_fluid_time_step(diffusion_body);
 
-    
     InteractionWithUpdate<fluid_dynamics::TargetFluidParticles> target_fluid_particles(diffusion_body_contact_Dirichlet);
     SimpleDynamics<solid_dynamics::FirstLayerFromFluid> target_solid_particles(wall_Dirichlet, diffusion_body);
 
@@ -97,13 +96,10 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::LocalNusseltNum> local_nusselt_number(diffusion_body, H / (down_temperature - up_temperature));
     InteractionDynamics<solid_dynamics::ProjectionForNu> wall_local_nusselt_number(Dirichlet_contact, H / (down_temperature - up_temperature));
     
-    
     BodyRegionByCell left_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createLeftDiffusionDomain(), "LeftDiffusionDomain"));
     SimpleDynamics<fluid_dynamics::FluidLocalVerticalHeatFlux> left_diffusion_domain_flux(left_diffusion_domain, H / (down_temperature - up_temperature) / kappa, kappa);
     ReducedQuantityRecording<Average<QuantitySummation<Real, BodyPartByCell>>>
     write_averaged_LocalVerticalHeatFlux(left_diffusion_domain, "FluidLocalVerticalHeatFlux");
-    
-    
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
