@@ -41,6 +41,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     InnerRelation diffusion_body_inner(diffusion_body);
     ContactRelation diffusion_body_contact_Dirichlet(diffusion_body, {&wall_Dirichlet});
+    InnerRelation wall_inner(wall_Dirichlet);
+    ContactRelation Dirichlet_contact(wall_Dirichlet, {&diffusion_body});
     ContactRelation temperature_observer_contact(temperature_observer, {&diffusion_body});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
@@ -55,17 +57,15 @@ int main(int ac, char *av[])
     SimpleDynamics<DiffusionInitialCondition> setup_diffusion_initial_condition(diffusion_body);
     SimpleDynamics<DirichletWallBoundaryInitialCondition> setup_boundary_condition_Dirichlet(wall_Dirichlet);
 
-    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> kernel_correction_complex(DynamicsArgs(diffusion_body_inner, 0.1), diffusion_body_contact_Dirichlet);
-    InteractionDynamics<fluid_dynamics::DistanceFromWall> distance_to_wall(diffusion_body_contact_Dirichlet);
-    InteractionWithUpdate<fluid_dynamics::PhiGradientWithWall<LinearGradientCorrection>> calculate_phi_gradient(diffusion_body_inner, diffusion_body_contact_Dirichlet);
-    SimpleDynamics<fluid_dynamics::LocalNusseltNum> local_nusselt_number(diffusion_body, L/(T_left - T_right));
+    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> kernel_correction_complex(wall_inner, Dirichlet_contact);
+    InteractionWithUpdate<fluid_dynamics::PhiGradientWithWall<LinearGradientCorrection>> calculate_phi_gradient(wall_inner, Dirichlet_contact);
+    SimpleDynamics<solid_dynamics::LocalNusseltNumWall> local_nusselt_number(wall_Dirichlet, L/(T_left - T_right));
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp write_states(sph_system);
-    //write_states.addToWrite<Vecd>(diffusion_body, "LinearGradientCorrectionMatrix");
-    write_states.addToWrite<Vecd>(diffusion_body, "PhiGradient");
-    write_states.addToWrite<Real>(diffusion_body, "LocalNusseltNumber");
+    write_states.addToWrite<Real>(wall_Dirichlet, "WallLocalNusseltNumber");
+    write_states.addToWrite<Vecd>(wall_Dirichlet, "PhiGradient");
     ObservedQuantityRecording<Real> write_solid_temperature("Phi", temperature_observer_contact);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -79,7 +79,6 @@ int main(int ac, char *av[])
     wall_boundary_normal_direction.exec();
 
     kernel_correction_complex.exec();
-    distance_to_wall.exec();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------

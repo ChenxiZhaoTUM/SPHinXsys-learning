@@ -32,6 +32,8 @@
 
 #include "base_fluid_dynamics.h"
 #include "force_prior.h"
+#include "diffusion_dynamics.h"
+#include "near_wall_boundary.h"
 
 namespace SPH
 {
@@ -85,19 +87,19 @@ class PhiGradient<Inner<KernelCorrectionType>>
 using PhiGradientInner = PhiGradient<Inner<NoKernelCorrection>>;
 
 template <>
-class PhiGradient<Contact<Wall>> : public InteractionWithWall<PhiGradient>
+class PhiGradient<Contact<>> : public PhiGradient<DataDelegateContact>
 {
   public:
-    explicit PhiGradient(BaseContactRelation &wall_contact_relation);
+    explicit PhiGradient(BaseContactRelation &contact_relation);
     virtual ~PhiGradient(){};
     void interaction(size_t index_i, Real dt = 0.0);
 
   protected:
-    StdVec<Real *> wall_phi_;
+    StdVec<Real *> contact_Vol_, contact_phi_;
 };
 
 template <class KernelCorrectionType>
-using PhiGradientWithWall = ComplexInteraction<PhiGradient<Inner<KernelCorrectionType>, Contact<Wall>>>;
+using PhiGradientComplex = ComplexInteraction<PhiGradient<Inner<KernelCorrectionType>, Contact<>>>;
 
 /**
  * @class LocalNusseltNum
@@ -118,6 +120,116 @@ class LocalNusseltNum : public LocalDynamics
     Real *nu_num_;
 };
 
+class TargetFluidParticles : public DistanceFromWall
+{
+  public:
+    explicit TargetFluidParticles(BaseContactRelation &wall_contact_relation);
+    virtual ~TargetFluidParticles(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    int *first_layer_indicatior_;
+    int *second_layer_indicatior_;
+};
+
 } // namespace fluid_dynamics
+
+namespace solid_dynamics
+{
+template <typename... KernelGradientType>
+class PhiGradientFromFluid;
+
+template <class ContactKernelGradientType>
+class PhiGradientFromFluid<ContactKernelGradientType> : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    explicit PhiGradientFromFluid(BaseContactRelation &contact_relation);
+    virtual ~PhiGradientFromFluid() {};
+    void interaction(size_t index_i, Real dt = 0.0);
+
+  protected:
+    StdVec<ContactKernelGradientType> contact_kernel_gradients_;
+    Real *phi_;
+    Vecd *phi_grad_;
+    StdVec<Real *> contact_Vol_, contact_phi_;
+};
+
+class LocalNusseltNumWall : public LocalDynamics
+{
+  public:
+    explicit LocalNusseltNumWall(SPHBody &sph_body, Real nu_coeff);
+    virtual ~LocalNusseltNumWall() {};
+
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real nu_coeff_;
+    Vecd *n_, *phi_grad_;
+    Real *nu_num_;
+};
+
+class FirstLayerFromFluid : public LocalDynamics
+{
+  public:
+    FirstLayerFromFluid(SPHBody &solid_body, SPHBody &fluid_body)
+        : LocalDynamics(solid_body),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          solid_contact_indicator_(particles_->registerStateVariableData<int>("SolidFirstLayerIndicator")),
+          fluid_body_(fluid_body),
+          spacing_ref_(sph_body_.getSPHAdaptation().ReferenceSpacing()){};
+    virtual ~FirstLayerFromFluid(){};
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        Real phi = fluid_body_.getInitialShape().findSignedDistance(pos_[index_i]);
+        solid_contact_indicator_[index_i] = 1;
+        if (phi > 1.01 * spacing_ref_)
+            solid_contact_indicator_[index_i] = 0;
+    }
+
+  protected:
+    Vecd *pos_;
+    int *solid_contact_indicator_;
+    SPHBody &fluid_body_;
+    Real spacing_ref_;
+};
+
+class LocalNusseltNumFromFluid : public LocalDynamics, public DataDelegateInner, public DataDelegateContact
+{
+  public:
+    explicit LocalNusseltNumFromFluid(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation, Real nu_coeff);
+    virtual ~LocalNusseltNumFromFluid() {};
+
+    void interaction(size_t index_i, Real dt = 0.0);
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real nu_coeff_;
+    Vecd *n_, *phi_grad_;
+    Real *Vol_, *nu_num_;
+    int *solid_contact_indicator_;
+    StdVec<Real *> contact_Vol_;
+    StdVec<Vecd *> contact_phi_grad_;
+};
+
+class FFDForNu : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    explicit FFDForNu(BaseContactRelation &contact_relation, Real nu_coeff);
+    virtual ~FFDForNu() {};
+
+    void interaction(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Real nu_coeff_;
+    Vecd *n_;
+    Real *nu_num_, *wall_phi_;
+    Real spacing_ref_;
+    int *solid_contact_indicator_;
+    StdVec<Real *> contact_phi_;
+    StdVec<int *> contact_first_layer_indicator_, contact_second_layer_indicator_;
+};
+
+} // namespace solid_dynamics
 } // namespace SPH
 #endif // BUOYANCY_FORCE_H

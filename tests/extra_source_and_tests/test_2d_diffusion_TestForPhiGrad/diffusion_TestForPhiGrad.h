@@ -112,16 +112,16 @@ class DirichletWallBoundaryInitialCondition : public LocalDynamics
 
     void update(size_t index_i, Real dt)
     {
-        //phi_[index_i] = 50 * pos_[index_i][0] + 30 * pos_[index_i][1] + 10;
+         //phi_[index_i] = 50 * pos_[index_i][0] + 30 * pos_[index_i][1] + 10;
         
-        phi_[index_i] = 100;
+        //phi_[index_i] = 100;
 
-        //if (pos_[index_i][0] <= 0)
-        //    phi_[index_i] = T_left;
-        //else if (pos_[index_i][0] >= L)
-        //    phi_[index_i] = T_right;
-        //else
-        //    phi_[index_i] = 0.;
+        if (pos_[index_i][0] <= 0)
+            phi_[index_i] = T_left;
+        else if (pos_[index_i][0] >= L)
+            phi_[index_i] = T_right;
+        else
+            phi_[index_i] = 0.;
     }
 
   protected:

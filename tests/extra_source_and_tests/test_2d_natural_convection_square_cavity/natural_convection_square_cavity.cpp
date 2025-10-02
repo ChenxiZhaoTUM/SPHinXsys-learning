@@ -36,6 +36,12 @@ int main(int ac, char *av[])
     SolidBody wall_Neumann(sph_system, makeShared<NeumannWallBoundary>("NeumannWallBoundary"));
     wall_Neumann.defineMaterial<Solid>();
     wall_Neumann.generateParticles<BaseParticles, Lattice>();
+
+    ObserverBody verticalVelObserver(sph_system, "VerticalVelObserver");
+    verticalVelObserver.generateParticles<ObserverParticles>(createVerticalVelObservationPoints());
+
+    ObserverBody horizontalVelObserver(sph_system, "HorizontalVelObserver");
+    horizontalVelObserver.generateParticles<ObserverParticles>(createHorizontalVelObservationPoints());
     //----------------------------------------------------------------------
     //	Particle and body creation of temperature observers.
     //----------------------------------------------------------------------
@@ -47,12 +53,16 @@ int main(int ac, char *av[])
     //	Basically the range of bodies to build neighbor particle lists.
     //----------------------------------------------------------------------
     InnerRelation diffusion_body_inner(diffusion_body);
+    //InnerRelation wall_inner(wall_Dirichlet);
+    ContactRelation Dirichlet_contact(wall_Dirichlet, {&diffusion_body});
     ContactRelation diffusion_body_contact_Dirichlet(diffusion_body, {&wall_Dirichlet});
     ContactRelation diffusion_body_contact_Neumann(diffusion_body, {&wall_Neumann});
 
     ContactRelation fluid_body_contact(diffusion_body, {&wall_boundary});
     ComplexRelation fluid_body_complex(diffusion_body_inner, fluid_body_contact);
-    //ContactRelation temperature_observer_contact(temperature_observer, {&diffusion_body});
+    //ContactRelation nusselt_observer_contact(nu_observer, {&diffusion_body});
+    ContactRelation fluid_vvel_observer_contact(verticalVelObserver, {&diffusion_body});
+    ContactRelation fluid_hvel_observer_contact(horizontalVelObserver, {&diffusion_body});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
@@ -78,6 +88,13 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::BuoyancyForce> buoyancy_force(diffusion_body, thermal_expansion_coeff, initial_temperature);
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> get_fluid_advection_time_step(diffusion_body, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> get_fluid_time_step(diffusion_body);
+
+    //InteractionDynamics<fluid_dynamics::DistanceFromWall> distance_to_wall(fluid_body_contact);
+    InteractionWithUpdate<fluid_dynamics::TargetFluidParticles> target_fluid_particles(fluid_body_contact);
+    SimpleDynamics<solid_dynamics::FirstLayerFromFluid> target_solid_particles(wall_Dirichlet, diffusion_body);
+    InteractionDynamics<solid_dynamics::FFDForNu> local_nusselt_number(Dirichlet_contact, L/(left_temperature - right_temperature));
+    //InteractionWithUpdate<fluid_dynamics::PhiGradientComplex<LinearGradientCorrection>> calculate_phi_gradient(diffusion_body_inner, diffusion_body_contact_Dirichlet);
+    //SimpleDynamics<fluid_dynamics::LocalNusseltNum> local_nusselt_number(diffusion_body, L/(left_temperature - right_temperature));
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
@@ -85,13 +102,16 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp write_states(sph_system);
     write_states.addToWrite<Real>(diffusion_body, "Pressure");
     write_states.addToWrite<Vecd>(diffusion_body, "BuoyancyForce");
-    write_states.addToWrite<Vecd>(diffusion_body, "ViscousForce");
-    write_states.addToWrite<Vecd>(diffusion_body, "ForcePrior");
-    write_states.addToWrite<Vecd>(diffusion_body, "Force");
+    //write_states.addToWrite<Vecd>(diffusion_body, "PhiGradient");
+    //write_states.addToWrite<Real>(diffusion_body, "LocalNusseltNumber");
+    write_states.addToWrite<int>(diffusion_body, "FirstLayerIndicator");
+    write_states.addToWrite<int>(diffusion_body, "SecondLayerIndicator");
+    write_states.addToWrite<int>(wall_Dirichlet, "SolidFirstLayerIndicator");
+    write_states.addToWrite<Real>(wall_Dirichlet, "WallLocalNusseltNumber");
     write_states.addToWrite<Vecd>(wall_boundary, "NormalDirection");
-    write_states.addToWrite<Vecd>(wall_Dirichlet, "NormalDirection");
-    write_states.addToWrite<Vecd>(wall_Neumann, "NormalDirection");
-    //ObservedQuantityRecording<Real> write_solid_temperature(diffusion_species_name, temperature_observer_contact);
+    //ObservedQuantityRecording<Real> write_local_nusselt_number("LocalNusseltNumber", nusselt_observer_contact);
+    //ObservedQuantityRecording<Vecd> write_recorded_fluid_vvel("Velocity", fluid_vvel_observer_contact);
+    //ObservedQuantityRecording<Vecd> write_recorded_fluid_hvel("Velocity", fluid_hvel_observer_contact);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.
@@ -110,10 +130,15 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real End_Time = 5;
+    Real End_Time = 0.8; // Ra=10E4
+    //Real End_Time = 5; // Ra=10E5
+    //Real End_Time = 10.0; // Ra=10E6
+    //Real End_Time = 10.0; // Ra=10E7
+    //Real End_Time = 20.0; // Ra=10E8
+    //Real End_Time = 550; // Ra=10E9
     Real output_interval = End_Time / 100.0; /**< time stamps for output,WriteToFile*/
     int number_of_iterations = 0;
-    int screen_output_interval = 50;
+    int screen_output_interval = 100;
     Real dt = 0.0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
@@ -173,16 +198,21 @@ int main(int ac, char *av[])
             diffusion_body_contact_Dirichlet.updateConfiguration();
             diffusion_body_contact_Neumann.updateConfiguration();
             fluid_body_complex.updateConfiguration();
+            Dirichlet_contact.updateConfiguration();
+
+            target_fluid_particles.exec();
+            target_solid_particles.exec();
         }
 
         TickCount t2 = TickCount::now();
+        local_nusselt_number.exec();
         write_states.writeToFile();
-        //write_solid_temperature.writeToFile(ite);
+        //write_recorded_fluid_vvel.writeToFile(number_of_iterations);
+        //write_recorded_fluid_hvel.writeToFile(number_of_iterations);
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
     TickCount t4 = TickCount::now();
-
     TickCount::interval_t tt;
     tt = t4 - t1 - interval;
 

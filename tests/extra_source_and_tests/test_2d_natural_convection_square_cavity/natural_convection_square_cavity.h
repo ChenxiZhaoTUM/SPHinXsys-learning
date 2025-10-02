@@ -12,8 +12,14 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real L = 0.03628;
-Real H = 0.03628;
+Real L = 0.01684; //Ra=10E4
+//Real L = 0.03628; //Ra=10E5
+//Real L = 0.07816; //Ra=10E6
+//Real L = 0.16840; //Ra=10E7
+//Real L = 0.36280; //Ra=10E8
+//Real L = 0.78163; //Ra=10E9
+
+Real H = L;
 Real resolution_ref = H / 150.0;
 Real BW = resolution_ref * 3.0;
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
@@ -21,12 +27,10 @@ BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
 Real rho0_f = 1.204;                  /**< Reference density of fluid. */
-Real U_f = 0.2;                     /**< Characteristic velocity. */
-Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
 Real mu_f = 1.506E-5 * rho0_f;               /**< Dynamics viscosity. */
 Real C_p = 1.006E3;
 Real k = 0.02587;
-Real diffusion_coeff = k/(rho0_f*C_p);
+Real diffusion_coeff = k/(rho0_f*C_p);  // 2.1359E-5
 Real thermal_expansion_coeff = 3.43E-3;
 std::string diffusion_species_name = "Phi";
 //----------------------------------------------------------------------
@@ -35,9 +39,9 @@ std::string diffusion_species_name = "Phi";
 Real initial_temperature = 293.0;
 Real left_temperature = 303.0;
 Real right_temperature = 283.0;
-//Real left_temperature = 293.0;
-//Real right_temperature = 293.0;
 Real heat_flux = 0;
+Real U_f = sqrt(9.81 * thermal_expansion_coeff * (left_temperature - right_temperature) * L);                     /**< Characteristic velocity. */
+Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
 //----------------------------------------------------------------------
@@ -201,18 +205,50 @@ using DiffusionBodyRelaxation = DiffusionBodyRelaxationComplex<
 //{
 //    StdVec<Vecd> observation_points;
 //    /** A line of measuring points at the middle line. */
-//    size_t number_of_observation_points = 5;
-//    Real range_of_measure = L;
+//    size_t number_of_observation_points = 20;
+//    Real range_of_measure = H;
 //    Real start_of_measure = 0;
 //
 //    for (size_t i = 0; i < number_of_observation_points; ++i)
 //    {
-//        Vec2d point_coordinate(0.5 * L, range_of_measure * Real(i) /
+//        Vec2d point_coordinate(L+0.5*resolution_ref, range_of_measure * Real(i) /
 //                                                Real(number_of_observation_points - 1) +
 //                                            start_of_measure);
 //        observation_points.push_back(point_coordinate);
 //    }
 //    return observation_points;
 //};
+
+StdVec<Vecd> createVerticalVelObservationPoints()
+{
+    StdVec<Vecd> observation_points;
+    /** A line of measuring points at the middle line. */
+    size_t number_of_observation_points = 21;
+    Real range_of_measure = H;
+    Real start_of_measure = 0;
+
+    for (size_t i = 0; i < number_of_observation_points; ++i)
+    {
+        Vec2d point_coordinate(range_of_measure * Real(i) / Real(number_of_observation_points - 1) + start_of_measure, H/2);
+        observation_points.push_back(point_coordinate);
+    }
+    return observation_points;
+};
+
+StdVec<Vecd> createHorizontalVelObservationPoints()
+{
+    StdVec<Vecd> observation_points;
+    /** A line of measuring points at the middle line. */
+    size_t number_of_observation_points = 21;
+    Real range_of_measure = L;
+    Real start_of_measure = 0;
+
+    for (size_t i = 0; i < number_of_observation_points; ++i)
+    {
+        Vec2d point_coordinate(L/2, range_of_measure * Real(i) / Real(number_of_observation_points - 1) + start_of_measure);
+        observation_points.push_back(point_coordinate);
+    }
+    return observation_points;
+};
 } // namespace SPH
 #endif // DIFFUSION_NEUMANN_BC_H

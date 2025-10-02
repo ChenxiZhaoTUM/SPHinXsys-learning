@@ -42,4 +42,46 @@ void PhiGradient<Inner<KernelCorrectionType>>::update(size_t index_i, Real dt)
 }
 //=================================================================================================//
 } // namespace fluid_dynamics
+
+namespace solid_dynamics
+{
+//=================================================================================================//
+template <class ContactKernelGradientType>
+PhiGradientFromFluid<ContactKernelGradientType>::PhiGradientFromFluid(BaseContactRelation &contact_relation)
+    : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+      phi_(particles_->getVariableDataByName<Real>("Phi")),
+      phi_grad_(particles_->registerStateVariableData<Vecd>("PhiGradient"))
+{
+    for (size_t k = 0; k != this->contact_particles_.size(); ++k)
+    {
+        BaseParticles *contact_particles_k = this->contact_particles_[k];
+        contact_kernel_gradients_.push_back(ContactKernelGradientType(this->particles_, contact_particles_k));
+        contact_phi_.push_back(this->contact_particles_[k]->template getVariableDataByName<Real>("Phi"));
+        contact_Vol_.push_back(this->contact_particles_[k]->template getVariableDataByName<Real>("VolumetricMeasure"));
+    }
+}
+//=================================================================================================//
+template <class ContactKernelGradientType>
+void PhiGradientFromFluid<ContactKernelGradientType>::interaction(size_t index_i, Real dt)
+{
+    Vecd phi_grad = Vecd::Zero();
+    for (size_t k = 0; k < contact_configuration_.size(); ++k)
+    {
+        Real *phi_fluid = contact_phi_[k];
+        Real *Vol_k = contact_Vol_[k];
+        Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+        for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = contact_neighborhood.j_[n];
+            const Vecd &e_ij = contact_neighborhood.e_ij_[n];
+            Real dW_ijV_j = contact_neighborhood.dW_ij_[n] * Vol_k[index_j];
+            const Vecd &grad_ijV_j = this->contact_kernel_gradients_[k](index_i, index_j, dW_ijV_j, e_ij);
+            phi_grad -= (phi_[index_i] - phi_fluid[index_j]) * grad_ijV_j;
+        }
+    }
+
+    phi_grad_[index_i] = phi_grad;
+}
+//=================================================================================================//
+} // namespace solid_dynamics
 } // namespace SPH
