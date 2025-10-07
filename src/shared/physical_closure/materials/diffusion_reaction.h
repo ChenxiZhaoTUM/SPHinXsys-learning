@@ -83,13 +83,15 @@ class IsotropicDiffusion : public BaseDiffusion
 {
   protected:
     Real diff_cf_; /**< diffusion coefficient. */
+    Real thermal_conductivity_;
 
   public:
     IsotropicDiffusion(const std::string &diffusion_species_name,
                        const std::string &gradient_species_name,
-                       Real diff_cf = 1.0);
-    IsotropicDiffusion(const std::string &species_name, Real diff_cf = 1.0);
+                       Real diff_cf = 1.0, Real thermal_conductivity = 1.0);
+    IsotropicDiffusion(const std::string &species_name, Real diff_cf = 1.0, Real thermal_conductivity = 1.0);
     explicit IsotropicDiffusion(ConstructArgs<std::string, Real> args);
+    explicit IsotropicDiffusion(ConstructArgs<std::string, Real, Real> args);
     virtual ~IsotropicDiffusion() {};
 
     virtual Real getReferenceDiffusivity() override { return diff_cf_; };
@@ -98,6 +100,8 @@ class IsotropicDiffusion : public BaseDiffusion
     {
         return diff_cf_;
     };
+
+    Real getThermalConductivity() { return thermal_conductivity_; };
 };
 
 /**
@@ -146,9 +150,10 @@ class LocalIsotropicDiffusion : public IsotropicDiffusion
   public:
     LocalIsotropicDiffusion(const std::string &diffusion_species_name,
                             const std::string &gradient_species_name,
-                            Real diff_background, Real diff_max);
-    LocalIsotropicDiffusion(const std::string &species_name, Real diff_background, Real diff_max);
+                            Real diff_background, Real diff_max, Real thermal_conductivity = 1.0);
+    LocalIsotropicDiffusion(const std::string &species_name, Real diff_background, Real diff_max, Real thermal_conductivity = 1.0);
     explicit LocalIsotropicDiffusion(ConstructArgs<std::string, Real, Real> args);
+    explicit LocalIsotropicDiffusion(ConstructArgs<std::string, Real, Real, Real> args);
     virtual ~LocalIsotropicDiffusion() {};
 
     virtual void initializeLocalParameters(BaseParticles *base_particles) override;

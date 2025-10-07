@@ -20,15 +20,18 @@ Real BaseDiffusion::getDiffusionTimeStepSize(Real smoothing_length)
 //=================================================================================================//
 IsotropicDiffusion::IsotropicDiffusion(const std::string &diffusion_species_name,
                                        const std::string &gradient_species_name,
-                                       Real diff_cf)
+                                       Real diff_cf, Real thermal_conductivity)
     : BaseDiffusion(diffusion_species_name, gradient_species_name),
-      diff_cf_(diff_cf) {}
+      diff_cf_(diff_cf), thermal_conductivity_(thermal_conductivity) {}
 //=================================================================================================//
 IsotropicDiffusion::IsotropicDiffusion(ConstructArgs<std::string, Real> args)
     : IsotropicDiffusion(std::get<0>(args), std::get<1>(args)) {}
 //=================================================================================================//
-IsotropicDiffusion::IsotropicDiffusion(const std::string &species_name, Real diff_cf)
-    : IsotropicDiffusion(species_name, species_name, diff_cf) {}
+IsotropicDiffusion::IsotropicDiffusion(ConstructArgs<std::string, Real, Real> args)
+    : IsotropicDiffusion(std::get<0>(args), std::get<1>(args), std::get<2>(args)) {}
+//=================================================================================================//
+IsotropicDiffusion::IsotropicDiffusion(const std::string &species_name, Real diff_cf, Real thermal_conductivity)
+    : IsotropicDiffusion(species_name, species_name, diff_cf, thermal_conductivity) {}
 //=================================================================================================//
 IsotropicThermalDiffusion::IsotropicThermalDiffusion(const std::string &diffusion_species_name,
                                        const std::string &gradient_species_name,
@@ -47,23 +50,26 @@ IsotropicThermalDiffusion::IsotropicThermalDiffusion(ConstructArgs<std::string, 
 //=================================================================================================//
 LocalIsotropicDiffusion::LocalIsotropicDiffusion(const std::string &diffusion_species_name,
                                                  const std::string &gradient_species_name,
-                                                 Real diff_background, Real diff_max)
-    : IsotropicDiffusion(diffusion_species_name, gradient_species_name, diff_background),
+                                                 Real diff_background, Real diff_max, Real thermal_conductivity)
+    : IsotropicDiffusion(diffusion_species_name, gradient_species_name, diff_background, thermal_conductivity),
       diff_max_(diff_max), local_diffusivity_(nullptr) {}
 //=================================================================================================//
 LocalIsotropicDiffusion::LocalIsotropicDiffusion(const std::string &species_name,
-                                                 Real diff_background, Real diff_max)
-    : LocalIsotropicDiffusion(species_name, species_name, diff_background, diff_max) {}
+                                                 Real diff_background, Real diff_max, Real thermal_conductivity)
+    : LocalIsotropicDiffusion(species_name, species_name, diff_background, diff_max, thermal_conductivity) {}
 //=================================================================================================//
 LocalIsotropicDiffusion::LocalIsotropicDiffusion(ConstructArgs<std::string, Real, Real> args)
     : LocalIsotropicDiffusion(std::get<0>(args), std::get<1>(args), std::get<2>(args)) {}
 //=================================================================================================//
+LocalIsotropicDiffusion::LocalIsotropicDiffusion(ConstructArgs<std::string, Real, Real, Real> args)
+    : LocalIsotropicDiffusion(std::get<0>(args), std::get<1>(args), std::get<2>(args), std::get<3>(args)) {}
+//=================================================================================================//
 void LocalIsotropicDiffusion::initializeLocalParameters(BaseParticles *base_particles)
 {
     local_diffusivity_ = base_particles->registerStateVariable<Real>(
-        "ThermalConductivity", [&](size_t i) -> Real
+        "ThermalDiffusivity", [&](size_t i) -> Real
         { return diff_cf_; });
-    base_particles->addVariableToWrite<Real>("ThermalConductivity");
+    base_particles->addVariableToWrite<Real>("ThermalDiffusivity");
 }
 //=================================================================================================//
 DirectionalDiffusion::DirectionalDiffusion(const std::string &diffusion_species_name,
