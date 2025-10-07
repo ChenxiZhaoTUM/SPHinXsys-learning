@@ -52,7 +52,7 @@ LocalIsotropicDiffusion::LocalIsotropicDiffusion(const std::string &diffusion_sp
                                                  const std::string &gradient_species_name,
                                                  Real diff_background, Real diff_max, Real thermal_conductivity)
     : IsotropicDiffusion(diffusion_species_name, gradient_species_name, diff_background, thermal_conductivity),
-      diff_max_(diff_max), local_diffusivity_(nullptr) {}
+      diff_max_(diff_max), local_diffusivity_(nullptr), local_conductivity_(nullptr) {}
 //=================================================================================================//
 LocalIsotropicDiffusion::LocalIsotropicDiffusion(const std::string &species_name,
                                                  Real diff_background, Real diff_max, Real thermal_conductivity)
@@ -70,6 +70,11 @@ void LocalIsotropicDiffusion::initializeLocalParameters(BaseParticles *base_part
         "ThermalDiffusivity", [&](size_t i) -> Real
         { return diff_cf_; });
     base_particles->addVariableToWrite<Real>("ThermalDiffusivity");
+
+    local_conductivity_ = base_particles->registerStateVariable<Real>(
+        "ThermalConductivity", [&](size_t i) -> Real
+        { return thermal_conductivity_; });
+    base_particles->addVariableToWrite<Real>("ThermalConductivity");
 }
 //=================================================================================================//
 DirectionalDiffusion::DirectionalDiffusion(const std::string &diffusion_species_name,

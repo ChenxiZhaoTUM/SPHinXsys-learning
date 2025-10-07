@@ -102,6 +102,10 @@ class IsotropicDiffusion : public BaseDiffusion
     };
 
     Real getThermalConductivity() { return thermal_conductivity_; };
+    Real getInterParticleThermalConductivity(size_t index_i, size_t index_j, const Vecd &e_ij)
+    {
+        return thermal_conductivity_;
+    };
 };
 
 /**
@@ -146,6 +150,7 @@ class LocalIsotropicDiffusion : public IsotropicDiffusion
   protected:
     Real diff_max_; /**< maximum diffusion coefficient. */
     Real *local_diffusivity_;
+    Real *local_conductivity_;
 
   public:
     LocalIsotropicDiffusion(const std::string &diffusion_species_name,
@@ -163,6 +168,11 @@ class LocalIsotropicDiffusion : public IsotropicDiffusion
     virtual Real getInterParticleDiffusionCoeff(size_t index_i, size_t index_j, const Vecd &e_ij) override
     {
         return 0.5 * (local_diffusivity_[index_i] + local_diffusivity_[index_j]);
+    };
+
+    Real getInterParticleThermalConductivity(size_t index_i, size_t index_j, const Vecd &e_ij)
+    {
+        return 2 * local_conductivity_[index_i] * local_conductivity_[index_j] / (local_conductivity_[index_i] + local_conductivity_[index_j]);
     };
 };
 

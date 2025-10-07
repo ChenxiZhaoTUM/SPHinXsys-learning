@@ -111,6 +111,7 @@ class DiffusionRelaxation<DataDelegationType, DiffusionType>
     StdVec<Real *> diffusion_species_;
     StdVec<Real *> gradient_species_;
     StdVec<Real *> diffusion_dt_;
+    StdVec<Real *> diffusion_flux_;
 
   public:
     template <class BodyRelationType>
@@ -149,8 +150,9 @@ class DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>
     StdVec<ContactKernelGradientType> contact_kernel_gradients_;
     StdVec<Real *> contact_Vol_;
     StdVec<StdVec<Real *>> contact_transfer_;
+    StdVec<StdVec<Real *>> contact_flux_;
 
-    void resetContactTransfer(size_t index_i);
+    void resetContactTransferAndFlux(size_t index_i);
     void accumulateDiffusionRate(size_t index_i);
 
   public:
@@ -169,8 +171,7 @@ class DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, Diffusio
 {
   protected:
     StdVec<StdVec<DiffusionType *>> contact_diffusions_;
-    StdVec<StdVec<Real *>> contact_gradient_species_, contact_flux_dt_;
-    //StdVec<StdVec<Real *>> contact_flux_;
+    StdVec<StdVec<Real *>> contact_gradient_species_;
 
     void initialization(size_t index_i, Real dt = 0.0);
     void update(size_t index_i, Real dt = 0.0);
@@ -180,7 +181,7 @@ class DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, Diffusio
         return 2 * thermal_conductivity_i * thermal_conductivity_j / (thermal_conductivity_i + thermal_conductivity_j);
     };
 
-    void getDiffusionChangeRateMultiPhaseContact(size_t particle_i, size_t particle_j, Vecd &e_ij, Real factor_ij, Real surface_area_ij, Real cross_section, 
+    void getDiffusionChangeRateMultiPhaseContact(size_t particle_i, size_t particle_j, Vecd &e_ij, Real surface_area_ij, 
         const StdVec<Real *> &gradient_species_k, const StdVec<DiffusionType *> &contact_diffusions_k, StdVec<Real *> &flux_contact_dt_k);
 
   public:
