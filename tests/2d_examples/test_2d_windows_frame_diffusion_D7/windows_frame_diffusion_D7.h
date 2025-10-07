@@ -392,16 +392,16 @@ class LocalDiffusivityDefinition : public LocalQuantityDefinition<BodyPartByPart
   public:
     explicit LocalDiffusivityDefinition(BodyPartByParticle &body_part, Real local_diff)
         : LocalQuantityDefinition<BodyPartByParticle>(body_part),
-          thermal_conductivity(particles_->getVariableDataByName<Real>("ThermalConductivity")),
+          thermal_diffusivity(particles_->getVariableDataByName<Real>("ThermalDiffusivity")),
           local_diff(local_diff){};
 
     void update(size_t index_i, Real dt)
     {
-        thermal_conductivity[index_i] = local_diff;
+        thermal_diffusivity[index_i] = local_diff;
     };
 
   protected:
-    Real *thermal_conductivity;
+    Real *thermal_diffusivity;
     Real local_diff;
 };
 

@@ -108,19 +108,19 @@ class DiffusionBodyInitialCondition : public LocalDynamics
     Real *phi_;
 };
 
-class ThermalConductivityRandomInitialization : public LocalDynamics
+class ThermalDiffusivityRandomInitialization : public LocalDynamics
 {
   public:
-    explicit ThermalConductivityRandomInitialization(SPHBody &sph_body)
+    explicit ThermalDiffusivityRandomInitialization(SPHBody &sph_body)
         : LocalDynamics(sph_body),
-          thermal_conductivity(particles_->getVariableDataByName<Real>("ThermalConductivity")){};
+          thermal_diffusivity(particles_->getVariableDataByName<Real>("ThermalDiffusivity")){};
     void update(size_t index_i, Real dt)
     {
-        thermal_conductivity[index_i] = 0.5 + rand_uniform(0.0, 1.0);
+        thermal_diffusivity[index_i] = 0.5 + rand_uniform(0.0, 1.0);
     };
 
   protected:
-    Real *thermal_conductivity;
+    Real *thermal_diffusivity;
 };
 
 class WallBoundaryInitialCondition : public LocalDynamics
@@ -291,16 +291,16 @@ TEST(test_optimization, test_problem4_optimized)
     SimpleDynamics<StoreGlobalPDEResidual> store_global_PDE_residual(diffusion_body);
     SimpleDynamics<ImposeObjectiveFunction> impose_objective_function(diffusion_body);
     InteractionSplit<ParameterSplittingByPDEWithBoundary<Real>>
-        parameter_splitting_pde_complex(diffusion_body_inner, diffusion_body_contact, "ThermalConductivity");
+        parameter_splitting_pde_complex(diffusion_body_inner, diffusion_body_contact, "ThermalDiffusivity");
     InteractionSplit<RegularizationByDiffusionAnalogy<Real>>
-        thermal_diffusivity_regularization(diffusion_body_inner, "ThermalConductivity",
+        thermal_diffusivity_regularization(diffusion_body_inner, "ThermalDiffusivity",
                                            initial_eta_regularization, maximum_variation_current_global);
     InteractionSplit<UpdateRegularizationVariation<Real>>
-        update_regularization_global_variation(diffusion_body_inner, "ThermalConductivity");
+        update_regularization_global_variation(diffusion_body_inner, "ThermalDiffusivity");
     ReduceDynamics<Average<ComputeTotalErrorOrPositiveParameter<SPHBody>>>
-        total_averaged_thermal_diffusivity(diffusion_body, "ThermalConductivity");
-    SimpleDynamics<ThermalConductivityConstraint<SPHBody>>
-        thermal_diffusivity_constrain(diffusion_body, "ThermalConductivity");
+        total_averaged_thermal_diffusivity(diffusion_body, "ThermalDiffusivity");
+    SimpleDynamics<ThermalDiffusivityConstraint<SPHBody>>
+        thermal_diffusivity_constrain(diffusion_body, "ThermalDiffusivity");
     ReduceDynamics<Average<ComputeTotalErrorOrPositiveParameter<SPHBody>>>
         calculate_temperature_global_residual(diffusion_body, "ResidualTGlobal");
     ReduceDynamics<Average<ComputeTotalErrorOrPositiveParameter<SPHBody>>>
@@ -315,7 +315,7 @@ TEST(test_optimization, test_problem4_optimized)
 
     SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
     SimpleDynamics<WallBoundaryInitialCondition> setup_diffusion_boundary_condition(wall_boundary);
-    SimpleDynamics<ThermalConductivityRandomInitialization> thermal_diffusivity_random_initialization(diffusion_body);
+    SimpleDynamics<ThermalDiffusivityRandomInitialization> thermal_diffusivity_random_initialization(diffusion_body);
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
     //	and case specified initial condition if necessary.

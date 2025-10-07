@@ -12,28 +12,28 @@ namespace SPH
 {
 //=================================================================================================//
 template <class DynamicsIdentifier>
-ThermalConductivityConstraint<DynamicsIdentifier>::
-    ThermalConductivityConstraint(DynamicsIdentifier &identifier, const std::string &variable_name,
-                                  Real initial_thermal_conductivity)
+ThermalDiffusivityConstraint<DynamicsIdentifier>::
+    ThermalDiffusivityConstraint(DynamicsIdentifier &identifier, const std::string &variable_name,
+                                  Real initial_thermal_diffusivity)
     : LocalDynamics(identifier.getSPHBody()),
 
-      initial_thermal_conductivity_(initial_thermal_conductivity),
-      new_average_thermal_conductivity_(0.0),
+      initial_thermal_diffusivity_(initial_thermal_diffusivity),
+      new_average_thermal_diffusivity_(0.0),
       local_diffusivity_(this->particles_->template getVariableDataByName<Real>(variable_name)){};
 //=================================================================================================//
 template <class DynamicsIdentifier>
-void ThermalConductivityConstraint<DynamicsIdentifier>::
-    UpdateAverageParameter(Real new_average_thermal_conductivity)
+void ThermalDiffusivityConstraint<DynamicsIdentifier>::
+    UpdateAverageParameter(Real new_average_thermal_diffusivity)
 {
-    new_average_thermal_conductivity_ = new_average_thermal_conductivity;
+    new_average_thermal_diffusivity_ = new_average_thermal_diffusivity;
 };
 //=================================================================================================//
 template <class DynamicsIdentifier>
-void ThermalConductivityConstraint<DynamicsIdentifier>::
+void ThermalDiffusivityConstraint<DynamicsIdentifier>::
     update(size_t index_i, Real dt)
 {
     local_diffusivity_[index_i] = local_diffusivity_[index_i] *
-                                  initial_thermal_conductivity_ / new_average_thermal_conductivity_;
+                                  initial_thermal_diffusivity_ / new_average_thermal_diffusivity_;
 }
 //=================================================================================================//
 } // namespace SPH

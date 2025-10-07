@@ -85,23 +85,23 @@ class ComputeMaximumError
 };
 
 /**
- * @class ThermalConductivityConstraint
+ * @class ThermalDiffusivityConstraint
  * @brief The thermal diffusivity on each particle will be corrected with
  *        the same ratio according to the total thermal diffusivity.
  */
 template <class DynamicsIdentifier>
-class ThermalConductivityConstraint
+class ThermalDiffusivityConstraint
     : public LocalDynamics
 {
   public:
-    ThermalConductivityConstraint(DynamicsIdentifier &identifier, const std::string &variable_name,
-                                  Real initial_thermal_conductivity = 1);
-    virtual ~ThermalConductivityConstraint(){};
+    ThermalDiffusivityConstraint(DynamicsIdentifier &identifier, const std::string &variable_name,
+                                  Real initial_thermal_diffusivity = 1);
+    virtual ~ThermalDiffusivityConstraint(){};
     void UpdateAverageParameter(Real new_average_thermal_diffusivity);
 
   protected:
-    Real initial_thermal_conductivity_;
-    Real new_average_thermal_conductivity_;
+    Real initial_thermal_diffusivity_;
+    Real new_average_thermal_diffusivity_;
     Real *local_diffusivity_;
     void update(size_t index_i, Real dt = 0.0);
 };
