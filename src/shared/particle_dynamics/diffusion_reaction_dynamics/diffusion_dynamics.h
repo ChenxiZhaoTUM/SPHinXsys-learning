@@ -204,9 +204,10 @@ template <class ContactKernelGradientType, class DiffusionType>
 class DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>
     : public DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>
 {
-
   protected:
+    Vecd *n_;
     StdVec<StdVec<Real *>> contact_gradient_species_;
+    StdVec<Vecd *> contact_n_;
     void getDiffusionChangeRateDirichlet(
         size_t particle_i, size_t particle_j, Vecd &e_ij, Real surface_area_ij,
         const StdVec<Real *> &gradient_species_k,  StdVec<Real *> &contact_diffusion_flux_k, const Real coff);

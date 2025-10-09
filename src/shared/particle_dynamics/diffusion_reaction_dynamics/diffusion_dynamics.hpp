@@ -283,11 +283,13 @@ template <class ContactKernelGradientType, class DiffusionType>
 template <typename... Args>
 DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>::
     DiffusionRelaxation(Args &&...args)
-    : DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>(std::forward<Args>(args)...)
+    : DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>(std::forward<Args>(args)...),
+      n_(this->particles_->template getVariableDataByName<Vecd>("NormalDirection"))
 {
     contact_gradient_species_.resize(this->contact_particles_.size());
     for (size_t k = 0; k != this->contact_particles_.size(); ++k)
     {
+        contact_n_.push_back(this->contact_particles_[k]->template getVariableDataByName<Vecd>("NormalDirection"));
         BaseParticles *contact_particles_k = this->contact_particles_[k];
         for (auto &diffusion : this->diffusions_)
         {
@@ -327,6 +329,7 @@ void DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>::
         StdVec<Real *> &gradient_species_k = this->contact_gradient_species_[k];
         Real *wall_Vol_k = this->contact_Vol_[k];
         StdVec<Real *> &contact_diffusion_flux_k = this->contact_diffusion_flux_[k];
+        Vecd *n_k = contact_n_[k];
         Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
 
         for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
@@ -340,6 +343,12 @@ void DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>::
             Real area_ij = 2.0 * grad_ijV_j.dot(e_ij) / r_ij_;
 
             Real coff = 2.0 * sqrt(2) * grad_ijV_j.dot(e_ij) * r_ij_;
+
+            //Vecd n_ij = n_[index_i] - n_k[index_j];
+            //Real coff = grad_ijV_j.dot(n_ij) * r_ij_;
+
+
+            //Real coff = 2.0 * r_ij_ * grad_ijV_j.dot(n_k[index_j]); 
 
             getDiffusionChangeRateDirichlet(index_i, index_j, e_ij, area_ij, gradient_species_k, contact_diffusion_flux_k, coff);
         }
