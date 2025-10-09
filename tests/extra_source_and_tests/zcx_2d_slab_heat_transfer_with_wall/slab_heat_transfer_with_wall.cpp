@@ -11,13 +11,15 @@ using namespace SPH;
 //----------------------------------------------------------------------
 Real L = 1.0;
 Real H = 0.5;
-Real resolution_ref = H / 40.0;
+Real resolution_ref = H / 50.0;
 Real BW = resolution_ref * 3.0;
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
-Real diffusion_coeff_bg = 1.0 / 1000;
+Real thermal_conductivity_ref = 1.0;
+Real rho_ref = 1000.0;
+Real diffusion_coeff_bg = thermal_conductivity_ref / rho_ref;
 Real diffusion_coeff_max = diffusion_coeff_bg * std::exp(4*1);
 std::string diffusion_species_name = "Phi";
 //----------------------------------------------------------------------
@@ -75,12 +77,20 @@ namespace SPH
         }
     };
 
-    class DirichletWallBoundary : public MultiPolygonShape
+    class LeftDirichletWallBoundary : public MultiPolygonShape
     {
     public:
-        explicit DirichletWallBoundary(const std::string& shape_name) : MultiPolygonShape(shape_name)
+        explicit LeftDirichletWallBoundary(const std::string& shape_name) : MultiPolygonShape(shape_name)
         {
             multi_polygon_.addAPolygon(left_temperature_region, ShapeBooleanOps::add);
+        }
+    };
+
+    class RightDirichletWallBoundary : public MultiPolygonShape
+    {
+    public:
+        explicit RightDirichletWallBoundary(const std::string& shape_name) : MultiPolygonShape(shape_name)
+        {
             multi_polygon_.addAPolygon(right_temperature_region, ShapeBooleanOps::add);
         }
     };
@@ -123,26 +133,35 @@ namespace SPH
         Real* phi_;
     };
 
-    class DirichletWallBoundaryInitialCondition : public LocalDynamics
+    class LeftDirichletWallBoundaryInitialCondition : public LocalDynamics
     {
     public:
-        explicit DirichletWallBoundaryInitialCondition(SPHBody& sph_body)
+        explicit LeftDirichletWallBoundaryInitialCondition(SPHBody& sph_body)
             : LocalDynamics(sph_body),
             pos_(particles_->getVariableDataByName<Vecd>("Position")),
             phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) {};
 
         void update(size_t index_i, Real dt)
         {
-            phi_[index_i] = -0.0;
+            phi_[index_i] = left_temperature;
+        }
 
-            if (pos_[index_i][0] < 0.5)
-            {
-                phi_[index_i] = left_temperature;
-            }
-            else
-            {
-                phi_[index_i] = right_temperature;
-            }
+    protected:
+        Vecd* pos_;
+        Real* phi_;
+    };
+
+    class RightDirichletWallBoundaryInitialCondition : public LocalDynamics
+    {
+    public:
+        explicit RightDirichletWallBoundaryInitialCondition(SPHBody& sph_body)
+            : LocalDynamics(sph_body),
+            pos_(particles_->getVariableDataByName<Vecd>("Position")),
+            phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) {};
+
+        void update(size_t index_i, Real dt)
+        {
+            phi_[index_i] = right_temperature;
         }
 
     protected:
@@ -169,31 +188,32 @@ namespace SPH
         Real* phi_, * phi_flux_;
     };
 
-
     class LocalDiffusivityDefinition : public LocalDynamics
     {
     public:
-        explicit LocalDiffusivityDefinition(SPHBody& sph_body, Real thermal_diffusivity_ref)
+        explicit LocalDiffusivityDefinition(SPHBody& sph_body, Real thermal_diffusivity_ref, Real thermal_conductivity_ref)
             : LocalDynamics(sph_body),
-            thermal_diffusivity_(particles_->getVariableDataByName<Real>("ThermalConductivity")), // wrong name of library
+            thermal_diffusivity_(particles_->getVariableDataByName<Real>("ThermalDiffusivity")),
+            thermal_conductivity_(particles_->getVariableDataByName<Real>("ThermalConductivity")),
             phi_(particles_->getVariableDataByName<Real>(diffusion_species_name)),
-            thermal_diffusivity_ref_(thermal_diffusivity_ref) {};
+            thermal_diffusivity_ref_(thermal_diffusivity_ref), thermal_conductivity_ref_(thermal_conductivity_ref) {};
 
         void update(size_t index_i, Real dt)
         {
             thermal_diffusivity_[index_i] = thermal_diffusivity_ref_ * std::exp(4 * phi_[index_i]);
+            thermal_conductivity_[index_i] = thermal_conductivity_ref_ * std::exp(4 * phi_[index_i]);
         };
 
     protected:
-        Real* thermal_diffusivity_, * phi_;
-        Real thermal_diffusivity_ref_;
+        Real* thermal_diffusivity_, *thermal_conductivity_, * phi_;
+        Real thermal_diffusivity_ref_, thermal_conductivity_ref_;
     };
 
     //----------------------------------------------------------------------
     //	Specify diffusion relaxation method.
     //----------------------------------------------------------------------
     using DiffusionBodyRelaxation = DiffusionBodyRelaxationComplex<
-        IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Neumann>;
+        IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet, Neumann>;
 
     StdVec<Vecd> createObservationPoints()
     {
@@ -227,9 +247,13 @@ int main(int ac, char* av[])
         Solid(), ConstructArgs(diffusion_species_name, diffusion_coeff_bg, diffusion_coeff_max));
     diffusion_body.generateParticles<BaseParticles, Lattice>();
 
-    SolidBody wall_Dirichlet(sph_system, makeShared<DirichletWallBoundary>("DirichletWallBoundary"));
-    wall_Dirichlet.defineMaterial<Solid>();
-    wall_Dirichlet.generateParticles<BaseParticles, Lattice>();
+    SolidBody left_wall_Dirichlet(sph_system, makeShared<LeftDirichletWallBoundary>("LeftDirichletWallBoundary"));
+    left_wall_Dirichlet.defineMaterial<Solid>();
+    left_wall_Dirichlet.generateParticles<BaseParticles, Lattice>();
+
+    SolidBody right_wall_Dirichlet(sph_system, makeShared<RightDirichletWallBoundary>("RightDirichletWallBoundary"));
+    right_wall_Dirichlet.defineMaterial<Solid>();
+    right_wall_Dirichlet.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_Neumann(sph_system, makeShared<NeumannWallBoundary>("NeumannWallBoundary"));
     wall_Neumann.defineMaterial<Solid>();
@@ -245,7 +269,8 @@ int main(int ac, char* av[])
     //	Basically the range of bodies to build neighbor particle lists.
     //----------------------------------------------------------------------
     InnerRelation diffusion_body_inner(diffusion_body);
-    ContactRelation diffusion_body_contact_Dirichlet(diffusion_body, {&wall_Dirichlet});
+    ContactRelation left_diffusion_body_contact_Dirichlet(diffusion_body, {&left_wall_Dirichlet});
+    ContactRelation right_diffusion_body_contact_Dirichlet(diffusion_body, {&right_wall_Dirichlet});
     ContactRelation diffusion_body_contact_Neumann(diffusion_body, {&wall_Neumann});
     ContactRelation temperature_observer_contact(temperature_observer, {&diffusion_body});
     //----------------------------------------------------------------------
@@ -256,18 +281,21 @@ int main(int ac, char* av[])
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_Neumann);
 
     DiffusionBodyRelaxation temperature_relaxation(
-        diffusion_body_inner, diffusion_body_contact_Dirichlet, diffusion_body_contact_Neumann);
+        diffusion_body_inner, left_diffusion_body_contact_Dirichlet, right_diffusion_body_contact_Dirichlet, diffusion_body_contact_Neumann);
     GetDiffusionTimeStepSize get_time_step_size(diffusion_body);
     SimpleDynamics<DiffusionInitialCondition> setup_diffusion_initial_condition(diffusion_body);
-    SimpleDynamics<DirichletWallBoundaryInitialCondition> setup_boundary_condition_Dirichlet(wall_Dirichlet);
+    SimpleDynamics<LeftDirichletWallBoundaryInitialCondition> setup_left_boundary_condition_Dirichlet(left_wall_Dirichlet);
+    SimpleDynamics<RightDirichletWallBoundaryInitialCondition> setup_right_boundary_condition_Dirichlet(right_wall_Dirichlet);
     SimpleDynamics<NeumannWallBoundaryInitialCondition> setup_boundary_condition_Neumann(wall_Neumann);
-    SimpleDynamics<LocalDiffusivityDefinition> local_diffusivity(diffusion_body, diffusion_coeff_bg);
+    SimpleDynamics<LocalDiffusivityDefinition> local_diffusivity(diffusion_body, diffusion_coeff_bg, thermal_conductivity_ref);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp write_states(sph_system);
-    write_states.addToWrite<Real>(diffusion_body, "ThermalConductivity");
+    write_states.addToWrite<Real>(diffusion_body, "ThermalDiffusivity");
     ObservedQuantityRecording<Real> write_solid_temperature("Phi", temperature_observer_contact);
+    ReducedQuantityRecording<QuantitySummation<Real>> write_left_PhiFluxSum(diffusion_body, "PhiTransferFromLeftDirichletWallBoundaryFlux");
+    ReducedQuantityRecording<QuantitySummation<Real>> write_right_PhiFluxSum(diffusion_body, "PhiTransferFromRightDirichletWallBoundaryFlux");
     /*RegressionTestEnsembleAverage<ObservedQuantityRecording<Real>>
         write_solid_temperature(diffusion_species_name, temperature_observer_contact);*/
     //----------------------------------------------------------------------
@@ -277,7 +305,8 @@ int main(int ac, char* av[])
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
     setup_diffusion_initial_condition.exec();
-    setup_boundary_condition_Dirichlet.exec();
+    setup_left_boundary_condition_Dirichlet.exec();
+    setup_right_boundary_condition_Dirichlet.exec();
     setup_boundary_condition_Neumann.exec();
     diffusion_body_normal_direction.exec();
     wall_boundary_normal_direction.exec();
@@ -333,6 +362,8 @@ int main(int ac, char* av[])
         TickCount t2 = TickCount::now();
         write_states.writeToFile();
         write_solid_temperature.writeToFile(ite);
+        write_left_PhiFluxSum.writeToFile(ite);
+        write_right_PhiFluxSum.writeToFile(ite);
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
