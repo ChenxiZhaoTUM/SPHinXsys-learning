@@ -28,6 +28,9 @@ DiffusionRelaxation<DataDelegationType, DiffusionType>::
         this->particles_->template addVariableToSort<Real>(diffusion_species_name);
         this->particles_->template addVariableToWrite<Real>(diffusion_species_name);
         diffusion_dt_.push_back(this->particles_->template registerStateVariable<Real>(diffusion_species_name + "ChangeRate"));
+        diffusion_flux_sum_.push_back(this->particles_->template registerStateVariable<Real>(diffusion_species_name + "FluxSUM"));
+        this->particles_->template addVariableToSort<Real>(diffusion_species_name + "FluxSUM");
+        this->particles_->template addVariableToWrite<Real>(diffusion_species_name + "FluxSUM");
 
         std::string gradient_species_name = diffusion->GradientSpeciesName();
         gradient_species_.push_back(this->particles_->template registerStateVariable<Real>(gradient_species_name));
@@ -53,6 +56,7 @@ void DiffusionRelaxation<DataDelegationType, DiffusionType>::initialization(size
     for (size_t m = 0; m < diffusions_.size(); ++m)
     {
         diffusion_dt_[m][index_i] = 0;
+        diffusion_flux_sum_[m][index_i] = 0;
     }
 }
 //=================================================================================================//
@@ -106,14 +110,6 @@ DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>::
     : DiffusionRelaxation<DataDelegateContact, DiffusionType>(
           std::forward<Args>(args)...)
 {
-    for (auto &diffusion : this->diffusions_)
-    {
-        std::string diffusion_species_name = diffusion->DiffusionSpeciesName();
-        diffusion_flux_sum_.push_back(this->particles_->template registerStateVariable<Real>(diffusion_species_name + "FluxSUM"));
-        this->particles_->template addVariableToSort<Real>(diffusion_species_name + "FluxSUM");
-        this->particles_->template addVariableToWrite<Real>(diffusion_species_name + "FluxSUM");
-    }
-
     contact_transfer_.resize(this->contact_particles_.size());
     contact_diffusion_flux_.resize(this->contact_particles_.size());
     for (size_t k = 0; k != this->contact_particles_.size(); ++k)
@@ -146,7 +142,6 @@ void DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>::
     for (size_t m = 0; m < this->diffusions_.size(); ++m)
     {
         this->diffusion_dt_[m][index_i] = 0;
-        this->diffusion_flux_sum_[m][index_i] = 0;
     }
 }
 //=================================================================================================//

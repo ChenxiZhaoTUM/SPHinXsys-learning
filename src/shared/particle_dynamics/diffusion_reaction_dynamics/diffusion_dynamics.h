@@ -111,6 +111,7 @@ class DiffusionRelaxation<DataDelegationType, DiffusionType>
     StdVec<Real *> diffusion_species_;
     StdVec<Real *> gradient_species_;
     StdVec<Real *> diffusion_dt_;
+    StdVec<Real *> diffusion_flux_sum_;
 
   public:
     template <class BodyRelationType>
@@ -146,8 +147,6 @@ class DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>
     : public DiffusionRelaxation<DataDelegateContact, DiffusionType>
 {
   protected:
-    StdVec<Real *> diffusion_flux_sum_;
-
     StdVec<ContactKernelGradientType> contact_kernel_gradients_;
     StdVec<Real *> contact_Vol_;
     StdVec<StdVec<Real *>> contact_transfer_;

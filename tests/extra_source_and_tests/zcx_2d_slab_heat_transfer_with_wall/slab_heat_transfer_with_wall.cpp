@@ -278,6 +278,8 @@ int main(int ac, char* av[])
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     SimpleDynamics<NormalDirectionFromBodyShape> diffusion_body_normal_direction(diffusion_body);
+    SimpleDynamics<NormalDirectionFromBodyShape> left_wall_normal_direction(left_wall_Dirichlet);
+    SimpleDynamics<NormalDirectionFromBodyShape> right_wall_normal_direction(right_wall_Dirichlet);
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_Neumann);
 
     DiffusionBodyRelaxation temperature_relaxation(
@@ -310,6 +312,8 @@ int main(int ac, char* av[])
     setup_boundary_condition_Neumann.exec();
     diffusion_body_normal_direction.exec();
     wall_boundary_normal_direction.exec();
+    left_wall_normal_direction.exec();
+    right_wall_normal_direction.exec();
     local_diffusivity.exec();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
