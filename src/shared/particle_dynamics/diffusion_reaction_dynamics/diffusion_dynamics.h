@@ -111,7 +111,6 @@ class DiffusionRelaxation<DataDelegationType, DiffusionType>
     StdVec<Real *> diffusion_species_;
     StdVec<Real *> gradient_species_;
     StdVec<Real *> diffusion_dt_;
-    StdVec<Real *> diffusion_flux_;
 
   public:
     template <class BodyRelationType>
@@ -147,11 +146,14 @@ class DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>
     : public DiffusionRelaxation<DataDelegateContact, DiffusionType>
 {
   protected:
+    StdVec<Real *> diffusion_flux_sum_;
+
     StdVec<ContactKernelGradientType> contact_kernel_gradients_;
     StdVec<Real *> contact_Vol_;
     StdVec<StdVec<Real *>> contact_transfer_;
-    StdVec<StdVec<Real *>> contact_flux_;
+    StdVec<StdVec<Real *>> contact_diffusion_flux_;
 
+    void initialization(size_t index_i, Real dt = 0.0);
     void resetContactTransferAndFlux(size_t index_i);
     void accumulateDiffusionRate(size_t index_i);
 
@@ -182,7 +184,7 @@ class DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, Diffusio
     };
 
     void getDiffusionChangeRateMultiPhaseContact(size_t particle_i, size_t particle_j, Vecd &e_ij, Real surface_area_ij, 
-        const StdVec<Real *> &gradient_species_k, const StdVec<DiffusionType *> &contact_diffusions_k, StdVec<Real *> &flux_contact_dt_k);
+        const StdVec<Real *> &gradient_species_k, const StdVec<DiffusionType *> &contact_diffusions_k);
 
   public:
     template <typename... Args>
@@ -207,7 +209,7 @@ class DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>
     StdVec<StdVec<Real *>> contact_gradient_species_;
     void getDiffusionChangeRateDirichlet(
         size_t particle_i, size_t particle_j, Vecd &e_ij, Real surface_area_ij,
-        const StdVec<Real *> &gradient_species_k);
+        const StdVec<Real *> &gradient_species_k,  StdVec<Real *> &contact_diffusion_flux_k, const Real coff);
 
   public:
     template <typename... Args>
@@ -231,7 +233,6 @@ class DiffusionRelaxation<Neumann<ContactKernelGradientType>, DiffusionType>
     void getDiffusionChangeRateNeumann(size_t particle_i, size_t particle_j,
                                        Real surface_area_ij_Neumann,
                                        const StdVec<Real *> &diffusive_flux_k);
-
   public:
     template <typename... Args>
     explicit DiffusionRelaxation(Args &&... args);

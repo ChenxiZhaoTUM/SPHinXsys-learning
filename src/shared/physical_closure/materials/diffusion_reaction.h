@@ -68,6 +68,11 @@ class BaseDiffusion : public AbstractDiffusion
     virtual Real getReferenceDiffusivity() = 0;
     virtual Real getDiffusionCoeffWithBoundary(size_t index_i) = 0;
     virtual Real getInterParticleDiffusionCoeff(size_t index_i, size_t index_j, const Vecd &e_ij) = 0;
+
+    virtual Real getThermalConductivity() = 0;
+    virtual Real getThermalConductivityWithBoundary(size_t index_i) = 0;
+    virtual Real getInterParticleThermalConductivity(size_t index_i, size_t index_j, const Vecd &e_ij) = 0;
+
     virtual StdVec<AbstractDiffusion *> AllDiffusions() override { return {this}; };
 
   protected:
@@ -96,13 +101,15 @@ class IsotropicDiffusion : public BaseDiffusion
 
     virtual Real getReferenceDiffusivity() override { return diff_cf_; };
     virtual Real getDiffusionCoeffWithBoundary(size_t index_i) override { return diff_cf_; }
+    
     virtual Real getInterParticleDiffusionCoeff(size_t index_i, size_t index_j, const Vecd &e_ij) override
     {
         return diff_cf_;
     };
 
-    Real getThermalConductivity() { return thermal_conductivity_; };
-    Real getInterParticleThermalConductivity(size_t index_i, size_t index_j, const Vecd &e_ij)
+    virtual Real getThermalConductivity() override { return thermal_conductivity_; }; 
+    virtual Real getThermalConductivityWithBoundary(size_t index_i) override { return thermal_conductivity_; }
+    virtual Real getInterParticleThermalConductivity(size_t index_i, size_t index_j, const Vecd &e_ij) override
     {
         return thermal_conductivity_;
     };
@@ -135,7 +142,7 @@ class IsotropicThermalDiffusion : public BaseDiffusion
         return diff_cf_;
     };
 
-    Real getThermalConductivity() { return thermal_conductivity_; };
+    virtual Real getThermalConductivity() override { return thermal_conductivity_; };
     Real getRefDensity() { return ref_density_; };
     Real getSpecificHeat() { return specific_heat_; };
 };
@@ -170,7 +177,12 @@ class LocalIsotropicDiffusion : public IsotropicDiffusion
         return 0.5 * (local_diffusivity_[index_i] + local_diffusivity_[index_j]);
     };
 
-    Real getInterParticleThermalConductivity(size_t index_i, size_t index_j, const Vecd &e_ij)
+    virtual Real getThermalConductivityWithBoundary(size_t index_i) override
+    {
+        return local_conductivity_[index_i];
+    };
+
+    virtual Real getInterParticleThermalConductivity(size_t index_i, size_t index_j, const Vecd &e_ij) override
     {
         return 2 * local_conductivity_[index_i] * local_conductivity_[index_j] / (local_conductivity_[index_i] + local_conductivity_[index_j]);
     };
