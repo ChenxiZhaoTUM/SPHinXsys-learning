@@ -123,7 +123,8 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::PhiGradientWithWall<LinearGradientCorrection>> calculate_phi_gradient(diffusion_body_inner, fluid_body_contact);
     SimpleDynamics<fluid_dynamics::LocalNusseltNum> local_nusselt_number(diffusion_body, inner_circle_radius/(initial_temperature - wall_temperature));
     InteractionDynamics<solid_dynamics::ProjectionForNu> wall_local_nusselt_number(Dirichlet_contact, inner_circle_radius/(initial_temperature - wall_temperature));
-    SimpleDynamics<solid_dynamics::CalculateAveragedWallNu> calculate_averaged_wall_nu(wall_Dirichlet);
+    ReducedQuantityRecording<QuantitySummation<Real>> write_up_PhiFluxSum(diffusion_body, "PhiTransferFromDirichletWallBoundaryFlux");
+
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
@@ -229,8 +230,7 @@ int main(int ac, char *av[])
         local_nusselt_number.exec();
         wall_local_nusselt_number.exec();
         write_states.writeToFile();
-        calculate_averaged_wall_nu.exec();
-        calculate_averaged_wall_nu.writeAveragedWallNu();
+        write_up_PhiFluxSum.writeToFile();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
