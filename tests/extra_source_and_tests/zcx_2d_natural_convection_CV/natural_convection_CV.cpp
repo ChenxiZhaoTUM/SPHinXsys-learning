@@ -29,19 +29,21 @@ int main(int ac, char *av[])
     wall_boundary.defineMaterial<Solid>();
     wall_boundary.generateParticles<BaseParticles, Lattice>();
 
-    SolidBody wall_Dirichlet(sph_system, makeShared<DirichletWallBoundary>("DirichletWallBoundary"));
-    wall_Dirichlet.defineMaterial<Solid>();
-    wall_Dirichlet.generateParticles<BaseParticles, Lattice>();
+    SolidBody up_wall_Dirichlet(sph_system, makeShared<UpDirichletWallBoundary>("UpDirichletWallBoundary"));
+    up_wall_Dirichlet.defineMaterial<Solid>();
+    up_wall_Dirichlet.generateParticles<BaseParticles, Lattice>();
+
+    SolidBody down_wall_Dirichlet(sph_system, makeShared<DownDirichletWallBoundary>("DownDirichletWallBoundary"));
+    down_wall_Dirichlet.defineMaterial<Solid>();
+    down_wall_Dirichlet.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_Neumann(sph_system, makeShared<NeumannWallBoundary>("NeumannWallBoundary"));
     wall_Neumann.defineMaterial<Solid>();
     wall_Neumann.generateParticles<BaseParticles, Lattice>();
 
-    ObserverBody verticalVelObserver(sph_system, "VerticalVelObserver");
-    verticalVelObserver.generateParticles<ObserverParticles>(createVerticalVelObservationPoints());
+    ObserverBody diffusion_observer(sph_system, "DiffusionObserver");
+    diffusion_observer.generateParticles<ObserverParticles>(createObservationPoints());
     
-    ObserverBody horizontalVelObserver(sph_system, "HorizontalVelObserver");
-    horizontalVelObserver.generateParticles<ObserverParticles>(createHorizontalVelObservationPoints());
     //----------------------------------------------------------------------
     //	Particle and body creation of temperature observers.
     //----------------------------------------------------------------------
@@ -54,29 +56,33 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     InnerRelation diffusion_body_inner(diffusion_body);
     //InnerRelation wall_inner(wall_Dirichlet);
-    ContactRelation Dirichlet_contact(wall_Dirichlet, {&diffusion_body});
-    ContactRelation diffusion_body_contact_Dirichlet(diffusion_body, {&wall_Dirichlet});
+    ContactRelation up_Dirichlet_contact(up_wall_Dirichlet, {&diffusion_body});
+    ContactRelation down_Dirichlet_contact(down_wall_Dirichlet, {&diffusion_body});
+    ContactRelation diffusion_body_contact_all_Dirichlet(diffusion_body, {&up_wall_Dirichlet, &down_wall_Dirichlet});
+    ContactRelation diffusion_body_contact_up_Dirichlet(diffusion_body, {&up_wall_Dirichlet});
+    ContactRelation diffusion_body_contact_down_Dirichlet(diffusion_body, {&down_wall_Dirichlet});
     ContactRelation diffusion_body_contact_Neumann(diffusion_body, {&wall_Neumann});
 
     ContactRelation fluid_body_contact(diffusion_body, {&wall_boundary});
     ComplexRelation fluid_body_complex(diffusion_body_inner, fluid_body_contact);
     ContactRelation nusselt_observer_contact(nu_observer, {&diffusion_body});
-    ContactRelation fluid_vvel_observer_contact(verticalVelObserver, {&diffusion_body});
-    ContactRelation fluid_hvel_observer_contact(horizontalVelObserver, {&diffusion_body});
+    ContactRelation observer_diffusion_body_contact(diffusion_observer, {&diffusion_body});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     SimpleDynamics<NormalDirectionFromBodyShape> diffusion_body_normal_direction(diffusion_body);
     SimpleDynamics<NormalDirectionFromBodyShape> entire_wall_normal_direction(wall_boundary);
-    SimpleDynamics<NormalDirectionFromBodyShape> Dirichlet_wall_normal_direction(wall_Dirichlet);
+    SimpleDynamics<NormalDirectionFromBodyShape> up_Dirichlet_wall_normal_direction(up_wall_Dirichlet);
+    SimpleDynamics<NormalDirectionFromBodyShape> down_Dirichlet_wall_normal_direction(down_wall_Dirichlet);
     SimpleDynamics<NormalDirectionFromBodyShape> Neumann_wall_normal_direction(wall_Neumann);
 
     DiffusionBodyRelaxation temperature_relaxation(
-        diffusion_body_inner, diffusion_body_contact_Dirichlet, diffusion_body_contact_Neumann);
+        diffusion_body_inner, diffusion_body_contact_up_Dirichlet, diffusion_body_contact_down_Dirichlet, diffusion_body_contact_Neumann);
     GetDiffusionTimeStepSize get_thermal_time_step(diffusion_body);
     SimpleDynamics<DiffusionInitialCondition> setup_diffusion_initial_condition(diffusion_body);
-    SimpleDynamics<DirichletWallBoundaryInitialCondition> setup_boundary_condition_Dirichlet(wall_Dirichlet);
+    SimpleDynamics<DirichletWallBoundaryInitialCondition> setup_up_Dirichlet_initial_condition(up_wall_Dirichlet);
+    SimpleDynamics<DirichletWallBoundaryInitialCondition> setup_down_Dirichlet_initial_condition(down_wall_Dirichlet);
     SimpleDynamics<NeumannWallBoundaryInitialCondition> setup_boundary_condition_Neumann(wall_Neumann);
 
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> kernel_correction_complex(InteractArgs(diffusion_body_inner, 0.1), fluid_body_contact);
@@ -89,17 +95,37 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> get_fluid_advection_time_step(diffusion_body, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> get_fluid_time_step(diffusion_body);
 
-    InteractionWithUpdate<fluid_dynamics::TargetFluidParticles> target_fluid_particles(diffusion_body_contact_Dirichlet);
-    SimpleDynamics<solid_dynamics::FirstLayerFromFluid> target_solid_particles(wall_Dirichlet, diffusion_body);
+    InteractionWithUpdate<fluid_dynamics::TargetFluidParticles> target_fluid_particles(diffusion_body_contact_all_Dirichlet);
+    SimpleDynamics<solid_dynamics::FirstLayerFromFluid> target_up_solid_particles(up_wall_Dirichlet, diffusion_body);
+    SimpleDynamics<solid_dynamics::FirstLayerFromFluid> target_down_solid_particles(down_wall_Dirichlet, diffusion_body);
 
-    InteractionWithUpdate<fluid_dynamics::PhiGradientWithWall<LinearGradientCorrection>> calculate_phi_gradient(diffusion_body_inner, diffusion_body_contact_Dirichlet);
+    InteractionWithUpdate<fluid_dynamics::PhiGradientWithWall<LinearGradientCorrection>> calculate_phi_gradient(diffusion_body_inner, diffusion_body_contact_all_Dirichlet);
     SimpleDynamics<fluid_dynamics::LocalNusseltNum> local_nusselt_number(diffusion_body, H / (down_temperature - up_temperature));
-    InteractionDynamics<solid_dynamics::ProjectionForNu> wall_local_nusselt_number(Dirichlet_contact, H / (down_temperature - up_temperature));
+    InteractionDynamics<solid_dynamics::ProjectionForNu> up_wall_local_nusselt_number(up_Dirichlet_contact, H / (down_temperature - up_temperature));
+    InteractionDynamics<solid_dynamics::ProjectionForNu> down_wall_local_nusselt_number(down_Dirichlet_contact, H / (down_temperature - up_temperature));
+    //SimpleDynamics<solid_dynamics::CalculateAveragedWallNu> calculate_averaged_wall_nu(wall_Dirichlet);
     
-    BodyRegionByCell left_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createLeftDiffusionDomain(), "LeftDiffusionDomain"));
-    SimpleDynamics<fluid_dynamics::FluidLocalVerticalHeatFlux> left_diffusion_domain_flux(left_diffusion_domain, H / (down_temperature - up_temperature) / kappa, kappa);
-    ReducedQuantityRecording<Average<QuantitySummation<Real, BodyPartByCell>>>
-    write_averaged_LocalVerticalHeatFlux(left_diffusion_domain, "FluidLocalVerticalHeatFlux");
+    ReducedQuantityRecording<QuantitySummation<Real>> write_up_PhiFluxSum(diffusion_body, "PhiTransferFromUpDirichletWallBoundaryFlux");
+    ReducedQuantityRecording<QuantitySummation<Real>> write_down_PhiFluxSum(diffusion_body, "PhiTransferFromDownDirichletWallBoundaryFlux");
+    BodyRegionByParticle left_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createLeftDiffusionDomain(), "LeftDiffusionDomain"));
+    ReducedQuantityRecording<QuantitySummation<Real, BodyRegionByParticle>> write_left_PhiFluxSum(left_diffusion_domain, "PhiTransferFromDownDirichletWallBoundaryFlux");
+    BodyRegionByParticle middle_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createMiddleDiffusionDomain(), "MiddleDiffusionDomain"));
+    ReducedQuantityRecording<QuantitySummation<Real, BodyRegionByParticle>> write_middle_PhiFluxSum(middle_diffusion_domain, "PhiTransferFromDownDirichletWallBoundaryFlux");
+    BodyRegionByParticle right_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createRightDiffusionDomain(), "RightDiffusionDomain"));
+    ReducedQuantityRecording<QuantitySummation<Real, BodyRegionByParticle>> write_right_PhiFluxSum(right_diffusion_domain, "PhiTransferFromDownDirichletWallBoundaryFlux");
+
+    //BodyRegionByCell left_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createLeftDiffusionDomain(), "LeftDiffusionDomain"));
+    //SimpleDynamics<fluid_dynamics::FluidLocalVerticalHeatFlux> left_diffusion_domain_flux(left_diffusion_domain, "Left", H / (down_temperature - up_temperature) / kappa, kappa);
+    //BodyRegionByCell middle_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createMiddleDiffusionDomain(), "MiddleDiffusionDomain"));
+    //SimpleDynamics<fluid_dynamics::FluidLocalVerticalHeatFlux> middle_diffusion_domain_flux(middle_diffusion_domain, "Middle", H / (down_temperature - up_temperature) / kappa, kappa);
+    //BodyRegionByCell right_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createRightDiffusionDomain(), "RightDiffusionDomain"));
+    //SimpleDynamics<fluid_dynamics::FluidLocalVerticalHeatFlux> right_diffusion_domain_flux(right_diffusion_domain, "Right", H / (down_temperature - up_temperature) / kappa, kappa);
+    //ReducedQuantityRecording<Average<QuantitySummation<Real, BodyPartByCell>>>
+    //write_left_averaged_LocalVerticalHeatFlux(left_diffusion_domain, "LeftFluidLocalVerticalHeatFlux");
+    //ReducedQuantityRecording<Average<QuantitySummation<Real, BodyPartByCell>>>
+    //write_middle_averaged_LocalVerticalHeatFlux(middle_diffusion_domain, "MiddleFluidLocalVerticalHeatFlux");
+    //ReducedQuantityRecording<Average<QuantitySummation<Real, BodyPartByCell>>>
+    //write_right_averaged_LocalVerticalHeatFlux(right_diffusion_domain, "RightFluidLocalVerticalHeatFlux");
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
@@ -113,13 +139,14 @@ int main(int ac, char *av[])
 
     write_states.addToWrite<int>(diffusion_body, "FirstLayerIndicator");
     write_states.addToWrite<int>(diffusion_body, "SecondLayerIndicator");
-    write_states.addToWrite<int>(wall_Dirichlet, "SolidFirstLayerIndicator");
-    write_states.addToWrite<Real>(wall_Dirichlet, "WallLocalNusseltNumber");
+    write_states.addToWrite<int>(up_wall_Dirichlet, "SolidFirstLayerIndicator");
+    write_states.addToWrite<Real>(up_wall_Dirichlet, "WallLocalNusseltNumber");
+    write_states.addToWrite<int>(down_wall_Dirichlet, "SolidFirstLayerIndicator");
+    write_states.addToWrite<Real>(down_wall_Dirichlet, "WallLocalNusseltNumber");
     
     write_states.addToWrite<Vecd>(wall_boundary, "NormalDirection");
-    ObservedQuantityRecording<Vecd> write_recorded_fluid_vvel("Velocity", fluid_vvel_observer_contact);
-    ObservedQuantityRecording<Vecd> write_recorded_fluid_hvel("Velocity", fluid_hvel_observer_contact);
-    ObservedQuantityRecording<Real> write_recorded_phi("Phi", fluid_vvel_observer_contact);
+    ObservedQuantityRecording<Vecd> write_recorded_fluid_vel("Velocity", observer_diffusion_body_contact);
+    ReducedQuantityRecording<TotalKineticEnergy> write_global_kinetic_energy(diffusion_body);
     /*ObservedQuantityRecording<Real> write_local_nusselt_number("LocalNusseltNumber", nusselt_observer_contact);*/
     //----------------------------------------------------------------------
     //	Prepare the simulation with cell linked list, configuration
@@ -128,19 +155,21 @@ int main(int ac, char *av[])
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
     setup_diffusion_initial_condition.exec();
-    setup_boundary_condition_Dirichlet.exec();
+    setup_up_Dirichlet_initial_condition.exec();
+    setup_down_Dirichlet_initial_condition.exec();
     setup_boundary_condition_Neumann.exec();
     diffusion_body_normal_direction.exec();
     entire_wall_normal_direction.exec();
-    Dirichlet_wall_normal_direction.exec();
+    up_Dirichlet_wall_normal_direction.exec();
+    down_Dirichlet_wall_normal_direction.exec();
     Neumann_wall_normal_direction.exec();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real End_Time = 50;
-    Real output_interval = End_Time / 100.0; /**< time stamps for output,WriteToFile*/
+    Real End_Time = 120;
+    Real output_interval = End_Time / 120.0; /**< time stamps for output,WriteToFile*/
     int number_of_iterations = 0;
     int screen_output_interval = 100;
     //----------------------------------------------------------------------
@@ -198,30 +227,43 @@ int main(int ac, char *av[])
                 particle_sorting.exec();
             }
             diffusion_body.updateCellLinkedList();
-            diffusion_body_contact_Dirichlet.updateConfiguration();
+            diffusion_body_contact_all_Dirichlet.updateConfiguration();
+            diffusion_body_contact_up_Dirichlet.updateConfiguration();
+            diffusion_body_contact_down_Dirichlet.updateConfiguration();
             diffusion_body_contact_Neumann.updateConfiguration();
             fluid_body_complex.updateConfiguration();
-            Dirichlet_contact.updateConfiguration();
-            fluid_vvel_observer_contact.updateConfiguration();
-            fluid_hvel_observer_contact.updateConfiguration();
+            up_Dirichlet_contact.updateConfiguration();
+            down_Dirichlet_contact.updateConfiguration();
+            observer_diffusion_body_contact.updateConfiguration();
 
             target_fluid_particles.exec();
-            target_solid_particles.exec();
+            target_up_solid_particles.exec();
+            target_down_solid_particles.exec();
         }
 
         TickCount t2 = TickCount::now();
 
         calculate_phi_gradient.exec();
         local_nusselt_number.exec();
-        wall_local_nusselt_number.exec();
-        write_states.writeToFile();
-        write_recorded_fluid_vvel.writeToFile(number_of_iterations);
-        write_recorded_fluid_hvel.writeToFile(number_of_iterations);
-        write_recorded_phi.writeToFile(number_of_iterations);
-        //write_local_nusselt_number.writeToFile(number_of_iterations);
+        up_wall_local_nusselt_number.exec();
+        down_wall_local_nusselt_number.exec();
 
-        left_diffusion_domain_flux.exec();
-        write_averaged_LocalVerticalHeatFlux.writeToFile(number_of_iterations);
+        write_states.writeToFile();
+        write_up_PhiFluxSum.writeToFile(number_of_iterations);
+        write_down_PhiFluxSum.writeToFile(number_of_iterations);
+        write_recorded_fluid_vel.writeToFile(number_of_iterations);
+        write_global_kinetic_energy.writeToFile(number_of_iterations);
+
+        write_left_PhiFluxSum.writeToFile(number_of_iterations);
+        write_middle_PhiFluxSum.writeToFile(number_of_iterations);
+        write_right_PhiFluxSum.writeToFile(number_of_iterations);
+
+        //left_diffusion_domain_flux.exec();
+        //write_left_averaged_LocalVerticalHeatFlux.writeToFile(number_of_iterations);
+        //middle_diffusion_domain_flux.exec();
+        //write_middle_averaged_LocalVerticalHeatFlux.writeToFile(number_of_iterations);
+        //right_diffusion_domain_flux.exec();
+        //write_right_averaged_LocalVerticalHeatFlux.writeToFile(number_of_iterations);
 
         TickCount t3 = TickCount::now();
         interval += t3 - t2;

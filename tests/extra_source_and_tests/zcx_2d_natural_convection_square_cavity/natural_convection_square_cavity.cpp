@@ -138,9 +138,9 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real End_Time = 5; // Ra=10E4
+    //Real End_Time = 5; // Ra=10E4
     //Real End_Time = 5; // Ra=10E5
-    //Real End_Time = 10.0; // Ra=10E6
+    Real End_Time = 10.0; // Ra=10E6
     //Real End_Time = 10.0; // Ra=10E7
     //Real End_Time = 20.0; // Ra=10E8
     //Real End_Time = 550; // Ra=10E9

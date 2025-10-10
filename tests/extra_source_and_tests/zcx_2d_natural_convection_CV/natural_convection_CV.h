@@ -127,6 +127,32 @@ MultiPolygon createLeftDiffusionDomain()
     return multi_polygon;
 }
 
+std::vector<Vecd> MiddleDiffusionDomain
+{
+    Vecd(L / 3, -H / 2), Vecd(2 * L / 3, -H / 2), Vecd(2 * L / 3, H / 2),
+    Vecd(L / 3,  H / 2), Vecd(L / 3, -H / 2)
+};
+
+MultiPolygon createMiddleDiffusionDomain()
+{
+    MultiPolygon multi_polygon;
+    multi_polygon.addAPolygon(MiddleDiffusionDomain, ShapeBooleanOps::add);
+    return multi_polygon;
+}
+
+std::vector<Vecd> RightDiffusionDomain
+{
+     Vecd(2 * L / 3, -H / 2), Vecd(L, -H / 2), Vecd(L, H / 2),
+     Vecd(2 * L / 3,  H / 2), Vecd(2 * L / 3, -H / 2)
+};
+
+MultiPolygon createRightDiffusionDomain()
+{
+    MultiPolygon multi_polygon;
+    multi_polygon.addAPolygon(RightDiffusionDomain, ShapeBooleanOps::add);
+    return multi_polygon;
+}
+
 //----------------------------------------------------------------------
 // Define extra classes which are used in the main program.
 // These classes are defined under the namespace of SPH.
@@ -161,6 +187,24 @@ class DirichletWallBoundary : public MultiPolygonShape
     explicit DirichletWallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
         multi_polygon_.addAPolygon(createUpWallDomain(), ShapeBooleanOps::add);
+        multi_polygon_.addAPolygon(createDownWallDomain(), ShapeBooleanOps::add);
+    }
+};
+
+class UpDirichletWallBoundary : public MultiPolygonShape
+{
+  public:
+    explicit UpDirichletWallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    {
+        multi_polygon_.addAPolygon(createUpWallDomain(), ShapeBooleanOps::add);
+    }
+};
+
+class DownDirichletWallBoundary : public MultiPolygonShape
+{
+  public:
+    explicit DownDirichletWallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    {
         multi_polygon_.addAPolygon(createDownWallDomain(), ShapeBooleanOps::add);
     }
 };
@@ -254,56 +298,23 @@ class NeumannWallBoundaryInitialCondition : public LocalDynamics
 //	Specify diffusion relaxation method.
 //----------------------------------------------------------------------
 using DiffusionBodyRelaxation = DiffusionBodyRelaxationComplex<
-    IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Neumann>;
+    IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet, Neumann>;
 
 StdVec<Vecd> createObservationPoints()
 {
+    Real dx = L / 33;
+    Real dy = H / 9;
     StdVec<Vecd> observation_points;
-    /** A line of measuring points at the middle line. */
-    size_t number_of_observation_points = 20;
-    Real range_of_measure = H;
-    Real start_of_measure = -H/2;
-
-    for (size_t i = 0; i < number_of_observation_points; ++i)
+    for (size_t i = 0; i < 32; ++i)
     {
-        Vec2d point_coordinate(L - 0.5 * resolution_ref, range_of_measure * Real(i) /
-                                                Real(number_of_observation_points - 1) +
-                                            start_of_measure);
-        observation_points.push_back(point_coordinate);
+        for (size_t j = 0; j < 8; ++j)
+        {
+            Real x_i = (i + 0.5) * dx;
+            Real y_i = H / 2 - (j + 0.5) * dy;
+            observation_points.push_back(Vecd(x_i, y_i));
+        }
     }
     return observation_points;
-};
-
-StdVec<Vecd> createVerticalVelObservationPoints()
-{
-    StdVec<Vecd> observation_points;
-    /** A line of measuring points at the middle line. */
-    size_t number_of_observation_points = 21;
-    Real range_of_measure = L;
-    Real start_of_measure = 0;
-
-    for (size_t i = 0; i < number_of_observation_points; ++i)
-    {
-        Vec2d point_coordinate(range_of_measure * Real(i) / Real(number_of_observation_points - 1) + start_of_measure, 0.0);
-        observation_points.push_back(point_coordinate);
-    }
-    return observation_points;
-};
-
-StdVec<Vecd> createHorizontalVelObservationPoints()
-{
-    StdVec<Vecd> observation_points;
-    /** A line of measuring points at the middle line. */
-    size_t number_of_observation_points = 21;
-    Real range_of_measure = H;
-    Real start_of_measure = -H/2;
-
-    for (size_t i = 0; i < number_of_observation_points; ++i)
-    {
-        Vec2d point_coordinate(L/2, range_of_measure * Real(i) / Real(number_of_observation_points - 1) + start_of_measure);
-        observation_points.push_back(point_coordinate);
-    }
-    return observation_points;
-};
+}
 } // namespace SPH
 #endif  // NATURAL_CONVECTION_CV_H
