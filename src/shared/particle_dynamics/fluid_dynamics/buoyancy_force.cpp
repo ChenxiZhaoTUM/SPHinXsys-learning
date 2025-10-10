@@ -135,12 +135,12 @@ void TargetFluidParticles::update(size_t index_i, Real dt)
     }
 }
 //=================================================================================================//
-FluidLocalVerticalHeatFlux::FluidLocalVerticalHeatFlux(BodyPartByCell &body_part, Real coeff, Real kappa)
+FluidLocalVerticalHeatFlux::FluidLocalVerticalHeatFlux(BodyPartByCell &body_part, const std::string &body_part_name, Real coeff, Real kappa)
     : BaseLocalDynamics<BodyPartByCell>(body_part), coeff_(coeff), kappa_(kappa),
     vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
     phi_grad_(particles_->getVariableDataByName<Vecd>("PhiGradient")),
     phi_(this->particles_->template getVariableDataByName<Real>("Phi")),
-    fluid_local_heat_flux_y_(particles_->registerStateVariable<Real>("FluidLocalVerticalHeatFlux")) {}
+    fluid_local_heat_flux_y_(particles_->registerStateVariable<Real>(body_part_name + "FluidLocalVerticalHeatFlux")) {}
 //=================================================================================================//
 void FluidLocalVerticalHeatFlux::update(size_t index_i, Real dt)
 {
@@ -588,7 +588,7 @@ void ProjectionForNu::interaction(size_t index_i, Real dt)
     {
         Real *Vol_k = contact_Vol_[k];
         Real *fluid_nu = contact_nu_[k];
-        int *fluid_indicator_1st = contact_second_layer_indicator_[k];
+        int *fluid_indicator_1st = contact_first_layer_indicator_[k];
         int *fluid_indicator_2nd = contact_second_layer_indicator_[k];
         Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
         for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
