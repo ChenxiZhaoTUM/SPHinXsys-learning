@@ -47,8 +47,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Particle and body creation of temperature observers.
     //----------------------------------------------------------------------
-    ObserverBody nu_observer(sph_system, "NuObserver");
-    nu_observer.generateParticles<ObserverParticles>(createObservationPoints());
+    //ObserverBody nu_observer(sph_system, "NuObserver");
+    //nu_observer.generateParticles<ObserverParticles>(createObservationPoints());
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -65,7 +65,7 @@ int main(int ac, char *av[])
 
     ContactRelation fluid_body_contact(diffusion_body, {&wall_boundary});
     ComplexRelation fluid_body_complex(diffusion_body_inner, fluid_body_contact);
-    ContactRelation nusselt_observer_contact(nu_observer, {&diffusion_body});
+    //ContactRelation nusselt_observer_contact(nu_observer, {&diffusion_body});
     ContactRelation observer_diffusion_body_contact(diffusion_observer, {&diffusion_body});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
@@ -98,7 +98,6 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::TargetFluidParticles> target_fluid_particles(diffusion_body_contact_all_Dirichlet);
     SimpleDynamics<solid_dynamics::FirstLayerFromFluid> target_up_solid_particles(up_wall_Dirichlet, diffusion_body);
     SimpleDynamics<solid_dynamics::FirstLayerFromFluid> target_down_solid_particles(down_wall_Dirichlet, diffusion_body);
-
     InteractionWithUpdate<fluid_dynamics::PhiGradientWithWall<LinearGradientCorrection>> calculate_phi_gradient(diffusion_body_inner, diffusion_body_contact_all_Dirichlet);
     SimpleDynamics<fluid_dynamics::LocalNusseltNum> local_nusselt_number(diffusion_body, H / (down_temperature - up_temperature));
     InteractionDynamics<solid_dynamics::ProjectionForNu> up_wall_local_nusselt_number(up_Dirichlet_contact, H / (down_temperature - up_temperature));
