@@ -1,1 +1,1 @@
-from gym_env_owsc.envs.owsc import OWSCEnv
+from gym_env_nc.envs.NCEnvironment import NCEnvironment

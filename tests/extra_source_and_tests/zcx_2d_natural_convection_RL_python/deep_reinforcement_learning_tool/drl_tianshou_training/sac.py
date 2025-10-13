@@ -44,7 +44,6 @@ def get_args():
     parser.add_argument("--batch-size", type=int, default=64) 
     parser.add_argument("--training-num", type=int, default=1) 
     parser.add_argument("--test-num", type=int, default=1)
-    parser.add_argument('--test-num', type=int, default=0)
     parser.add_argument("--logdir", type=str, default="log") 
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu") 
     parser.add_argument("--resume-path", type=str, default=None) 
