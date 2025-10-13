@@ -271,6 +271,20 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         return write_global_kinetic_energy.getReducedQuantity();
     };
     //----------------------------------------------------------------------
+    //  Set bottom-wall temperature layout.
+    //----------------------------------------------------------------------
+    void setDownWallSegmentTemperatures(Real T_left, Real T_middle, Real T_right)
+    {
+        SphBasicGeometrySetting::setDownWallSegmentTemperatures(T_left, T_middle, T_right);
+        setup_down_Dirichlet_initial_condition.exec();
+    }
+    // optional vector overload
+    void setDownWallSegmentTemperatures(const StdVec<Real> &Ts)
+    {
+        SphBasicGeometrySetting::setDownWallSegmentTemperatures(Ts);
+        setup_down_Dirichlet_initial_condition.exec();
+    }
+    //----------------------------------------------------------------------
     //	    Main loop of time stepping starts here. && For changing damping coefficient.
     //----------------------------------------------------------------------
     void runCase(Real pause_time_from_python)
@@ -354,6 +368,12 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         TimeInterval tt;
         tt = t4 - t1 - interval;
     };
+
+    void runCaseWithTemps(Real pause_time_from_python, Real T_left, Real T_middle, Real T_right)
+    {
+        setDownWallSegmentTemperatures(T_left, T_middle, T_right);
+        runCase(pause_time_from_python);
+    }
 };
 
 //----------------------------------------------------------------------
@@ -370,5 +390,10 @@ PYBIND11_MODULE(zcx_2d_natural_convection_RL_python, m)
         .def("get_local_heat_flux_right", &SphNaturalConvection::getRightPhiFlux)
         .def("get_local_velocity", &SphNaturalConvection::getLocalVelocity)
         .def("get_global_kinetic_energy", &SphNaturalConvection::getGlobalKineticEnergy)
-        .def("run_case", &SphNaturalConvection::runCase);
+        .def("run_case", &SphNaturalConvection::runCase)
+        .def("set_down_wall_temperatures",
+             py::overload_cast<Real, Real, Real>(&SphNaturalConvection::setDownWallSegmentTemperatures),
+             py::arg("T_left"), py::arg("T_middle"), py::arg("T_right"))
+        .def("run_case_with_temps", &SphNaturalConvection::runCaseWithTemps,
+             py::arg("pause_time_from_python"), py::arg("T_left"), py::arg("T_middle"), py::arg("T_right"));
 }

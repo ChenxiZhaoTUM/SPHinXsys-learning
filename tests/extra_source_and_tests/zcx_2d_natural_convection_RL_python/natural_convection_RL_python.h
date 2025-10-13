@@ -34,6 +34,7 @@ class SphBasicGeometrySetting
     Real heat_flux = 0;
     Real U_f = sqrt(g * thermal_expansion_coeff * (down_temperature - up_temperature) * H);                     /**< Characteristic velocity. */
     Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
+    inline static std::array<Real, 3> down_wall_segment_T = {2.0 * 1.2, 2.0 * 1.0, 2.0 * 0.8};
     //----------------------------------------------------------------------
     //	Geometric shapes used in the system.
     //----------------------------------------------------------------------
@@ -147,13 +148,14 @@ class SphBasicGeometrySetting
         multi_polygon.addAPolygon(RightDiffusionDomain, ShapeBooleanOps::add);
         return multi_polygon;
     }
-
+    
+    // 8 * 30 probes
     StdVec<Vecd> createObservationPoints()
     {
-        Real dx = L / 33;
+        Real dx = L / 31;
         Real dy = H / 9;
         StdVec<Vecd> observation_points;
-        for (size_t i = 0; i < 32; ++i)
+        for (size_t i = 0; i < 30; ++i)
         {
             for (size_t j = 0; j < 8; ++j)
             {
@@ -163,6 +165,16 @@ class SphBasicGeometrySetting
             }
         }
         return observation_points;
+    }
+  public:
+    // --- NEW: setters to update the three segment temperatures ---
+    static void setDownWallSegmentTemperatures(Real T_left, Real T_middle, Real T_right)
+    {
+        down_wall_segment_T = {T_left, T_middle, T_right};
+    }
+    static void setDownWallSegmentTemperatures(const StdVec<Real> &Ts)
+    {
+        if (Ts.size() >= 3) down_wall_segment_T = {Ts[0], Ts[1], Ts[2]};
     }
 };
 //------------------------------------------------------------------------------
@@ -259,15 +271,15 @@ class DirichletWallBoundaryInitialCondition : public LocalDynamics, public SphBa
     {
         if (pos_[index_i][1] <= -H/2 && pos_[index_i][0] < L/3)
         {
-            phi_[index_i] = down_temperature * 1.2;
+            phi_[index_i] = down_wall_segment_T[0];
         }
         else if (pos_[index_i][1] <= -H / 2 && pos_[index_i][0] >= L / 3 && pos_[index_i][0] < 2 * L / 3)
         {
-            phi_[index_i] = down_temperature * 1.0;
+            phi_[index_i] = down_wall_segment_T[1];
         }
         else if (pos_[index_i][1] <= -H / 2 && pos_[index_i][0] >= 2 * L / 3)
         {
-            phi_[index_i] = down_temperature * 0.8;
+            phi_[index_i] = down_wall_segment_T[2];
         }
 
         if (pos_[index_i][1] >= H/2)

@@ -145,9 +145,11 @@ def run_case():
     # Call into the bound function/class; change the name here if your binding exports a class instead
     project = getattr(mod, "natural_convection_from_sph_cpp")(args.parallel_env, args.episode_env)
 
+    T_left, T_mid, T_right = float(2.0 * 1.5), float(2.0), float(2.0 * 0.5)
+
     # Keep method names consistent with what pybind11 exports (case-sensitive!)
     if getattr(project, "cmake_test")() == 1:
-        project.run_case(args.end_time)
+        project.run_case_with_temps(args.end_time, T_left, T_mid, T_right)
     else:
         print("[Warn] cmake_test() failed — check runtime working directory and input files.")
 
