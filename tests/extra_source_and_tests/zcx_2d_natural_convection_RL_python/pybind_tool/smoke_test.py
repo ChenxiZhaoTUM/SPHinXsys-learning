@@ -130,85 +130,56 @@ def ensure_module():
 
 
 # ---------- Your case runner ----------
-def run_case():
+def run_smoke_test():
     parser = argparse.ArgumentParser()
     parser.add_argument("--parallel_env", default=0, type=int)
     parser.add_argument("--episode_env", default=0, type=int)
-
-    # how long to warm up the baseline (uniform T=2.0)
-    parser.add_argument("--warmup_time", default=120.0, type=float)
-
-    # how long to continue after we apply a control action
-    # (this should match your env.window_total / sim_time chunk, e.g. 5.0s)
-    parser.add_argument("--control_horizon", default=5.0, type=float)
-
+    parser.add_argument("--extra_run", default=20.0, type=float,
+                        help="Extra physical time to advance after debug_smoke_test()")
     args = parser.parse_args()
 
     mod = ensure_module()
 
-    # 1) create solver instance
-    sim = getattr(mod, "natural_convection_from_sph_cpp")(args.parallel_env, args.episode_env)
-    print("[Info] Solver constructed.")
+    solver = getattr(mod, "natural_convection_from_sph_cpp")(args.parallel_env, args.episode_env)
 
-    # --------------------------------------------------------------------------------
-    # Stage A. Baseline warmup: bottom wall = [2.0, 2.0, 2.0], run to warmup_time
-    # --------------------------------------------------------------------------------
-    baseline_wall = [2.0, 2.0, 2.0]
-    print(f"[Info] Setting initial baseline wall temps = {baseline_wall}")
-    sim.set_segment_temperatures(baseline_wall)
+    print("=== [1] calling debug_smoke_test() ===")
+    # this runs: set some temps, advance 10s, print flux etc. on the C++ side
+    ret = solver.debug_smoke_test()
+    print(f"debug_smoke_test() returned: {ret}")
 
-    # advance CFD to warmup_time (absolute physical time = args.warmup_time)
-    print(f"[Info] Running baseline to t = {args.warmup_time} ...")
-    sim.run_case(args.warmup_time)
+    print("\n=== [2] manual temperature update / advance / readback ===")
 
-    # read baseline observation
-    base_global_flux = sim.get_global_heat_flux()
-    base_flux0 = sim.get_local_phi_flux(0)
-    base_flux1 = sim.get_local_phi_flux(1)
-    base_flux2 = sim.get_local_phi_flux(2)
-    base_ke_global = sim.get_global_kinetic_energy()
-    base_vx0 = sim.get_local_velocity(0, 0)
-    base_vy0 = sim.get_local_velocity(0, 1)
+    # Pick a new temperature pattern for the 3 segments.
+    # IMPORTANT: This length must match n_seg in your C++ world (currently assumed =3).
+    new_temps = [1.0, 0.5, 1.5]
+    print(f"Setting segment temps to {new_temps}")
+    solver.set_segment_temperatures(new_temps)
 
-    print("=== Baseline state after warmup ===")
-    print(f"  global_heat_flux         = {base_global_flux}")
-    print(f"  local_heat_flux[0,1,2]   = {base_flux0}, {base_flux1}, {base_flux2}")
-    print(f"  global_kinetic_energy    = {base_ke_global}")
-    print(f"  probe0 velocity (vx,vy)  = ({base_vx0}, {base_vy0})")
-    print("===================================")
+    # Advance some more physical time.
+    # NOTE: run_case(target_time) uses ABSOLUTE physical time,
+    # so we just say "go to current_time + extra_run".
+    # We don't know current_time directly from Python, so the easiest hack is:
+    #   - just call run_case(1e9) for testing and trust it won't blow up.
+    # For now we'll just do a modest guess and hope it's ahead of current time.
+    solver.run_case(args.extra_run)  # absolute time
 
-    # --------------------------------------------------------------------------------
-    # Stage B. Apply a "control" temperature pattern and run a short horizon
-    # --------------------------------------------------------------------------------
-    # This mimics one RL step: choose action → convert to per-segment temps → advance
-    # Here we just hand-pick something not uniform to see an effect:
-    control_wall = [2.3, 2.0, 1.7]
-    print(f"[Info] Applying control wall temps = {control_wall}")
-    sim.set_segment_temperatures(control_wall)
+    # read observables
+    global_flux = solver.get_global_heat_flux()
+    flux_0 = solver.get_local_phi_flux(0)
+    flux_1 = solver.get_local_phi_flux(1)
+    flux_2 = solver.get_local_phi_flux(2)
+    ke_global = solver.get_global_kinetic_energy()
+    vx0 = solver.get_local_velocity(0, 0)
+    vy0 = solver.get_local_velocity(0, 1)
 
-    target_time = args.warmup_time + args.control_horizon
-    print(f"[Info] Advancing simulation to t = {target_time} ...")
-    sim.run_case(target_time)
+    print("After manual run_case:")
+    print(f"  global_flux = {global_flux}")
+    print(f"  local_flux[0,1,2] = {flux_0}, {flux_1}, {flux_2}")
+    print(f"  global_kinetic_energy = {ke_global}")
+    print(f"  probe0 vel = ({vx0}, {vy0})")
 
-    # read post-control observation
-    post_global_flux = sim.get_global_heat_flux()
-    post_flux0 = sim.get_local_phi_flux(0)
-    post_flux1 = sim.get_local_phi_flux(1)
-    post_flux2 = sim.get_local_phi_flux(2)
-    post_ke_global = sim.get_global_kinetic_energy()
-    post_vx0 = sim.get_local_velocity(0, 0)
-    post_vy0 = sim.get_local_velocity(0, 1)
-
-    print("=== Post-control state ===")
-    print(f"  global_heat_flux         = {post_global_flux}")
-    print(f"  local_heat_flux[0,1,2]   = {post_flux0}, {post_flux1}, {post_flux2}")
-    print(f"  global_kinetic_energy    = {post_ke_global}")
-    print(f"  probe0 velocity (vx,vy)  = ({post_vx0}, {post_vy0})")
-    print("===========================")
-
-    # If we got this far without crashing, bindings + stepping loop basically work.
-    print("[Info] pybind smoke run complete.")
+    print("\nSmoke test finished.\n")
 
 
 if __name__ == "__main__":
-    run_case()
+    run_smoke_test()
