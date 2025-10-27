@@ -34,7 +34,9 @@ class SphBasicGeometrySetting
     Real heat_flux = 0;
     Real U_f = sqrt(g * thermal_expansion_coeff * (down_temperature - up_temperature) * H);                     /**< Characteristic velocity. */
     Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
-    inline static std::array<Real, 3> down_wall_segment_T = {2.0 * 1.2, 2.0 * 1.0, 2.0 * 0.8};
+
+    //size_t n_seg = 3;
+    inline static StdVec<Real> down_wall_segment_T = {2.0, 2.0, 2.0};
     //----------------------------------------------------------------------
     //	Geometric shapes used in the system.
     //----------------------------------------------------------------------
@@ -168,13 +170,12 @@ class SphBasicGeometrySetting
     }
   public:
     // --- NEW: setters to update the three segment temperatures ---
-    static void setDownWallSegmentTemperatures(Real T_left, Real T_middle, Real T_right)
-    {
-        down_wall_segment_T = {T_left, T_middle, T_right};
-    }
     static void setDownWallSegmentTemperatures(const StdVec<Real> &Ts)
     {
-        if (Ts.size() >= 3) down_wall_segment_T = {Ts[0], Ts[1], Ts[2]};
+        if (!Ts.empty())
+        {
+            down_wall_segment_T = Ts;
+        }
     }
 };
 //------------------------------------------------------------------------------
@@ -269,17 +270,31 @@ class DirichletWallBoundaryInitialCondition : public LocalDynamics, public SphBa
 
     void update(size_t index_i, Real dt)
     {
-        if (pos_[index_i][1] <= -H/2 && pos_[index_i][0] < L/3)
+        //if (pos_[index_i][1] <= -H/2 && pos_[index_i][0] < L/3)
+        //{
+        //    phi_[index_i] = down_wall_segment_T[0];
+        //}
+        //else if (pos_[index_i][1] <= -H / 2 && pos_[index_i][0] >= L / 3 && pos_[index_i][0] < 2 * L / 3)
+        //{
+        //    phi_[index_i] = down_wall_segment_T[1];
+        //}
+        //else if (pos_[index_i][1] <= -H / 2 && pos_[index_i][0] >= 2 * L / 3)
+        //{
+        //    phi_[index_i] = down_wall_segment_T[2];
+        //}
+
+        if (pos_[index_i][1] <= -H / 2)
         {
-            phi_[index_i] = down_wall_segment_T[0];
-        }
-        else if (pos_[index_i][1] <= -H / 2 && pos_[index_i][0] >= L / 3 && pos_[index_i][0] < 2 * L / 3)
-        {
-            phi_[index_i] = down_wall_segment_T[1];
-        }
-        else if (pos_[index_i][1] <= -H / 2 && pos_[index_i][0] >= 2 * L / 3)
-        {
-            phi_[index_i] = down_wall_segment_T[2];
+            size_t n = down_wall_segment_T.size();
+            if (n > 0)
+            {
+                Real seg_len = L / Real(n);
+                size_t k = std::min(
+                    size_t(std::floor(pos_[index_i][0] / seg_len)),
+                    n - 1
+                );
+                phi_[index_i] = down_wall_segment_T[k];
+            }
         }
 
         if (pos_[index_i][1] >= H/2)

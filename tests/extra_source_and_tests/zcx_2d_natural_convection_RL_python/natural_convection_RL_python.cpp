@@ -8,6 +8,7 @@
 #include "custom_io_observation.h"
 #include "sphinxsys.h"
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 using namespace SPH;
 namespace py = pybind11;
@@ -125,13 +126,15 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
 
     ObservedQuantityRecording<Vecd> write_recorded_fluid_vel;
     ExtendedReducedQuantityRecording<TotalKineticEnergy> write_global_kinetic_energy;
+
+    StdVec<Real> current_segment_temps_; // length n_seg (currently assumed 3)
+
     //----------------------------------------------------------------------
     //	    Basic control parameters for time stepping.
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real End_Time = 120;
-    Real output_interval = End_Time / 120.0;
+    Real output_interval = 1.0;
     int number_of_iterations = 0;
     int screen_output_interval = 100;
     /** statistics for computing time. */
@@ -200,6 +203,12 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           write_global_kinetic_energy(diffusion_body)
     {
         physical_time = 0.0;
+        // default bottom-wall temps: [2,2,2] initially
+        current_segment_temps_.clear();
+        current_segment_temps_.push_back(2.0);
+        current_segment_temps_.push_back(2.0);
+        current_segment_temps_.push_back(2.0);
+
         //----------------------------------------------------------------------
         //	Prepare the simulation with cell linked list, configuration
         //	and case specified initial condition if necessary.
@@ -236,6 +245,53 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     {
         return 1;
     }
+
+    int debugSmokeTest()
+    {
+        std::cout << "---- debugSmokeTest() begin ----\n";
+
+        std::cout << "[0] physical_time = " << physical_time << "\n";
+
+        // step 1: set some arbitrary temperatures
+        StdVec<Real> temps_test;
+        temps_test.push_back(2.2);
+        temps_test.push_back(2.0);
+        temps_test.push_back(1.8);
+
+        std::cout << "[1] calling set_segment_temperatures ...\n";
+        setDownWallSegmentTemperatures(temps_test);
+
+        // step 2: advance the simulation to t = physical_time + 10 (a short run)
+        Real target_time = physical_time + 10;
+        std::cout << "[2] runCase(" << target_time << ") ...\n";
+        runCase(target_time);
+
+        // step 3: read back some quantities
+        Real q_flux_sum = getPhiFluxSum();
+        Real q_flux_0   = getLocalPhiFlux(0);
+        Real q_flux_1   = getLocalPhiFlux(1);
+        Real q_flux_2   = getLocalPhiFlux(2);
+
+        Real ke_global  = getGlobalKineticEnergy();
+
+        // also sample one probe velocity just to check indexing works
+        Real vx0 = getLocalVelocity(0, 0);
+        Real vy0 = getLocalVelocity(0, 1);
+
+        std::cout << "[3] after runCase:\n";
+        std::cout << "    physical_time = " << physical_time << "\n";
+        std::cout << "    global_heat_flux = " << q_flux_sum << "\n";
+        std::cout << "    local_flux[0,1,2] = "
+                  << q_flux_0 << ", "
+                  << q_flux_1 << ", "
+                  << q_flux_2 << "\n";
+        std::cout << "    global_kinetic_energy = " << ke_global << "\n";
+        std::cout << "    probe0 vel = (" << vx0 << ", " << vy0 << ")\n";
+
+        std::cout << "---- debugSmokeTest() end ----\n";
+
+        return 1;
+    }
     //----------------------------------------------------------------------
     //  Get heat flux.
     //----------------------------------------------------------------------
@@ -244,20 +300,13 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         return write_down_PhiFluxSum.getReducedQuantity();
     };
 
-    Real getLeftPhiFlux()
-    {
-        return write_left_PhiFluxSum.getReducedQuantity();
-    };
-
-    Real getMiddlePhiFlux()
-    {
-        return write_middle_PhiFluxSum.getReducedQuantity();
-    };
-
-    Real getRightPhiFlux()
-    {
-        return write_right_PhiFluxSum.getReducedQuantity();
-    };
+    Real getLocalPhiFlux(int i_seg) {
+        // Temporary 3-seg logic:
+        if (i_seg == 0) return write_left_PhiFluxSum.getReducedQuantity();
+        if (i_seg == 1) return write_middle_PhiFluxSum.getReducedQuantity();
+        if (i_seg == 2) return write_right_PhiFluxSum.getReducedQuantity();
+        return 0.0;
+    }
     //----------------------------------------------------------------------
     //  Get kinetic energy.
     //----------------------------------------------------------------------
@@ -273,14 +322,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     //----------------------------------------------------------------------
     //  Set bottom-wall temperature layout.
     //----------------------------------------------------------------------
-    void setDownWallSegmentTemperatures(Real T_left, Real T_middle, Real T_right)
-    {
-        SphBasicGeometrySetting::setDownWallSegmentTemperatures(T_left, T_middle, T_right);
-        setup_down_Dirichlet_initial_condition.exec();
-    }
-    // optional vector overload
     void setDownWallSegmentTemperatures(const StdVec<Real> &Ts)
     {
+        if (Ts.empty()) return;
+
+        current_segment_temps_ = Ts;
         SphBasicGeometrySetting::setDownWallSegmentTemperatures(Ts);
         setup_down_Dirichlet_initial_condition.exec();
     }
@@ -368,12 +414,6 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         TimeInterval tt;
         tt = t4 - t1 - interval;
     };
-
-    void runCaseWithTemps(Real pause_time_from_python, Real T_left, Real T_middle, Real T_right)
-    {
-        setDownWallSegmentTemperatures(T_left, T_middle, T_right);
-        runCase(pause_time_from_python);
-    }
 };
 
 //----------------------------------------------------------------------
@@ -382,18 +422,13 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
 PYBIND11_MODULE(zcx_2d_natural_convection_RL_python, m)
 {
     py::class_<SphNaturalConvection>(m, "natural_convection_from_sph_cpp")
-        .def(py::init<const int &, const int &>())
+        .def(py::init<const int&, const int&>())
         .def("cmake_test", &SphNaturalConvection::cmakeTest)
+        .def("set_segment_temperatures", &SphNaturalConvection::setDownWallSegmentTemperatures, py::arg("temps"))
         .def("get_global_heat_flux", &SphNaturalConvection::getPhiFluxSum)
-        .def("get_local_heat_flux_left", &SphNaturalConvection::getLeftPhiFlux)
-        .def("get_local_heat_flux_middle", &SphNaturalConvection::getMiddlePhiFlux)
-        .def("get_local_heat_flux_right", &SphNaturalConvection::getRightPhiFlux)
-        .def("get_local_velocity", &SphNaturalConvection::getLocalVelocity)
+        .def("get_local_phi_flux", &SphNaturalConvection::getLocalPhiFlux, py::arg("i_seg"))
+        .def("get_local_velocity", &SphNaturalConvection::getLocalVelocity, py::arg("probe_index"), py::arg("component"))
         .def("get_global_kinetic_energy", &SphNaturalConvection::getGlobalKineticEnergy)
-        .def("run_case", &SphNaturalConvection::runCase)
-        .def("set_down_wall_temperatures",
-             py::overload_cast<Real, Real, Real>(&SphNaturalConvection::setDownWallSegmentTemperatures),
-             py::arg("T_left"), py::arg("T_middle"), py::arg("T_right"))
-        .def("run_case_with_temps", &SphNaturalConvection::runCaseWithTemps,
-             py::arg("pause_time_from_python"), py::arg("T_left"), py::arg("T_middle"), py::arg("T_right"));
+        .def("run_case", &SphNaturalConvection::runCase, py::arg("target_time"))
+        .def("debug_smoke_test", &SphNaturalConvection::debugSmokeTest);
 }
