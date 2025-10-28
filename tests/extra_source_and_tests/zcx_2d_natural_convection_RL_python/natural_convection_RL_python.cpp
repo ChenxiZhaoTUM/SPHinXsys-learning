@@ -62,6 +62,11 @@ class SphBodyReloadEnvironment : public SphBasicSystemSetting
 
         diffusion_observer.generateParticles<ObserverParticles>(createObservationPoints());
     }
+
+    FluidBody &getFluidBody()
+    { 
+        return diffusion_body; 
+    }
 };
 
 class SphNaturalConvection : public SphBodyReloadEnvironment
@@ -117,17 +122,10 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     
     ExtendedReducedQuantityRecording<QuantitySummation<Real>> write_up_PhiFluxSum;
     ExtendedReducedQuantityRecording<QuantitySummation<Real>> write_down_PhiFluxSum;
-    BodyRegionByParticle left_diffusion_domain;
-    ExtendedReducedQuantityRecording<QuantitySummation<Real, BodyRegionByParticle>> write_left_PhiFluxSum;
-    BodyRegionByParticle middle_diffusion_domain;
-    ExtendedReducedQuantityRecording<QuantitySummation<Real, BodyRegionByParticle>> write_middle_PhiFluxSum;
-    BodyRegionByParticle right_diffusion_domain;
-    ExtendedReducedQuantityRecording<QuantitySummation<Real, BodyRegionByParticle>> write_right_PhiFluxSum;
-
     ObservedQuantityRecording<Vecd> write_recorded_fluid_vel;
     ExtendedReducedQuantityRecording<TotalKineticEnergy> write_global_kinetic_energy;
 
-    StdVec<Real> current_segment_temps_; // length n_seg (currently assumed 3)
+    StdVec<Real> current_segment_temps_; // length n_seg
 
     //----------------------------------------------------------------------
     //	    Basic control parameters for time stepping.
@@ -192,18 +190,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           restart_io(sph_system),
           write_up_PhiFluxSum(diffusion_body, "PhiTransferFromUpDirichletWallBoundaryFlux"),
           write_down_PhiFluxSum(diffusion_body, "PhiTransferFromDownDirichletWallBoundaryFlux"),
-          left_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createLeftDiffusionDomain(), "LeftDiffusionDomain")),
-          write_left_PhiFluxSum(left_diffusion_domain, "PhiTransferFromDownDirichletWallBoundaryFlux"),
-          middle_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createMiddleDiffusionDomain(), "MiddleDiffusionDomain")),
-          write_middle_PhiFluxSum(middle_diffusion_domain, "PhiTransferFromDownDirichletWallBoundaryFlux"),
-          right_diffusion_domain(diffusion_body, makeShared<MultiPolygonShape>(createRightDiffusionDomain(), "RightDiffusionDomain")),
-          write_right_PhiFluxSum(right_diffusion_domain, "PhiTransferFromDownDirichletWallBoundaryFlux"),
-
           write_recorded_fluid_vel("Velocity", observer_diffusion_body_contact),
           write_global_kinetic_energy(diffusion_body)
     {
         physical_time = 0.0;
-        // default bottom-wall temps: [2,2,2] initially
+        // default bottom-wall temps: [2,2,2, ...] initially
         current_segment_temps_.clear();
         current_segment_temps_.push_back(2.0);
         current_segment_temps_.push_back(2.0);
@@ -232,9 +223,6 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         write_down_PhiFluxSum.writeToFile(0);
         write_recorded_fluid_vel.writeToFile(0);
         write_global_kinetic_energy.writeToFile(0);
-        write_left_PhiFluxSum.writeToFile(0);
-        write_middle_PhiFluxSum.writeToFile(0);
-        write_right_PhiFluxSum.writeToFile(0);
     }
 
     virtual ~SphNaturalConvection(){};
@@ -257,6 +245,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         temps_test.push_back(2.2);
         temps_test.push_back(2.0);
         temps_test.push_back(1.8);
+        temps_test.push_back(2.5);
 
         std::cout << "[1] calling set_segment_temperatures ...\n";
         setDownWallSegmentTemperatures(temps_test);
@@ -271,6 +260,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         Real q_flux_0   = getLocalPhiFlux(0);
         Real q_flux_1   = getLocalPhiFlux(1);
         Real q_flux_2   = getLocalPhiFlux(2);
+        Real q_flux_3   = getLocalPhiFlux(3);
 
         Real ke_global  = getGlobalKineticEnergy();
 
@@ -281,10 +271,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         std::cout << "[3] after runCase:\n";
         std::cout << "    physical_time = " << physical_time << "\n";
         std::cout << "    global_heat_flux = " << q_flux_sum << "\n";
-        std::cout << "    local_flux[0,1,2] = "
+        std::cout << "    local_flux[0,1,2,3] = "
                   << q_flux_0 << ", "
                   << q_flux_1 << ", "
-                  << q_flux_2 << "\n";
+                  << q_flux_2 << ", "
+                  << q_flux_3 << "\n";
         std::cout << "    global_kinetic_energy = " << ke_global << "\n";
         std::cout << "    probe0 vel = (" << vx0 << ", " << vy0 << ")\n";
 
@@ -300,12 +291,44 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         return write_down_PhiFluxSum.getReducedQuantity();
     };
 
-    Real getLocalPhiFlux(int i_seg) {
-        // Temporary 3-seg logic:
-        if (i_seg == 0) return write_left_PhiFluxSum.getReducedQuantity();
-        if (i_seg == 1) return write_middle_PhiFluxSum.getReducedQuantity();
-        if (i_seg == 2) return write_right_PhiFluxSum.getReducedQuantity();
-        return 0.0;
+    Real getLocalPhiFlux(int i_seg)
+    {
+        // how many control segments we currently have
+        size_t n = down_wall_segment_T.size();
+        if (n == 0) return Real(0.0);
+        if (i_seg < 0 || static_cast<size_t>(i_seg) >= n) return Real(0.0);
+
+        // horizontal extent of this segment
+        Real seg_len = L / Real(n);
+        Real x0 = seg_len * Real(i_seg);
+        Real x1 = x0 + seg_len;
+
+        // build a vertical strip spanning full cavity height
+        std::vector<Vecd> seg_poly;
+        seg_poly.push_back(Vecd(x0, -H/2)); // bottom inner fluid boundary
+        seg_poly.push_back(Vecd(x1, -H/2));
+        seg_poly.push_back(Vecd(x1,  H/2));
+        seg_poly.push_back(Vecd(x0,  H/2));
+        seg_poly.push_back(Vecd(x0, -H/2));
+
+        MultiPolygon seg_shape;
+        seg_shape.addAPolygon(seg_poly, ShapeBooleanOps::add);
+
+        // define a particle region over the diffusion_body
+        BodyRegionByParticle seg_region(
+            getFluidBody(),
+            makeShared<MultiPolygonShape>(seg_shape, "seg_region_tmp")
+        );
+
+        // sum the same reduced quantity
+        ExtendedReducedQuantityRecording<
+            QuantitySummation<Real, BodyRegionByParticle>
+        > seg_flux(
+            seg_region,
+            "PhiTransferFromDownDirichletWallBoundaryFlux"
+        );
+
+        return seg_flux.getReducedQuantity();
     }
     //----------------------------------------------------------------------
     //  Get kinetic energy.
@@ -402,10 +425,6 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
             write_down_PhiFluxSum.writeToFile(number_of_iterations);
             write_recorded_fluid_vel.writeToFile(number_of_iterations);
             write_global_kinetic_energy.writeToFile(number_of_iterations);
-
-            write_left_PhiFluxSum.writeToFile(number_of_iterations);
-            write_middle_PhiFluxSum.writeToFile(number_of_iterations);
-            write_right_PhiFluxSum.writeToFile(number_of_iterations);
 
             TickCount t3 = TickCount::now();
             interval += t3 - t2;

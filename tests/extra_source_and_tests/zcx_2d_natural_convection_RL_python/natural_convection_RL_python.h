@@ -37,8 +37,8 @@ class SphBasicGeometrySetting
     Real U_f = sqrt(g * thermal_expansion_coeff * (down_temperature - up_temperature) * H);                     /**< Characteristic velocity. */
     Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
 
-    //size_t n_seg = 3;
-    inline static StdVec<Real> down_wall_segment_T = {2.0, 2.0, 2.0};
+    //size_t n_seg = 4;
+    inline static StdVec<Real> down_wall_segment_T = StdVec<Real>(4, 2.0);
     //----------------------------------------------------------------------
     //	Geometric shapes used in the system.
     //----------------------------------------------------------------------
@@ -112,45 +112,6 @@ class SphBasicGeometrySetting
         RightWallDomainShape.push_back(Vecd(L, -H/2 - BW));
 
         return RightWallDomainShape;
-    }
-
-    std::vector<Vecd> LeftDiffusionDomain
-    {
-        Vecd(0., -H / 2), Vecd(L / 3, -H / 2), Vecd(L / 3, H / 2),
-        Vecd(0.,  H / 2), Vecd(0., -H / 2)
-    };
-
-    MultiPolygon createLeftDiffusionDomain()
-    {
-        MultiPolygon multi_polygon;
-        multi_polygon.addAPolygon(LeftDiffusionDomain, ShapeBooleanOps::add);
-        return multi_polygon;
-    }
-
-    std::vector<Vecd> MiddleDiffusionDomain
-    {
-        Vecd(L / 3, -H / 2), Vecd(2 * L / 3, -H / 2), Vecd(2 * L / 3, H / 2),
-        Vecd(L / 3,  H / 2), Vecd(L / 3, -H / 2)
-    };
-
-    MultiPolygon createMiddleDiffusionDomain()
-    {
-        MultiPolygon multi_polygon;
-        multi_polygon.addAPolygon(MiddleDiffusionDomain, ShapeBooleanOps::add);
-        return multi_polygon;
-    }
-
-    std::vector<Vecd> RightDiffusionDomain
-    {
-         Vecd(2 * L / 3, -H / 2), Vecd(L, -H / 2), Vecd(L, H / 2),
-         Vecd(2 * L / 3,  H / 2), Vecd(2 * L / 3, -H / 2)
-    };
-
-    MultiPolygon createRightDiffusionDomain()
-    {
-        MultiPolygon multi_polygon;
-        multi_polygon.addAPolygon(RightDiffusionDomain, ShapeBooleanOps::add);
-        return multi_polygon;
     }
     
     // 8 * 30 probes

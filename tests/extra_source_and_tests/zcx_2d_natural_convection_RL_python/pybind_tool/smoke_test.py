@@ -151,7 +151,7 @@ def run_smoke_test():
 
     # Pick a new temperature pattern for the 3 segments.
     # IMPORTANT: This length must match n_seg in your C++ world (currently assumed =3).
-    new_temps = [1.0, 0.5, 1.5]
+    new_temps = [1.0, 0.5, 1.5, 1.0]
     print(f"Setting segment temps to {new_temps}")
     solver.set_segment_temperatures(new_temps)
 
@@ -168,13 +168,14 @@ def run_smoke_test():
     flux_0 = solver.get_local_phi_flux(0)
     flux_1 = solver.get_local_phi_flux(1)
     flux_2 = solver.get_local_phi_flux(2)
+    flux_3 = solver.get_local_phi_flux(3)
     ke_global = solver.get_global_kinetic_energy()
     vx0 = solver.get_local_velocity(0, 0)
     vy0 = solver.get_local_velocity(0, 1)
 
     print("After manual run_case:")
     print(f"  global_flux = {global_flux}")
-    print(f"  local_flux[0,1,2] = {flux_0}, {flux_1}, {flux_2}")
+    print(f"  local_flux[0,1,2,3] = {flux_0}, {flux_1}, {flux_2}, {flux_3}")
     print(f"  global_kinetic_energy = {ke_global}")
     print(f"  probe0 vel = ({vx0}, {vy0})")
 
