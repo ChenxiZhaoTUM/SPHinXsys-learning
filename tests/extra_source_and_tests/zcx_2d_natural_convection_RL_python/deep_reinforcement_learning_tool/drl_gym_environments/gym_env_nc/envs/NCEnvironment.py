@@ -32,16 +32,16 @@ class NCEnvironment(gym.Env):
         We want to enhance heat transfer and suppress convection intensity.
         Following the style of the Rayleigh-Bénard MARL code:
 
-            Reward_Nus   = 0.9985 * gen_Nus   + 0.0015 * loc_Nus
+            Reward_Nu   = 0.9985 * gen_Nu   + 0.0015 * loc_Nu
             Reward_kinEn = 0.4    * gen_kinEn + 0.6    * loc_kinEn
 
         where
-            gen_Nus   = global heat flux
-            loc_Nus   = mean per-segment heat flux
+            gen_Nu   = global heat flux
+            loc_Nu   = mean per-segment heat flux
             gen_kinEn = global kinetic energy
             loc_kinEn = mean per-segment local KE
 
-        raw_reward = Reward_Nus - Reward_kinEn
+        raw_reward = Reward_Nu - Reward_kinEn
 
         final_reward = (raw_reward - baseline_reward) / reward_scale
 
@@ -78,13 +78,14 @@ class NCEnvironment(gym.Env):
         # warmup_time: run baseline before first action
         # delta_time: CFD physical time per control step
         self.warmup_time = 120.0
-        self.delta_time = 5.0
+        # self.warmup_time = 20.0  # only for debug
+        self.delta_time = 2.0
         # TODO: test how long it will take to stabilize after the temperature is changed, or it does not need steady solution
         # running simulation time cursor (absolute physical time in solver)
         self.sim_time = 0.0
 
         # ---------------- episode length in terms of control actions ----------------
-        self.max_steps_per_episode = 10  # TRAINING length: 10 actions per episode
+        self.max_steps_per_episode = 200  # TRAINING length: 200 actions per episode
         self.step_count = 0
         self.max_steps_per_episode_eval = 4 * self.max_steps_per_episode  # for evaluation
         self.deterministic = False  # training mode by default
@@ -109,7 +110,14 @@ class NCEnvironment(gym.Env):
         # ----- reward shaping / normalization -----
         # We'll compute a "baseline_reward" in reset() after warmup,
         # and subtract it in step() to stabilize learning.
-        self.baseline_reward = None  # will be set in reset()
+        # self.baseline_reward = None  # will be set in reset()
+        self.beta = 0.0015
+        self.base_gen_KE = None  # will be set in reset()
+        self.base_loc_KE = None
+        self.base_loc_Nu = None
+        self.base_gen_Nu = None
+        self.Nu_base = None
+        self.KE_base = None
         self.reward_scale = 1.0
 
         # ----- runtime state -----
@@ -244,15 +252,15 @@ class NCEnvironment(gym.Env):
         return obs
 
     def _normalize_obs(self, obs_raw: np.ndarray) -> np.ndarray:
-        """
-        Hook for observation normalization.
-        Currently passthrough.
-        In future you can:
-          - divide flux terms by baseline flux
-          - divide KE terms by baseline KE
-          - clip or log-scale
-        """
-        return obs_raw
+        n = self.n_seg
+        obs_norm = obs_raw.copy().astype(np.float32)
+        eps = 1e-8
+
+        obs_norm[0] = obs_norm[0] / (self.base_gen_Nu + eps)
+        obs_norm[1:1 + n] = obs_norm[1:1 + n] / (self.base_loc_Nu + eps)
+        obs_norm[1 + n:1 + 2 * n] = obs_norm[1 + n:1 + 2 * n] / (self.base_loc_KE + eps)
+        obs_norm[-1] = obs_norm[-1] / (self.base_gen_KE + eps)
+        return obs_norm
 
     # ------------------------------------------------------------------
     # Reward functions
@@ -262,31 +270,33 @@ class NCEnvironment(gym.Env):
         Physics-based reward before baseline subtraction / scaling.
 
         Following the Rayleigh-Bénard control idea:
-            Reward_Nus   = 0.9985 * gen_Nus   + 0.0015 * loc_Nus
+            Reward_Nu   = 0.9985 * gen_Nu   + 0.0015 * loc_Nu
             Reward_kinEn = 0.4    * gen_kinEn + 0.6    * loc_kinEn
-            raw_reward   = Reward_Nus - Reward_kinEn
+            raw_reward   = Reward_Nu - Reward_kinEn
 
         Mapped to our obs:
-            gen_Nus    = obs[0]
-            loc_Nus    = mean(obs[1 : 1+n_seg])
+            gen_Nu    = obs[0]
+            loc_Nu    = mean(obs[1 : 1+n_seg])
             loc_kinEn  = mean(obs[1+n_seg : 1+2*n_seg])
             gen_kinEn  = obs[-1]
         """
         n = self.n_seg
 
-        gen_Nus = float(obs[0])
+        gen_Nu = float(obs[0])
         seg_fluxes = obs[1:1 + n]
-        loc_Nus = float(np.mean(seg_fluxes)) if n > 0 else 0.0
+        loc_Nu = float(np.mean(seg_fluxes)) if n > 0 else 0.0
 
         seg_ke = obs[1 + n:1 + 2 * n]
         loc_kinEn = float(np.mean(seg_ke)) if n > 0 else 0.0
 
         gen_kinEn = float(obs[-1])
 
-        Reward_Nus = 0.9985 * gen_Nus + 0.0015 * loc_Nus
-        Reward_kinEn = 0.4 * gen_kinEn + 0.6 * loc_kinEn
+        Reward_Nu = ((1 - self.beta) * gen_Nu + self.beta * loc_Nu) / self.Nu_base
+        Reward_kinEn = (0.4 * gen_kinEn + 0.6 * loc_kinEn) / self.KE_base
 
-        return Reward_Nus - Reward_kinEn
+        alpha = 0.5
+        offset_reward = 3.0
+        return Reward_Nu - alpha * Reward_kinEn + offset_reward
 
     def _compute_reward(self, obs: np.ndarray) -> float:
         """
@@ -295,7 +305,7 @@ class NCEnvironment(gym.Env):
         then scale by reward_scale.
         """
         raw_now = self._compute_reward_raw(obs)
-        shaped = (raw_now - self.baseline_reward) / self.reward_scale
+        shaped = raw_now / self.reward_scale
         return shaped
 
     # ------------------------------------------------------------------
@@ -318,7 +328,6 @@ class NCEnvironment(gym.Env):
         )
 
         # apply baseline boundary: wall = 2.0 everywhere
-        # TODO: provide one of these in your C++ bindings.
         if hasattr(self.nc, "set_segment_temperatures"):
             baseline_vec = [2.0] * self.n_seg
             self.nc.set_segment_temperatures(baseline_vec)
@@ -334,16 +343,33 @@ class NCEnvironment(gym.Env):
         # observe after warmup
         baseline_obs = self._read_observation().astype(np.float32)
 
+        # if (self.Nu_base is None) or (self.KE_base is None):
+        eps = 1e-8
+        self.base_gen_Nu = float(baseline_obs[0]) + eps
+        seg_fluxes_baseline = baseline_obs[1:1 + self.n_seg]
+        self.base_loc_Nu = float(np.mean(seg_fluxes_baseline)) + eps
+        seg_KE_baseline = baseline_obs[1 + self.n_seg:1 + 2 * self.n_seg]
+        self.base_loc_KE = float(np.mean(seg_KE_baseline)) + eps
+        self.base_gen_KE = float(baseline_obs[-1]) + eps
+        self.Nu_base = (1 - self.beta) * self.base_gen_Nu + self.beta * self.base_loc_Nu
+        self.KE_base = 0.4 * self.base_gen_KE + 0.6 * self.base_loc_KE
+
         # define baseline_reward = how "good" the uncontrolled baseline is
-        if self.baseline_reward is None:
-            self.baseline_reward = self._compute_reward_raw(baseline_obs)
+        # if self.baseline_reward is None:
+        #     self.baseline_reward = self._compute_reward_raw(baseline_obs)
+
+        if self.episode == 1:
+            open(f'action_env{self.parallel_envs}_epi{self.episode}.txt', 'w').close()
+            open(f'reward_env{self.parallel_envs}_epi{self.episode}.txt', 'w').close()
+            open(f'reward_env{self.parallel_envs}.txt', 'w').close()
 
         # housekeeping
         self.step_count = 0
         self.total_reward_per_episode = 0.0
 
         # return obs to RL
-        return baseline_obs, {}
+        baseline_obs_norm = self._normalize_obs(baseline_obs)
+        return baseline_obs_norm, {}
 
     # ------------------------------------------------------------------
     # Gym API: step
@@ -367,8 +393,6 @@ class NCEnvironment(gym.Env):
         seg_temps = self._build_segment_temps(a)  # list[float] of length n_seg
 
         # 3. tell the solver to apply these temps on the wall
-        # TODO: implement this in C++ and expose in pybind11:
-        #   void set_segment_temperatures(const std::vector<Real>& temps);
         if hasattr(self.nc, "set_segment_temperatures"):
             self.nc.set_segment_temperatures(seg_temps)
         else:
@@ -400,7 +424,7 @@ class NCEnvironment(gym.Env):
             )
         with open(f'reward_env{self.parallel_envs}_epi{self.episode}.txt', 'a') as f:
             f.write(
-                f'clock: {self.sim_time:.6f}  reward: {reward_now:.6f}\n'
+                f'clock: {self.sim_time:.6f} | reward: {reward_now:.6f} | temps: {seg_temps}\n'
             )
 
         # 10. check termination condition
@@ -427,7 +451,8 @@ class NCEnvironment(gym.Env):
             truncated = False
 
         # 11. Gym API return
-        return obs, float(reward_now), terminated, truncated, {}
+        obs_norm = self._normalize_obs(obs)
+        return obs_norm, float(reward_now), terminated, truncated, {}
 
     def render(self):
         return 0

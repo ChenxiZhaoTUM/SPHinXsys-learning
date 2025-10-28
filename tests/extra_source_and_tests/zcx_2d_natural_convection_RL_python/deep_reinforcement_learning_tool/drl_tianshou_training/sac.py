@@ -57,7 +57,7 @@ def get_args():
     parser.add_argument("--alpha", type=float, default=0.25)
     parser.add_argument("--auto-alpha", default=False, action="store_true")
     parser.add_argument("--alpha-lr", type=float, default=5e-4)
-    parser.add_argument("--start-timesteps", type=int, default=100)
+    parser.add_argument("--start-timesteps", type=int, default=200)  # pre-sampling
     parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--step-per-epoch", type=int, default=100)
     parser.add_argument("--step-per-collect", type=int, default=1)
@@ -76,8 +76,8 @@ def get_args():
 def training_sac(args=get_args()):
     """Main function for setting up and training a SAC agent in the NC environment."""
 
-    train_env = gym.make("NC-v0", parallel_envs=0, n_seg=args.n_seg)
-    test_env = gym.make("NC-v0", parallel_envs=999, n_seg=args.n_seg)
+    train_env = gym.make("NC-v0", parallel_envs=0, n_seg=10)
+    test_env = gym.make("NC-v0", parallel_envs=999, n_seg=10)
 
     # Create vectorized environments for parallel training
     # envs = SubprocVectorEnv([

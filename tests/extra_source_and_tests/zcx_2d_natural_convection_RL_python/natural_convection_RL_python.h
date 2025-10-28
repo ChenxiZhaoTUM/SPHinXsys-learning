@@ -12,7 +12,8 @@ class SphBasicGeometrySetting
     //------------------------------------------------------------------------------
     Real L = 2 * Pi;
     Real H = 2;
-    Real particle_spacing_ref = H / 100.0;
+    //Real particle_spacing_ref = H / 100.0;
+    Real particle_spacing_ref = H / 50.0;
     Real BW = particle_spacing_ref * 3.0;
     //----------------------------------------------------------------------
     //	Basic parameters for material properties.
@@ -37,8 +38,8 @@ class SphBasicGeometrySetting
     Real U_f = sqrt(g * thermal_expansion_coeff * (down_temperature - up_temperature) * H);                     /**< Characteristic velocity. */
     Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
 
-    //size_t n_seg = 4;
-    inline static StdVec<Real> down_wall_segment_T = StdVec<Real>(4, 2.0);
+    size_t n_seg = 10;
+    inline static StdVec<Real> down_wall_segment_T = StdVec<Real>(10, 2.0);
     //----------------------------------------------------------------------
     //	Geometric shapes used in the system.
     //----------------------------------------------------------------------

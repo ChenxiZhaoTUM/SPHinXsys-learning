@@ -130,7 +130,8 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real output_interval = 1.0;
+    //Real output_interval = 1.0;
+    Real output_interval = 2.0;
     int number_of_iterations = 0;
     int screen_output_interval = 100;
     /** statistics for computing time. */
@@ -192,6 +193,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           write_global_kinetic_energy(diffusion_body)
     {
         physical_time = 0.0;
+
+        {
+            StdVec<Real> baseline_temps(n_seg, 2.0);
+            SphBasicGeometrySetting::setDownWallSegmentTemperatures(baseline_temps);
+        }
 
         //----------------------------------------------------------------------
         //	Prepare the simulation with cell linked list, configuration

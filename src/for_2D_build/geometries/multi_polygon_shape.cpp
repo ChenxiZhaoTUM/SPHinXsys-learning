@@ -130,7 +130,7 @@ void MultiPolygon::addAPolygon(const std::vector<Vecd> &points, ShapeBooleanOps 
     append(poly, pts);
     if (!is_valid(poly))
     {
-        std::cout << "\n Try to reverse the points to clockwise." << std::endl;
+        // std::cout << "\n Try to reverse the points to clockwise." << std::endl;
         poly.clear();
         std::vector<model::d2::point_xy<Real>> pts_reverse(pts.rbegin(), pts.rend());
         append(poly, pts_reverse);
