@@ -125,8 +125,6 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     ObservedQuantityRecording<Vecd> write_recorded_fluid_vel;
     ExtendedReducedQuantityRecording<TotalKineticEnergy> write_global_kinetic_energy;
 
-    StdVec<Real> current_segment_temps_; // length n_seg
-
     //----------------------------------------------------------------------
     //	    Basic control parameters for time stepping.
     //----------------------------------------------------------------------
@@ -194,11 +192,6 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           write_global_kinetic_energy(diffusion_body)
     {
         physical_time = 0.0;
-        // default bottom-wall temps: [2,2,2, ...] initially
-        current_segment_temps_.clear();
-        current_segment_temps_.push_back(2.0);
-        current_segment_temps_.push_back(2.0);
-        current_segment_temps_.push_back(2.0);
 
         //----------------------------------------------------------------------
         //	Prepare the simulation with cell linked list, configuration
@@ -349,7 +342,6 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     {
         if (Ts.empty()) return;
 
-        current_segment_temps_ = Ts;
         SphBasicGeometrySetting::setDownWallSegmentTemperatures(Ts);
         setup_down_Dirichlet_initial_condition.exec();
     }
