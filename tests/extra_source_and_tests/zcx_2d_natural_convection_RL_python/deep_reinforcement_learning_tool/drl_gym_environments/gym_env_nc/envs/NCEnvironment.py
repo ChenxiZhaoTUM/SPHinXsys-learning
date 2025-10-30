@@ -1,4 +1,6 @@
 import sys
+import os
+import glob, re
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -6,6 +8,21 @@ from gymnasium import spaces
 # TODO: replace with an env var or auto-discovery
 sys.path.append(r"D:\SPHinXsys_build\tests\test_python_interface\zcx_2d_natural_convection_RL_python\lib\Release")
 import zcx_2d_natural_convection_RL_python as test_2d
+
+
+def _mkdir(p: str) -> str:
+    os.makedirs(p, exist_ok=True)
+    return p
+
+
+def _latest_restart_step(restart_dir: str) -> int:
+    steps = []
+    for f in glob.glob(os.path.join(restart_dir, "*_rst_*.xml")):
+        m = re.search(r"_rst_(\d+)\.xml$", f.replace("\\", "/"))
+        if m:
+            steps.append(int(m.group(1)))
+    mx = max(steps) if steps else -1
+    return mx if mx > 0 else -1
 
 
 class NCEnvironment(gym.Env):
@@ -74,12 +91,17 @@ class NCEnvironment(gym.Env):
         # number of bottom-wall control segments
         self.n_seg = int(n_seg)
 
+        # ----- result folder -----
+        proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))  # .../bin/drl
+        self.training_root = _mkdir(os.path.join(proj_root, "drl_tianshou_training", "training_results"))
+        self.restart_dir = _mkdir(os.path.join(self.training_root, "restart"))  # ./restart
+        # each env log directory
+        self.log_dir = _mkdir(os.path.join(self.training_root, f"logs_env_{self.parallel_envs}"))
+
         # ----- physical timing -----
-        # warmup_time: run baseline before first action
-        # delta_time: CFD physical time per control step
-        self.warmup_time = 120.0
-        # self.warmup_time = 20.0  # only for debug
-        self.delta_time = 2.0
+        self.step_to_load = 0
+        self.warmup_time = 100.0  # warmup_time: run baseline before first action
+        self.delta_time = 2.0  # delta_time: CFD physical time per control step
         # TODO: test how long it will take to stabilize after the temperature is changed, or it does not need steady solution
         # running simulation time cursor (absolute physical time in solver)
         self.sim_time = 0.0
@@ -121,6 +143,8 @@ class NCEnvironment(gym.Env):
         self.reward_scale = 1.0
 
         # ----- runtime state -----
+        self.nc_base = None  # the C++ solver / simulation handle
+        self.baseline_obs = None
         self.nc = None  # the C++ solver / simulation handle
         self.total_reward_per_episode = 0.0
 
@@ -185,7 +209,7 @@ class NCEnvironment(gym.Env):
     # ------------------------------------------------------------------
     # Observation builder
     # ------------------------------------------------------------------
-    def _read_observation(self):
+    def _read_observation(self, sim):
         """
         Build observation vector of length (n_seg * 2 + 2):
 
@@ -202,12 +226,12 @@ class NCEnvironment(gym.Env):
         obs = np.zeros(self.obs_numbers, dtype=np.float32)
 
         # --- 0. global heat flux ---
-        obs[0] = self.nc.get_global_heat_flux()
+        obs[0] = sim.get_global_heat_flux()
 
         # --- 1. per-segment local heat flux ---
         # obs[1 + i] for i in [0..n_seg-1]
         for i in range(self.n_seg):
-            obs[1 + i] = self.nc.get_local_phi_flux(int(i))
+            obs[1 + i] = sim.get_local_phi_flux(int(i))
 
         # --- 2. per-segment mean KE from probes ---
         n_rows = 8  # probe rows
@@ -232,8 +256,8 @@ class NCEnvironment(gym.Env):
             for col in range(col_start, col_end):
                 for row in range(n_rows):
                     idx = col_major_idx(row, col)
-                    vx = self.nc.get_local_velocity(idx, 0)
-                    vy = self.nc.get_local_velocity(idx, 1)
+                    vx = sim.get_local_velocity(idx, 0)
+                    vy = sim.get_local_velocity(idx, 1)
                     E_sum += vx * vx + vy * vy
                     count += 1
 
@@ -247,7 +271,7 @@ class NCEnvironment(gym.Env):
             obs[1 + self.n_seg + g] = E_avg
 
         # --- 3. global kinetic energy ---
-        obs[-1] = self.nc.get_global_kinetic_energy()
+        obs[-1] = sim.get_global_kinetic_energy()
 
         return obs
 
@@ -321,55 +345,67 @@ class NCEnvironment(gym.Env):
         - Return the observation after warmup.
         """
         super().reset(seed=seed)
+        # ---- Episode start banner ----
+        msg = f"[env {self.parallel_envs}] ===== Episode {self.episode} start ====="
+        print(msg)
+        os.makedirs(self.log_dir, exist_ok=True)
+        with open(os.path.join(self.log_dir, "episodes.txt"), "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
 
-        # new solver instance (pass IDs to help with logging on C++ side)
-        self.nc = test_2d.natural_convection_from_sph_cpp(
-            self.parallel_envs, self.episode
-        )
+        action_log = os.path.join(self.log_dir, f"action_env{self.parallel_envs}_epi{self.episode}.txt")
+        reward_log = os.path.join(self.log_dir, f"reward_env{self.parallel_envs}_epi{self.episode}.txt")
+        open(action_log, "w").close()
+        open(reward_log, "w").close()
+        open(os.path.join(self.log_dir, f"reward_env{self.parallel_envs}.txt"), "a").close()
 
-        # apply baseline boundary: wall = 2.0 everywhere
-        if hasattr(self.nc, "set_segment_temperatures"):
-            baseline_vec = [2.0] * self.n_seg
-            self.nc.set_segment_temperatures(baseline_vec)
-        else:
-            raise RuntimeError(
-                "C++ solver missing set_segment_temperatures(...) needed for baseline."
+        os.chdir(self.training_root)
+        if self.episode == 1:
+            # new solver instance (pass IDs to help with logging on C++ side)
+            self.nc_base = test_2d.natural_convection_from_sph_cpp(
+                self.parallel_envs, self.episode, 0
             )
 
-        # run uncontrolled/baseline flow up to warmup_time seconds of sim time
+            # apply baseline boundary: wall = 2.0 everywhere
+            self.nc_base.set_segment_temperatures([2.0] * self.n_seg)
+
+            # run uncontrolled/baseline flow up to warmup_time seconds of sim time
+            self.sim_time = float(self.warmup_time)
+            self.nc_base.run_case(self.sim_time)
+
+            # observe after warmup
+            self.baseline_obs = self._read_observation(self.nc_base).astype(np.float32)
+
+            # if (self.Nu_base is None) or (self.KE_base is None):
+            eps = 1e-8
+            self.base_gen_Nu = float(self.baseline_obs[0]) + eps
+            seg_fluxes_baseline = self.baseline_obs[1:1 + self.n_seg]
+            self.base_loc_Nu = float(np.mean(seg_fluxes_baseline)) + eps
+            seg_KE_baseline = self.baseline_obs[1 + self.n_seg:1 + 2 * self.n_seg]
+            self.base_loc_KE = float(np.mean(seg_KE_baseline)) + eps
+            self.base_gen_KE = float(self.baseline_obs[-1]) + eps
+            self.Nu_base = (1 - self.beta) * self.base_gen_Nu + self.beta * self.base_loc_Nu
+            self.KE_base = 0.4 * self.base_gen_KE + 0.6 * self.base_loc_KE
+
+            # define baseline_reward = how "good" the uncontrolled baseline is
+            # if self.baseline_reward is None:
+            #     self.baseline_reward = self._compute_reward_raw(self.baseline_obs)
+
+        self.step_to_load = _latest_restart_step(self.restart_dir)
+        if self.step_to_load < 0:
+            raise RuntimeError("No restart files found under training_results/restart. "
+                               "Make sure episode 1 finished the warm-up.")
+
+        self.nc = test_2d.natural_convection_from_sph_cpp(self.parallel_envs, self.episode, int(self.step_to_load))
+        self.nc.run_case(self.warmup_time)
         self.sim_time = float(self.warmup_time)
-        self.nc.run_case(self.sim_time)
-
-        # observe after warmup
-        baseline_obs = self._read_observation().astype(np.float32)
-
-        # if (self.Nu_base is None) or (self.KE_base is None):
-        eps = 1e-8
-        self.base_gen_Nu = float(baseline_obs[0]) + eps
-        seg_fluxes_baseline = baseline_obs[1:1 + self.n_seg]
-        self.base_loc_Nu = float(np.mean(seg_fluxes_baseline)) + eps
-        seg_KE_baseline = baseline_obs[1 + self.n_seg:1 + 2 * self.n_seg]
-        self.base_loc_KE = float(np.mean(seg_KE_baseline)) + eps
-        self.base_gen_KE = float(baseline_obs[-1]) + eps
-        self.Nu_base = (1 - self.beta) * self.base_gen_Nu + self.beta * self.base_loc_Nu
-        self.KE_base = 0.4 * self.base_gen_KE + 0.6 * self.base_loc_KE
-
-        # define baseline_reward = how "good" the uncontrolled baseline is
-        # if self.baseline_reward is None:
-        #     self.baseline_reward = self._compute_reward_raw(baseline_obs)
-
-        if self.episode == 1:
-            open(f'action_env{self.parallel_envs}_epi{self.episode}.txt', 'w').close()
-            open(f'reward_env{self.parallel_envs}_epi{self.episode}.txt', 'w').close()
-            open(f'reward_env{self.parallel_envs}.txt', 'w').close()
 
         # housekeeping
         self.step_count = 0
         self.total_reward_per_episode = 0.0
 
         # return obs to RL
-        baseline_obs_norm = self._normalize_obs(baseline_obs)
-        return baseline_obs_norm, {}
+        obs0 = self._read_observation(self.nc).astype(np.float32)
+        return self._normalize_obs(obs0), {}
 
     # ------------------------------------------------------------------
     # Gym API: step
@@ -393,12 +429,7 @@ class NCEnvironment(gym.Env):
         seg_temps = self._build_segment_temps(a)  # list[float] of length n_seg
 
         # 3. tell the solver to apply these temps on the wall
-        if hasattr(self.nc, "set_segment_temperatures"):
-            self.nc.set_segment_temperatures(seg_temps)
-        else:
-            raise RuntimeError(
-                "C++ solver has no set_segment_temperatures(...) binding."
-            )
+        self.nc.set_segment_temperatures(seg_temps)
 
         # 4. figure out new target simulation time
         end_time = self.sim_time + self.delta_time
@@ -408,7 +439,7 @@ class NCEnvironment(gym.Env):
         self.step_count += 1
 
         # 6. read final observation
-        obs = self._read_observation().astype(np.float32)
+        obs = self._read_observation(self.nc).astype(np.float32)
 
         # 7. compute shaped reward and accumulate episode return
         reward_now = self._compute_reward(obs)
@@ -418,14 +449,11 @@ class NCEnvironment(gym.Env):
         self.sim_time = end_time
 
         # 9. optional logging
-        with open(f'action_env{self.parallel_envs}_epi{self.episode}.txt', 'a') as f:
-            f.write(
-                f"clock: {self.sim_time:.6f}  raw_action: {a.tolist()}  seg_temps: {seg_temps}\n"
-            )
-        with open(f'reward_env{self.parallel_envs}_epi{self.episode}.txt', 'a') as f:
-            f.write(
-                f'clock: {self.sim_time:.6f} | reward: {reward_now:.6f} | temps: {seg_temps}\n'
-            )
+        with open(os.path.join(self.log_dir, f'action_env{self.parallel_envs}_epi{self.episode}.txt'), 'a') as f:
+            f.write(f"clock: {self.sim_time:.6f}  raw_action: {a.tolist()}  seg_temps: {seg_temps}\n")
+
+        with open(os.path.join(self.log_dir, f'reward_env{self.parallel_envs}_epi{self.episode}.txt'), 'a') as f:
+            f.write(f'clock: {self.sim_time:.6f} | reward: {reward_now:.6f} | temps: {seg_temps}\n')
 
         # 10. check termination condition
         if not self.deterministic:
@@ -438,10 +466,10 @@ class NCEnvironment(gym.Env):
             truncated = False
 
             # log total episode reward
-            with open(f'reward_env{self.parallel_envs}.txt', 'a') as file:
+            total_log = os.path.join(self.log_dir, f'reward_env{self.parallel_envs}.txt')
+            with open(total_log, 'a', encoding='utf-8') as file:
                 file.write(
-                    f'episode: {self.episode}  total_reward: '
-                    f'{self.total_reward_per_episode:.6f}\n'
+                    f'episode: {self.episode}  total_reward: {self.total_reward_per_episode:.6f}\n'
                 )
 
             # increment episode counter for next reset
