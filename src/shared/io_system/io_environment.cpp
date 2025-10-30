@@ -33,6 +33,7 @@ IOEnvironment::IOEnvironment(SPHSystem &sph_system, bool delete_output)
 
     if (sph_system.RestartStep() == 0)
     {
+        std::cout << "The restart folder is removing ..." << std::endl;
         fs::remove_all(restart_folder_);
         fs::create_directory(restart_folder_);
         if (delete_output == true)

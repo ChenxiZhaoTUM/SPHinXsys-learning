@@ -200,7 +200,7 @@ class RestartIO : public BaseIO
 
     virtual void writeToFile(size_t iteration_step = 0) override;
 
-    template <class ExecutionPolicy>
+    template <class ExecutionPolicy, typename = std::enable_if_t<!std::is_integral_v<ExecutionPolicy>>>
     void writeToFile(const ExecutionPolicy &ex_policy, size_t iteration_step = 0)
     {
         for (size_t i = 0; i < bodies_.size(); ++i)
