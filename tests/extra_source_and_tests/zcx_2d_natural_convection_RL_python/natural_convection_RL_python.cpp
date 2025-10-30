@@ -18,13 +18,17 @@ class SphBasicSystemSetting : public SphBasicGeometrySetting
   protected:
     BoundingBox system_domain_bounds;
     SPHSystem sph_system;
-    CustomIOEnvironment custom_io_environment;
+    std::unique_ptr<CustomIOEnvironment> custom_io_environment;
 
   public:
-    SphBasicSystemSetting(int parallel_env, int episode_env)
+    SphBasicSystemSetting(int parallel_env, int episode_env, int set_restart_step = 0)
         : system_domain_bounds(Vecd(-BW, - H/2 -BW), Vecd(L + BW, H/2 + BW)),
-          sph_system(system_domain_bounds, particle_spacing_ref),
-          custom_io_environment(sph_system, true, parallel_env, episode_env) {}
+          sph_system(system_domain_bounds, particle_spacing_ref)
+    {
+        sph_system.setRestartStep(set_restart_step);
+        custom_io_environment = std::make_unique<CustomIOEnvironment>(sph_system, (set_restart_step == 0), parallel_env, episode_env);
+    
+    }
 };
 
 class SphBodyReloadEnvironment : public SphBasicSystemSetting
@@ -35,8 +39,8 @@ class SphBodyReloadEnvironment : public SphBasicSystemSetting
     ObserverBody diffusion_observer;
 
   public:
-    SphBodyReloadEnvironment(int parallel_env, int episode_env)
-        : SphBasicSystemSetting(parallel_env, episode_env),
+    SphBodyReloadEnvironment(int parallel_env, int episode_env, int set_restart_step = 0)
+        : SphBasicSystemSetting(parallel_env, episode_env, set_restart_step),
           diffusion_body(sph_system, makeShared<DiffusionBody>("DiffusionBody")),
           wall_boundary(sph_system, makeShared<WallBoundary>("EntireWallBoundary")),
           up_wall_Dirichlet(sph_system, makeShared<UpDirichletWallBoundary>("UpDirichletWallBoundary")),
@@ -132,15 +136,17 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     int ite = 0;
     //Real output_interval = 1.0;
     Real output_interval = 2.0;
-    int number_of_iterations = 0;
+    int number_of_iterations;
     int screen_output_interval = 100;
+    int restart_output_interval = screen_output_interval * 10;
+
     /** statistics for computing time. */
     TickCount t1 = TickCount::now();
     TimeInterval interval;
 
   public:
-    explicit SphNaturalConvection(int parallel_env, int episode_env)
-        : SphBodyReloadEnvironment(parallel_env, episode_env),
+    explicit SphNaturalConvection(int parallel_env, int episode_env, int set_restart_step = 0)
+        : SphBodyReloadEnvironment(parallel_env, episode_env, set_restart_step),
           sph_system_(sph_system),
           diffusion_body_inner(diffusion_body),
           up_Dirichlet_contact(up_wall_Dirichlet, {&diffusion_body}),
@@ -193,35 +199,55 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           write_global_kinetic_energy(diffusion_body)
     {
         physical_time = 0.0;
-
-        {
-            StdVec<Real> baseline_temps(n_seg, 2.0);
-            SphBasicGeometrySetting::setDownWallSegmentTemperatures(baseline_temps);
-        }
-
+        
         //----------------------------------------------------------------------
         //	Prepare the simulation with cell linked list, configuration
         //	and case specified initial condition if necessary.
         //----------------------------------------------------------------------
         sph_system.initializeSystemCellLinkedLists();
         sph_system.initializeSystemConfigurations();
-        setup_diffusion_initial_condition.exec();
-        setup_up_Dirichlet_initial_condition.exec();
-        setup_down_Dirichlet_initial_condition.exec();
-        setup_boundary_condition_Neumann.exec();
         diffusion_body_normal_direction.exec();
         entire_wall_normal_direction.exec();
         up_Dirichlet_wall_normal_direction.exec();
         down_Dirichlet_wall_normal_direction.exec();
         Neumann_wall_normal_direction.exec();
+        
+        
+        number_of_iterations = sph_system.RestartStep();
+
+        if (sph_system.RestartStep() == 0)
+        {
+            StdVec<Real> baseline_temps(n_seg, 2.0);
+            SphBasicGeometrySetting::setDownWallSegmentTemperatures(baseline_temps);
+
+            setup_diffusion_initial_condition.exec();
+            setup_up_Dirichlet_initial_condition.exec();
+            setup_down_Dirichlet_initial_condition.exec();
+            setup_boundary_condition_Neumann.exec();
+        }
+
+        if (sph_system.RestartStep() != 0)
+        {
+            physical_time = restart_io.readRestartFiles(sph_system.RestartStep());
+            diffusion_body.updateCellLinkedList();
+            down_wall_Dirichlet.updateCellLinkedList();
+            fluid_body_complex.updateConfiguration();
+            up_Dirichlet_contact.updateConfiguration();
+            down_Dirichlet_contact.updateConfiguration();
+            diffusion_body_contact_all_Dirichlet.updateConfiguration();
+            diffusion_body_contact_up_Dirichlet.updateConfiguration();
+            diffusion_body_contact_down_Dirichlet.updateConfiguration();
+            diffusion_body_contact_Neumann.updateConfiguration();
+            observer_diffusion_body_contact.updateConfiguration();
+        }
         //----------------------------------------------------------------------
         //	First output before the main loop.
         //----------------------------------------------------------------------
-        write_states.writeToFile(0);
-        write_up_PhiFluxSum.writeToFile(0);
-        write_down_PhiFluxSum.writeToFile(0);
-        write_recorded_fluid_vel.writeToFile(0);
-        write_global_kinetic_energy.writeToFile(0);
+        write_states.writeToFile();
+        write_up_PhiFluxSum.writeToFile();
+        write_down_PhiFluxSum.writeToFile();
+        write_recorded_fluid_vel.writeToFile();
+        write_global_kinetic_energy.writeToFile();
     }
 
     virtual ~SphNaturalConvection(){};
@@ -389,7 +415,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
                               << physical_time
                               << "	Dt = " << Dt << "	Dt / dt = " << inner_ite_dt << "\n";
 
-                    //write_states.writeToFile();
+                    if (sph_system.RestartStep() == 0 && number_of_iterations % restart_output_interval == 0)
+                    { 
+                        restart_io.writeToFile(number_of_iterations);
+                    }
+                        
                 }
                 number_of_iterations++;
 
@@ -428,6 +458,10 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
             interval += t3 - t2;
         }
         TickCount t4 = TickCount::now();
+        if (sph_system.RestartStep() == 0)
+        { 
+            restart_io.writeToFile(number_of_iterations);
+        }
         TimeInterval tt;
         tt = t4 - t1 - interval;
     };
@@ -439,7 +473,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
 PYBIND11_MODULE(zcx_2d_natural_convection_RL_python, m)
 {
     py::class_<SphNaturalConvection>(m, "natural_convection_from_sph_cpp")
-        .def(py::init<const int&, const int&>())
+        .def(py::init<const int&, const int&, const int&>(), py::arg("parallel_env"), py::arg("episode_env"), py::arg("set_restart_step") = 0)
         .def("cmake_test", &SphNaturalConvection::cmakeTest)
         .def("set_segment_temperatures", &SphNaturalConvection::setDownWallSegmentTemperatures, py::arg("temps"))
         .def("get_global_heat_flux", &SphNaturalConvection::getPhiFluxSum)

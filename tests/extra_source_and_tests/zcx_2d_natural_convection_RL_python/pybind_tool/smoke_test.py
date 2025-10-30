@@ -129,18 +129,27 @@ def ensure_module():
         raise ImportError("\n".join(msg)) from e
 
 
+def mkdir(p: str) -> str:
+    os.makedirs(p, exist_ok=True)
+    return p
+
+
 # ---------- Your case runner ----------
 def run_smoke_test():
     parser = argparse.ArgumentParser()
     parser.add_argument("--parallel_env", default=0, type=int)
     parser.add_argument("--episode_env", default=0, type=int)
+    parser.add_argument("--set_restart_step", default=0, type=int)
     parser.add_argument("--extra_run", default=20.0, type=float,
                         help="Extra physical time to advance after debug_smoke_test()")
     args = parser.parse_args()
-
     mod = ensure_module()
 
-    solver = getattr(mod, "natural_convection_from_sph_cpp")(args.parallel_env, args.episode_env)
+    bind_dir = os.path.dirname(__file__)
+    bind_results_dir = mkdir(os.path.join(bind_dir, "smoke_results"))
+    os.chdir(bind_results_dir)
+
+    solver = getattr(mod, "natural_convection_from_sph_cpp")(args.parallel_env, args.episode_env, args.set_restart_step)
 
     print("=== [1] calling debug_smoke_test() ===")
     # this runs: set some temps, advance 10s, print flux etc. on the C++ side

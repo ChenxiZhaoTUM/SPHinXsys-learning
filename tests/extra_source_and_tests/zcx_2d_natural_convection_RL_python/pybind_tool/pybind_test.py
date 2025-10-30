@@ -5,6 +5,7 @@ import glob
 import argparse
 import importlib.util
 from typing import Optional
+import re
 
 # ---------- Configure your module (basename must match PYBIND11_MODULE) ----------
 MODULE_NAME = "zcx_2d_natural_convection_RL_python"
@@ -129,11 +130,29 @@ def ensure_module():
         raise ImportError("\n".join(msg)) from e
 
 
+# ---------- small utils ----------
+def mkdir(p: str) -> str:
+    os.makedirs(p, exist_ok=True)
+    return p
+
+
+def latest_restart_step(restart_dir: str) -> int:
+    """Parse *_rst_XXXXXXXXXX.xml and return the max XXXXX..."""
+    steps = []
+    for f in glob.glob(os.path.join(restart_dir, "*_rst_*.xml")):
+        m = re.search(r"_rst_(\d+)\.xml$", f.replace("\\", "/"))
+        if m:
+            steps.append(int(m.group(1)))
+    return max(steps) if steps else 0
+
+
 # ---------- Your case runner ----------
 def run_case():
     parser = argparse.ArgumentParser()
     parser.add_argument("--parallel_env", default=0, type=int)
     parser.add_argument("--episode_env", default=0, type=int)
+    parser.add_argument("--set_restart_step", default=0, type=int)
+    parser.add_argument("--n_seg", default=3, type=int)
 
     # how long to warm up the baseline (uniform T=2.0)
     parser.add_argument("--warmup_time", default=120.0, type=float)
@@ -143,32 +162,36 @@ def run_case():
     parser.add_argument("--control_horizon", default=5.0, type=float)
 
     args = parser.parse_args()
-
     mod = ensure_module()
 
-    # 1) create solver instance
-    sim = getattr(mod, "natural_convection_from_sph_cpp")(args.parallel_env, args.episode_env)
-    print("[Info] Solver constructed.")
+    bind_dir = os.path.dirname(__file__)
+    bind_results_dir = mkdir(os.path.join(bind_dir, "bind_results"))
 
     # --------------------------------------------------------------------------------
-    # Stage A. Baseline warmup: bottom wall = [2.0, 2.0, 2.0], run to warmup_time
+    # Stage A. Baseline warmup: bottom wall = [2.0, 2.0, ...], run to warmup_time
     # --------------------------------------------------------------------------------
-    baseline_wall = [2.0, 2.0, 2.0]
+    print("\n=== Stage A: warm-up & write restart ===")
+    os.chdir(bind_results_dir)
+    # 1) create solver instance
+    simA = getattr(mod, "natural_convection_from_sph_cpp")(args.parallel_env, args.episode_env, args.set_restart_step)
+    print("[Info] Solver constructed.")
+
+    baseline_wall = [2.0] * args.n_seg
     print(f"[Info] Setting initial baseline wall temps = {baseline_wall}")
-    sim.set_segment_temperatures(baseline_wall)
+    simA.set_segment_temperatures(baseline_wall)
 
     # advance CFD to warmup_time (absolute physical time = args.warmup_time)
     print(f"[Info] Running baseline to t = {args.warmup_time} ...")
-    sim.run_case(args.warmup_time)
+    simA.run_case(args.warmup_time)
 
     # read baseline observation
-    base_global_flux = sim.get_global_heat_flux()
-    base_flux0 = sim.get_local_phi_flux(0)
-    base_flux1 = sim.get_local_phi_flux(1)
-    base_flux2 = sim.get_local_phi_flux(2)
-    base_ke_global = sim.get_global_kinetic_energy()
-    base_vx0 = sim.get_local_velocity(0, 0)
-    base_vy0 = sim.get_local_velocity(0, 1)
+    base_global_flux = simA.get_global_heat_flux()
+    base_flux0 = simA.get_local_phi_flux(0)
+    base_flux1 = simA.get_local_phi_flux(1)
+    base_flux2 = simA.get_local_phi_flux(2)
+    base_ke_global = simA.get_global_kinetic_energy()
+    base_vx0 = simA.get_local_velocity(0, 0)
+    base_vy0 = simA.get_local_velocity(0, 1)
 
     print("=== Baseline state after warmup ===")
     print(f"  global_heat_flux         = {base_global_flux}")
@@ -177,27 +200,45 @@ def run_case():
     print(f"  probe0 velocity (vx,vy)  = ({base_vx0}, {base_vy0})")
     print("===================================")
 
+    restart_dir = os.path.join(bind_results_dir, "restart")
+    latest_step = latest_restart_step(restart_dir)
+    print(f"[Warmup] latest restart step = {latest_step}")
+
     # --------------------------------------------------------------------------------
     # Stage B. Apply a "control" temperature pattern and run a short horizon
     # --------------------------------------------------------------------------------
+    print("\n=== Stage B: load restart, top-up to 120s, control +5s ===")
+
+    step_to_load = latest_step
+    if step_to_load <= 0:
+        raise RuntimeError("No restart step found to load. Did Stage A write files?")
+
+    simB = getattr(mod, "natural_convection_from_sph_cpp")(args.parallel_env, args.episode_env, int(step_to_load))
+    print(f"[Info] Solver B constructed from restart step {step_to_load}.")
+
+    # After loading, the physical time is approximately 119s.
+    # First, advance to 120s (target absolute time = warmup_time)
+    # print(f"[Info] Advancing to exactly t={args.warmup_time} ...")
+    # simB.run_case(args.warmup_time)
+
     # This mimics one RL step: choose action → convert to per-segment temps → advance
     # Here we just hand-pick something not uniform to see an effect:
-    control_wall = [2.3, 2.0, 1.7]
+    control_wall = [2.3, 2.0, 1.7, 2.0]
     print(f"[Info] Applying control wall temps = {control_wall}")
-    sim.set_segment_temperatures(control_wall)
+    simB.set_segment_temperatures(control_wall)
 
     target_time = args.warmup_time + args.control_horizon
     print(f"[Info] Advancing simulation to t = {target_time} ...")
-    sim.run_case(target_time)
+    simB.run_case(target_time)
 
     # read post-control observation
-    post_global_flux = sim.get_global_heat_flux()
-    post_flux0 = sim.get_local_phi_flux(0)
-    post_flux1 = sim.get_local_phi_flux(1)
-    post_flux2 = sim.get_local_phi_flux(2)
-    post_ke_global = sim.get_global_kinetic_energy()
-    post_vx0 = sim.get_local_velocity(0, 0)
-    post_vy0 = sim.get_local_velocity(0, 1)
+    post_global_flux = simB.get_global_heat_flux()
+    post_flux0 = simB.get_local_phi_flux(0)
+    post_flux1 = simB.get_local_phi_flux(1)
+    post_flux2 = simB.get_local_phi_flux(2)
+    post_ke_global = simB.get_global_kinetic_energy()
+    post_vx0 = simB.get_local_velocity(0, 0)
+    post_vy0 = simB.get_local_velocity(0, 1)
 
     print("=== Post-control state ===")
     print(f"  global_heat_flux         = {post_global_flux}")

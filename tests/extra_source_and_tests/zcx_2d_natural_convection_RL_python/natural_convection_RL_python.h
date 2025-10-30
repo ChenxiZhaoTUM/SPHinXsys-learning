@@ -211,7 +211,10 @@ class DiffusionInitialCondition : public LocalDynamics, public SphBasicGeometryS
     explicit DiffusionInitialCondition(SPHBody &sph_body)
         : LocalDynamics(sph_body),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
-          phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) {};
+          phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) 
+    {
+        this->particles_->template addVariableToRestart<Real>(diffusion_species_name);
+    };
 
     void update(size_t index_i, Real dt)
     {
@@ -230,7 +233,10 @@ class DirichletWallBoundaryInitialCondition : public LocalDynamics, public SphBa
     explicit DirichletWallBoundaryInitialCondition(SPHBody &sph_body)
         : LocalDynamics(sph_body),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
-          phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) {};
+          phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) 
+    {
+        this->particles_->template addVariableToRestart<Real>(diffusion_species_name);
+    };
 
     void update(size_t index_i, Real dt)
     {
@@ -334,7 +340,10 @@ class NeumannWallBoundaryInitialCondition : public LocalDynamics, public SphBasi
         : LocalDynamics(sph_body),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
           phi_(particles_->registerStateVariable<Real>(diffusion_species_name)),
-          phi_flux_(particles_->getVariableDataByName<Real>(diffusion_species_name + "Flux")) {}
+          phi_flux_(particles_->getVariableDataByName<Real>(diffusion_species_name + "Flux")) 
+    {
+        this->particles_->template addVariableToRestart<Real>(diffusion_species_name);
+    }
 
     void update(size_t index_i, Real dt)
     {
