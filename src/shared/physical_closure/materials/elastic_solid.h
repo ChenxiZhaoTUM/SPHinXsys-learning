@@ -157,6 +157,10 @@ class SaintVenantKirchhoffSolid : public LinearElasticSolid
     {
         material_type_name_ = "SaintVenantKirchhoffSolid";
     };
+
+    explicit SaintVenantKirchhoffSolid(ConstructArgs<Real, Real, Real> args)
+        : SaintVenantKirchhoffSolid(std::get<0>(args), std::get<1>(args), std::get<2>(args)) {}
+
     virtual ~SaintVenantKirchhoffSolid() {};
 
     /** second Piola-Kirchhoff stress related with green-lagrangian deformation tensor */

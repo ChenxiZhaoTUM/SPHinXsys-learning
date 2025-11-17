@@ -143,6 +143,12 @@ class IsotropicThermalDiffusion : public BaseDiffusion
     };
 
     virtual Real getThermalConductivity() override { return thermal_conductivity_; };
+    virtual Real getThermalConductivityWithBoundary(size_t index_i) override { return thermal_conductivity_; }
+    virtual Real getInterParticleThermalConductivity(size_t index_i, size_t index_j, const Vecd &e_ij) override
+    {
+        return diff_cf_;
+    };
+
     Real getRefDensity() { return ref_density_; };
     Real getSpecificHeat() { return specific_heat_; };
 };
