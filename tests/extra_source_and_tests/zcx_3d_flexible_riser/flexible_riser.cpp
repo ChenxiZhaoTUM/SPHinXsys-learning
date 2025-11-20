@@ -32,7 +32,7 @@ Real U_f = 10.0;                     /**< Characteristic velocity. */
 Real c_f = 10.0 * U_f * 1.5;              /**< Speed of sound. */
 
 //Real rho0_inner = 80.0;
-Real rho0_inner = 100.0;
+Real rho0_inner = 500.0;
 Real mu_inner = 1.3e-5;
 Real Cp_inner = 2200.0 / 10000;
 Real k_inner = 0.03;
@@ -47,11 +47,12 @@ Real k_outer = 0.6;
 Real diffusion_coff_outer = k_outer / (Cp_outer * rho0_outer);
 Real initial_temperature_outer = 0.0;
 
-Real rho0_tube = 7850.0;
+//Real rho0_tube = 7850.0;
+Real rho0_tube = 4000.0;
 //Real Youngs_modulus_tube = 2.0e11;
-Real Youngs_modulus_tube = 1.0e9;
-//Real poisson_tube = 0.3;
-Real poisson_tube = 0.4;
+//Real Youngs_modulus_tube = 1.0e7;
+Real Youngs_modulus_tube = 1.0e6;
+Real poisson_tube = 0.3;
 Real Cp_tube = 470.0 / 10000;
 Real k_tube = 50.0;
 Real diffusion_coff_tube = k_tube / (Cp_tube * rho0_tube);
@@ -558,7 +559,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     Real end_time = 10;
-    Real output_interval = end_time / 1000.0; /**< time stamps for output,WriteToFile*/
+    Real output_interval = end_time / 100.0; /**< time stamps for output,WriteToFile*/
     int number_of_iterations = 0;
     int screen_output_interval = 40;
     Real dt = 0.0;
