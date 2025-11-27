@@ -4,6 +4,7 @@ import glob, re
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
+from collections import deque
 
 # TODO: replace with an env var or auto-discovery
 sys.path.append(r"D:\SPHinXsys_build\tests\test_python_interface\zcx_2d_natural_convection_RL_python\lib\Release")
@@ -27,311 +28,139 @@ def _latest_restart_step(restart_dir: str) -> int:
 
 class NCEnvironment(gym.Env):
     """
-    Single-agent environment for natural convection control.
+    Single-agent environment for natural convection control (SPHinXsys).
 
-    Each action controls n_seg heater segments on the bottom wall.
-
-    Action (per episode step):
-        a[0:n_seg]: target temperature (or temperature command) for each segment.
-
-    Observation (returned by reset() and step()):
-        obs is length (2 * n_seg + 2), laid out as:
-            obs[0]                    = global heat flux (PhiFluxSum)
-            obs[1 + i]                = local heat flux of segment i
-                                        for i in [0 .. n_seg-1]
-            obs[1 + n_seg + i]        = mean kinetic energy of probe block i
-                                        computed from the 8x30 probe grid,
-                                        columns split contiguously into n_seg groups,
-                                        then averaged to remove group-size bias
-            obs[-1]                   = global kinetic energy
-
-    Reward (shaped):
-        We want to enhance heat transfer and suppress convection intensity.
-        Following the style of the Rayleigh-Bénard MARL code:
-
-            Reward_Nu   = 0.9985 * gen_Nu   + 0.0015 * loc_Nu
-            Reward_kinEn = 0.4    * gen_kinEn + 0.6    * loc_kinEn
-
-        where
-            gen_Nu   = global heat flux
-            loc_Nu   = mean per-segment heat flux
-            gen_kinEn = global kinetic energy
-            loc_kinEn = mean per-segment local KE
-
-        raw_reward = Reward_Nu - Reward_kinEn
-
-        final_reward = (raw_reward - baseline_reward) / reward_scale
-
-        baseline_reward is measured after reset(), when the wall is held at
-        uniform temperature 2.0 for warmup_time seconds (the "baseline" case).
-
-    Episode structure:
-        - This environment is multistep episodic.
-          On reset(), we create a fresh CFD simulation, apply a baseline
-          boundary temperature of 2.0 on the lower wall, run for warmup_time,
-          measure baseline_reward, and return the observation.
-        - On step(action), we:
-            - pass the segment temperatures to the solver,
-            - advance by delta_time in simulation time,
-            - read obs and compute reward,
-            - terminate the episode.
-        - So each reset/step pair is a full "episode".
+    Action: R^n_seg in [-1,1], converted to segment wall temperatures around 2.0
+    Observation: time-averaged (last 4 CFD steps) probe fields (u, v, T) on an 8x30 grid (flattened)
+    Reward: computed *directly from solver* (not from obs):
+            r = 2.67 - [ (1 - beta) * Nu_global + beta * mean(Nu_local_i) ]
     """
 
     metadata = {}
 
-    def __init__(self, render_mode=None, parallel_envs=0, n_seg=10):
+    def __init__(self, render_mode=None, parallel_envs: int = 0, n_seg: int = 10):
         super().__init__()
 
-        # ----- identifiers / bookkeeping -----
-        self.parallel_envs = parallel_envs  # which parallel env this is (for logging)
-        self.episode = 1  # episode counter
+        # ----- bookkeeping -----
+        self.parallel_envs = int(parallel_envs)
+        self.episode = 1
 
         # ----- control segmentation -----
-        # number of bottom-wall control segments
         self.n_seg = int(n_seg)
 
-        # ----- result folder -----
-        proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))  # .../bin/drl
-        self.training_root = _mkdir(os.path.join(proj_root, "drl_tianshou_training", "training_results"))
-        self.restart_dir = _mkdir(os.path.join(self.training_root, "restart"))  # ./restart
-        # each env log directory
+        # ----- folders -----
+        proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "../training_process"))
+        self.training_root = _mkdir(os.path.join(proj_root, "training_results"))
+        self.restart_dir = _mkdir(os.path.join(self.training_root, "restart"))
         self.log_dir = _mkdir(os.path.join(self.training_root, f"logs_env_{self.parallel_envs}"))
 
-        # ----- physical timing -----
+        # ----- timing -----
         self.step_to_load = 0
-        self.warmup_time = 400.0  # warmup_time: run baseline before first action
-        self.delta_time = 2.0  # delta_time: CFD physical time per control step
-        # TODO: test how long it will take to stabilize after the temperature is changed, or it does not need steady solution
-        # running simulation time cursor (absolute physical time in solver)
+        self.warmup_time = 400.0
+        self.delta_time = 2.0
         self.sim_time = 0.0
 
-        # ---------------- episode length in terms of control actions ----------------
-        self.max_steps_per_episode = 200  # TRAINING length: 200 actions per episode
+        # ----- episode length -----
+        self.max_steps_per_episode = 200
         self.step_count = 0
-        self.max_steps_per_episode_eval = 4 * self.max_steps_per_episode  # for evaluation
-        self.deterministic = False  # training mode by default
+        self.max_steps_per_episode_eval = 4 * self.max_steps_per_episode
+        self.deterministic = False
 
         # ----- action space -----
-        # The agent directly outputs n_seg scalar commands.
         self.action_low = np.full(self.n_seg, -1.0, dtype=np.float32)
         self.action_high = np.full(self.n_seg, 1.0, dtype=np.float32)
         self.action_space = spaces.Box(self.action_low, self.action_high, dtype=np.float32)
 
-        # ----- observation space -----
-        # obs dimension = 2*n_seg + 2:
-        #   [global flux] +
-        #   [n_seg local flux per segment] +
-        #   [n_seg local KE per segment group from probes] +
-        #   [global KE]
-        self.obs_numbers = self.n_seg * 2 + 2
-        obs_low = np.full(self.obs_numbers, -1e6, dtype=np.float32)
-        obs_high = np.full(self.obs_numbers, 1e6, dtype=np.float32)
-        self.observation_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
+        # ----- probe grid & observation space -----
+        self.n_rows = 8
+        self.n_cols = 30
+        self._probe_dim = 3  # u, v, T
+        self._obs_len = self.n_rows * self.n_cols * self._probe_dim
+        self.observation_space = spaces.Box(low=-1e6, high=1e6, shape=(self._obs_len,), dtype=np.float32)
+        self._probe_hist = deque(maxlen=4)  # 4-step moving average
 
-        # ----- reward shaping / normalization -----
-        # We'll compute a "baseline_reward" in reset() after warmup,
-        # and subtract it in step() to stabilize learning.
-        # self.baseline_reward = None  # will be set in reset()
-        self.beta = 0.0015
-        self.base_gen_KE = None  # will be set in reset()
-        self.base_loc_KE = None
-        self.base_loc_Nu = None
-        self.base_gen_Nu = None
-        self.Nu_base = None
-        self.KE_base = None
+        # ----- reward shaping params (Nu mix) -----
+        self.beta = 0.0015  # small local contribution
+        self.nu_target = 20.87
         self.reward_scale = 1.0
 
-        # ----- runtime state -----
-        self.nc_base = None  # the C++ solver / simulation handle
-        self.baseline_obs = None
-        self.nc = None  # the C++ solver / simulation handle
+        # ----- solver handles / runtime -----
+        self.nc_base = None
+        self.nc = None
         self.total_reward_per_episode = 0.0
 
     # ------------------------------------------------------------------
     # Helper: produce the per-segment temperature array we send to C++
     # ------------------------------------------------------------------
     def _build_segment_temps(self, action_vec: np.ndarray):
-        """
-        Map raw agent actions -> safe per-segment wall temperatures.
-
-        We do three things:
-        1. Interpret the action as relative commands per segment (not direct temperature).
-        2. Normalize them so they don't bias the whole wall too hot or too cold.
-        3. Scale+shift them around a physical baseline temperature (2.0),
-           with a limited amplitude 'ampl'.
-
-        This mimics the spirit of Tfunc.apply_T:
-        - Keep wall temps near baseline (2.0).
-        - Enforce max contrast between segments.
-        - Prevent runaway heating.
-        """
-
+        """map raw actions -> physically safe per-segment temperatures near 2.0"""
         if len(action_vec) != self.n_seg:
             raise ValueError(
                 f"Expected action of length {self.n_seg}, got {len(action_vec)}"
             )
 
-        # ---- hyperparameters you can tune ----
-        baseline_T = 2.0
-        ampl = 0.75  # max +/- amplitude around baseline (like 2.0 ± 0.75)
-
-        # 1) get raw command per segment as float32
+        baseline_T, ampl = 2.0, 0.75
         raw = np.asarray(action_vec, dtype=np.float32)
         raw = np.clip(raw, -1.0, 1.0)
-
-        # 2) mean-center them so "all segments high" doesn't just globally heat up
-        # This is similar to subtracting Mean in the original Tfunc.
-        mean_raw = float(np.mean(raw))
-        centered = raw - mean_raw  # now average(centered) == 0
-
-        # 3) compute how large the centered variations are vs. our allowed amplitude
+        centered = raw - float(np.mean(raw))
         max_abs = float(np.max(np.abs(centered))) if self.n_seg > 0 else 0.0
-        if max_abs < 1e-8:
-            scale = 0.0
-        else:
-            # We want max deviation -> 'ampl' at most
-            scale = ampl / max_abs  # if max_abs > 1, this scales down the pattern
-
-        scaled = centered * scale  # each segment now in [-ampl, +ampl] approximately
-
-        # 4) shift back around baseline_T
-        temps = baseline_T + scaled  # final segment temperatures
-
-        # 5) final physical safety clip (just in case)
-        T_min = 0.0
-        T_max = 4.0
-        temps = np.clip(temps, T_min, T_max)
-
-        # 6) return as python list for pybind11 -> std::vector<double>
-        return temps.astype(np.float32).tolist()
+        scale = (ampl / max_abs) if max_abs > 1e-8 else 0.0
+        temps = baseline_T + centered * scale
+        return np.clip(temps, 0.0, 4.0).astype(np.float32).tolist()
 
     # ------------------------------------------------------------------
     # Observation builder
     # ------------------------------------------------------------------
-    def _read_observation(self, sim):
-        """
-        Build observation vector of length (n_seg * 2 + 2):
+    def _probe_index_col_major(self, row: int, col: int) -> int:
+        return col * self.n_rows + row
 
-        Layout:
-          obs[0]                      = global heat flux (PhiFluxSum)
-          obs[1 + i]                  = local heat flux of segment i
-                                        for i in [0, n_seg-1]
-          obs[1 + n_seg + i]          = mean kinetic energy of probe group i
-                                        (computed from 8x30 probe grid, columns sliced
-                                         contiguously into n_seg groups; each group's
-                                         KE is averaged over its own probe count)
-          obs[-1]                     = global kinetic energy
-        """
-        obs = np.zeros(self.obs_numbers, dtype=np.float32)
+    def _snapshot_probes(self, sim) -> np.ndarray:
+        """instantaneous (u, v, T) on the 8x30 probe grid, flattened"""
+        out = np.empty((self.n_rows, self.n_cols, self._probe_dim), dtype=np.float32)
+        for col in range(self.n_cols):
+            for row in range(self.n_rows):
+                idx = self._probe_index_col_major(row, col)
+                u = sim.get_local_velocity(idx, 0)
+                v = sim.get_local_velocity(idx, 1)
+                T = sim.get_local_temperature(idx)
+                out[row, col, 0] = u
+                out[row, col, 1] = v
+                out[row, col, 2] = T
+        return out.reshape(-1)
 
-        # --- 0. global heat flux ---
-        obs[0] = sim.get_global_heat_flux()
-
-        # --- 1. per-segment local heat flux ---
-        # obs[1 + i] for i in [0..n_seg-1]
-        for i in range(self.n_seg):
-            obs[1 + i] = sim.get_local_phi_flux(int(i))
-
-        # --- 2. per-segment mean KE from probes ---
-        n_rows = 8  # probe rows
-        n_cols = 30  # probe cols (horizontal direction)
-
-        # We'll slice columns into n_seg contiguous chunks.
-        # Group g gets cols [col_start, col_end)
-        # col_start = floor(g     * n_cols / n_seg)
-        # col_end   = floor((g+1) * n_cols / n_seg)
-        def col_major_idx(row, col):
-            # flatten (row, col) into a single probe index,
-            # consistent with how you are reading get_local_velocity
-            return col * n_rows + row
-
-        for g in range(self.n_seg):
-            col_start = int(np.floor(g * n_cols / self.n_seg))
-            col_end = int(np.floor((g + 1) * n_cols / self.n_seg))
-
-            E_sum = 0.0
-            count = 0
-
-            for col in range(col_start, col_end):
-                for row in range(n_rows):
-                    idx = col_major_idx(row, col)
-                    vx = sim.get_local_velocity(idx, 0)
-                    vy = sim.get_local_velocity(idx, 1)
-                    E_sum += vx * vx + vy * vy
-                    count += 1
-
-            # average KE density for this group
-            if count > 0:
-                E_avg = E_sum / count
-            else:
-                # shouldn't happen unless n_seg > n_cols, but let's be safe
-                E_avg = 0.0
-
-            obs[1 + self.n_seg + g] = E_avg
-
-        # --- 3. global kinetic energy ---
-        obs[-1] = sim.get_global_kinetic_energy()
-
+    def _read_observation(self, sim) -> np.ndarray:
+        """time-averaged (last 4 CFD steps) probe fields (u,v,T), flattened"""
+        snap = self._snapshot_probes(sim)  # 当前瞬时
+        self._probe_hist.append(snap)
+        # 若历史不足 4 帧（刚 reset），就用已有帧做平均
+        hist = list(self._probe_hist)
+        obs = np.mean(hist, axis=0).astype(np.float32)
         return obs
-
-    def _normalize_obs(self, obs_raw: np.ndarray) -> np.ndarray:
-        n = self.n_seg
-        obs_norm = obs_raw.copy().astype(np.float32)
-        eps = 1e-8
-
-        obs_norm[0] = obs_norm[0] / (self.base_gen_Nu + eps)
-        obs_norm[1:1 + n] = obs_norm[1:1 + n] / (self.base_loc_Nu + eps)
-        obs_norm[1 + n:1 + 2 * n] = obs_norm[1 + n:1 + 2 * n] / (self.base_loc_KE + eps)
-        obs_norm[-1] = obs_norm[-1] / (self.base_gen_KE + eps)
-        return obs_norm
 
     # ------------------------------------------------------------------
     # Reward functions
     # ------------------------------------------------------------------
-    def _compute_reward_raw(self, obs: np.ndarray) -> float:
-        """
-        Physics-based reward before baseline subtraction / scaling.
+    def _compute_reward(self) -> float:
+        """r = nu_target - [(1 - beta) * Nu_global + beta * mean(Nu_local_i)]"""
+        gen_Nu = float(self.nc.get_global_heat_flux())
+        loc_Nu_vals = [float(self.nc.get_local_phi_flux(i)) for i in range(self.n_seg)]
+        loc_Nu = float(np.sum(loc_Nu_vals)) if self.n_seg > 0 else 0.0
+        reward_nu = (1.0 - self.beta) * gen_Nu + self.beta * loc_Nu
+        reward = (self.nu_target - reward_nu) / self.reward_scale
 
-        Following the Rayleigh-Bénard control idea:
-            Reward_Nu   = 0.9985 * gen_Nu   + 0.0015 * loc_Nu
-            Reward_kinEn = 0.4    * gen_kinEn + 0.6    * loc_kinEn
-            raw_reward   = Reward_Nu - Reward_kinEn
+        # try:
+        #     dbg_path = os.path.join(self.log_dir, f"nu_debug_env{self.parallel_envs}_epi{self.episode}.txt")
+        #     line = (
+        #         f"t={self.sim_time:.3f}, gen_Nu={gen_Nu:.6f}, "
+        #         f"loc_Nu_sum={loc_Nu:.6f}\n"
+        #     )
+        #     print("[NuDbg]", line.strip())
+        #     with open(dbg_path, "a", encoding="utf-8") as f:
+        #         f.write(line)
+        # except Exception as e:
+        #     print(f"[NuDbg][warn] logging failed: {e}")
 
-        Mapped to our obs:
-            gen_Nu    = obs[0]
-            loc_Nu    = mean(obs[1 : 1+n_seg])
-            loc_kinEn  = mean(obs[1+n_seg : 1+2*n_seg])
-            gen_kinEn  = obs[-1]
-        """
-        n = self.n_seg
-
-        gen_Nu = float(obs[0])
-        seg_fluxes = obs[1:1 + n]
-        loc_Nu = float(np.mean(seg_fluxes)) if n > 0 else 0.0
-
-        seg_ke = obs[1 + n:1 + 2 * n]
-        loc_kinEn = float(np.mean(seg_ke)) if n > 0 else 0.0
-
-        gen_kinEn = float(obs[-1])
-
-        Reward_Nu = ((1 - self.beta) * gen_Nu + self.beta * loc_Nu) / self.Nu_base
-        Reward_kinEn = (0.4 * gen_kinEn + 0.6 * loc_kinEn) / self.KE_base
-
-        alpha = 0.5
-        offset_reward = 3.0
-        # return Reward_Nu - alpha * Reward_kinEn + offset_reward
-        return 2.67 - Reward_Nu
-
-    def _compute_reward(self, obs: np.ndarray) -> float:
-        """
-        Final reward exposed to the RL algorithm.
-        We subtract the baseline reward (measured after warmup with T=2),
-        then scale by reward_scale.
-        """
-        raw_now = self._compute_reward_raw(obs)
-        shaped = raw_now / self.reward_scale
-        return shaped
+        return reward
 
     # ------------------------------------------------------------------
     # Gym API: reset
@@ -342,7 +171,6 @@ class NCEnvironment(gym.Env):
         - Create a new CFD solver instance in C++.
         - Set the bottom wall to a uniform baseline temperature (2.0).
         - Advance simulation to warmup_time (baseline / uncontrolled flow).
-        - Measure baseline_reward from that state (this defines our "zero").
         - Return the observation after warmup.
         """
         super().reset(seed=seed)
@@ -361,41 +189,16 @@ class NCEnvironment(gym.Env):
 
         os.chdir(self.training_root)
         if self.episode == 1:
-            # new solver instance (pass IDs to help with logging on C++ side)
-            self.nc_base = test_2d.natural_convection_from_sph_cpp(
-                self.parallel_envs, self.episode, 0
-            )
-
-            # apply baseline boundary: wall = 2.0 everywhere
+            # baseline solver (starts from t=0)
+            self.nc_base = test_2d.natural_convection_from_sph_cpp(self.parallel_envs, self.episode, 0)
             self.nc_base.set_segment_temperatures([2.0] * self.n_seg)
-
-            # run uncontrolled/baseline flow up to warmup_time seconds of sim time
             self.sim_time = float(self.warmup_time)
             self.nc_base.run_case(self.sim_time)
-
-            # observe after warmup
-            self.baseline_obs = self._read_observation(self.nc_base).astype(np.float32)
-
-            # if (self.Nu_base is None) or (self.KE_base is None):
-            eps = 1e-8
-            self.base_gen_Nu = float(self.baseline_obs[0]) + eps
-            seg_fluxes_baseline = self.baseline_obs[1:1 + self.n_seg]
-            self.base_loc_Nu = float(np.mean(seg_fluxes_baseline)) + eps
-            seg_KE_baseline = self.baseline_obs[1 + self.n_seg:1 + 2 * self.n_seg]
-            self.base_loc_KE = float(np.mean(seg_KE_baseline)) + eps
-            self.base_gen_KE = float(self.baseline_obs[-1]) + eps
-            self.Nu_base = (1 - self.beta) * self.base_gen_Nu + self.beta * self.base_loc_Nu
-            self.KE_base = 0.4 * self.base_gen_KE + 0.6 * self.base_loc_KE
-
-            # define baseline_reward = how "good" the uncontrolled baseline is
-            # if self.baseline_reward is None:
-            #     self.baseline_reward = self._compute_reward_raw(self.baseline_obs)
-
+            # switch to training solver from latest restart
         self.step_to_load = _latest_restart_step(self.restart_dir)
         if self.step_to_load < 0:
             raise RuntimeError("No restart files found under training_results/restart. "
                                "Make sure episode 1 finished the warm-up.")
-
         self.nc = test_2d.natural_convection_from_sph_cpp(self.parallel_envs, self.episode, int(self.step_to_load))
         self.nc.run_case(self.warmup_time)
         self.sim_time = float(self.warmup_time)
@@ -404,9 +207,14 @@ class NCEnvironment(gym.Env):
         self.step_count = 0
         self.total_reward_per_episode = 0.0
 
-        # return obs to RL
-        obs0 = self._read_observation(self.nc).astype(np.float32)
-        return self._normalize_obs(obs0), {}
+        # fill probe history with current snapshot to start averaging
+        self._probe_hist.clear()
+        snap0 = self._snapshot_probes(self.nc)
+        for _ in range(4):
+            self._probe_hist.append(snap0.copy())
+
+        obs0 = self._read_observation(self.nc)
+        return obs0, {}
 
     # ------------------------------------------------------------------
     # Gym API: step
@@ -419,69 +227,45 @@ class NCEnvironment(gym.Env):
         - Advance CFD by delta_time seconds of sim time.
         - Observe, compute reward (baseline-subtracted), return and terminate.
         """
-        # 1. validate action
+        # 1) action -> segment temperatures
         a = np.asarray(action, dtype=np.float32).reshape(-1)
         if a.size != self.n_seg:
-            raise ValueError(
-                f"Action must have length {self.n_seg}, got shape={action}"
-            )
-
-        # 2. convert the action vector to per-segment temperatures
-        seg_temps = self._build_segment_temps(a)  # list[float] of length n_seg
-
-        # 3. tell the solver to apply these temps on the wall
+            raise ValueError(f"Action must have length {self.n_seg}, got shape={action}")
+        seg_temps = self._build_segment_temps(a)
         self.nc.set_segment_temperatures(seg_temps)
 
-        # 4. figure out new target simulation time
+        # 2) advance CFD
         end_time = self.sim_time + self.delta_time
-
-        # 5. advance CFD to end_time
         self.nc.run_case(end_time)
         self.step_count += 1
-
-        # 6. read final observation
-        obs = self._read_observation(self.nc).astype(np.float32)
-
-        # 7. compute shaped reward and accumulate episode return
-        reward_now = self._compute_reward(obs)
-        self.total_reward_per_episode += reward_now
-
-        # 8. advance internal simulation clock
         self.sim_time = end_time
 
-        # 9. optional logging
+        # 3) observation (time-averaged probes)
+        obs = self._read_observation(self.nc)
+
+        # 4) reward (directly from solver Nu)
+        reward_now = self._compute_reward()
+        self.total_reward_per_episode += reward_now
+
+        # 5) logging
         with open(os.path.join(self.log_dir, f'action_env{self.parallel_envs}_epi{self.episode}.txt'), 'a') as f:
             f.write(f"clock: {self.sim_time:.6f}  raw_action: {a.tolist()}  seg_temps: {seg_temps}\n")
 
         with open(os.path.join(self.log_dir, f'reward_env{self.parallel_envs}_epi{self.episode}.txt'), 'a') as f:
             f.write(f'clock: {self.sim_time:.6f} | reward: {reward_now:.6f} | temps: {seg_temps}\n')
 
-        # 10. check termination condition
-        if not self.deterministic:
-            episode_limit = self.max_steps_per_episode
-        else:
-            episode_limit = self.max_steps_per_episode_eval
-
+        # 6) termination
+        episode_limit = self.max_steps_per_episode if not self.deterministic else self.max_steps_per_episode_eval
         if self.step_count >= episode_limit:
-            terminated = True
-            truncated = False
-
-            # log total episode reward
-            total_log = os.path.join(self.log_dir, f'reward_env{self.parallel_envs}.txt')
-            with open(total_log, 'a', encoding='utf-8') as file:
-                file.write(
-                    f'episode: {self.episode}  total_reward: {self.total_reward_per_episode:.6f}\n'
-                )
-
-            # increment episode counter for next reset
+            terminated, truncated = True, False
+            with open(os.path.join(self.log_dir, f'reward_env{self.parallel_envs}.txt'), 'a',
+                      encoding='utf-8') as file:
+                file.write(f'episode: {self.episode}  total_reward: {self.total_reward_per_episode:.6f}\n')
             self.episode += 1
         else:
-            terminated = False
-            truncated = False
+            terminated, truncated = False, False
 
-        # 11. Gym API return
-        obs_norm = self._normalize_obs(obs)
-        return obs_norm, float(reward_now), terminated, truncated, {}
+        return obs, float(reward_now), terminated, truncated, {}
 
     def render(self):
         return 0

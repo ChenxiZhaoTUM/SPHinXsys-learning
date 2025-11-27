@@ -127,6 +127,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     ExtendedReducedQuantityRecording<QuantitySummation<Real>> write_up_PhiFluxSum;
     ExtendedReducedQuantityRecording<QuantitySummation<Real>> write_down_PhiFluxSum;
     ObservedQuantityRecording<Vecd> write_recorded_fluid_vel;
+    ObservedQuantityRecording<Real> write_recorded_fluid_temperature;
     ExtendedReducedQuantityRecording<TotalKineticEnergy> write_global_kinetic_energy;
 
     //----------------------------------------------------------------------
@@ -195,6 +196,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           write_up_PhiFluxSum(diffusion_body, "PhiTransferFromUpDirichletWallBoundaryFlux"),
           write_down_PhiFluxSum(diffusion_body, "PhiTransferFromDownDirichletWallBoundaryFlux"),
           write_recorded_fluid_vel("Velocity", observer_diffusion_body_contact),
+          write_recorded_fluid_temperature("Phi", observer_diffusion_body_contact),
           write_global_kinetic_energy(diffusion_body)
     {
         physical_time = 0.0;
@@ -246,6 +248,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         write_up_PhiFluxSum.writeToFile();
         write_down_PhiFluxSum.writeToFile();
         write_recorded_fluid_vel.writeToFile();
+        write_recorded_fluid_temperature.writeToFile();
         write_global_kinetic_energy.writeToFile();
     }
 
@@ -360,6 +363,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     Real getLocalVelocity(int number, int direction)
     {
         return write_recorded_fluid_vel.getObservedQuantity()[number][direction];
+    };
+
+    Real getLocalTemperature(int number)
+    {
+        return write_recorded_fluid_temperature.getObservedQuantity()[number];
     };
     
     Real getGlobalKineticEnergy()
@@ -480,6 +488,7 @@ PYBIND11_MODULE(zcx_2d_natural_convection_RL_python, m)
         .def("get_global_heat_flux", &SphNaturalConvection::getPhiFluxSum)
         .def("get_local_phi_flux", &SphNaturalConvection::getLocalPhiFlux, py::arg("i_seg"))
         .def("get_local_velocity", &SphNaturalConvection::getLocalVelocity, py::arg("probe_index"), py::arg("component"))
+        .def("get_local_temperature", &SphNaturalConvection::getLocalTemperature, py::arg("probe_index"))
         .def("get_global_kinetic_energy", &SphNaturalConvection::getGlobalKineticEnergy)
         .def("run_case", &SphNaturalConvection::runCase, py::arg("target_time"))
         .def("debug_smoke_test", &SphNaturalConvection::debugSmokeTest);
