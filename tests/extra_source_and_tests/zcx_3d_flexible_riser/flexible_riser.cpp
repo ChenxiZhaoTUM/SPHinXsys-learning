@@ -153,13 +153,13 @@ struct InflowVelocity
     {
         Vecd target_velocity = velocity;
 
-        u_ave = 0.2339;
+        u_ave = 0.2339 * 10;
         Real a[8] = {-0.0176, -0.0657, -0.0280, 0.0068, 0.0075, 0.0115, 0.0040, 0.0035};
         Real b[8] = {0.1205, 0.0171, -0.0384, -0.0152, -0.0122, 0.0002, 0.0033, 0.0060};
-        Real w = 2 * Pi / 1;
+        Real w = 2 * Pi / 0.5;
         for (size_t i = 0; i < 8; i++)
         {
-            u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * current_time) + b[i] * sin(w * (i + 1) * current_time),
+            u_ave = SMAX(u_ave + a[i] * cos(w * (i + 1) * current_time) * 10 + b[i] * sin(w * (i + 1) * current_time) * 10,
                         0.0);
         }
             
@@ -215,11 +215,13 @@ public:
 		if (physical_time < 0.5)
 		{
 			acceleration[0] = A * omega * cos(omega * physical_time) / 0.5;
+            acceleration[2] = A * omega * cos(omega * physical_time) / 0.5;
 			acceleration[1] = - gravity_g;
 		}
 		else
 		{
 			acceleration[0] = - A * omega * omega * sin(omega * physical_time);
+			acceleration[2] = - A * omega * omega * sin(omega * physical_time);
 			acceleration[1] = - gravity_g;
 		}
 		
