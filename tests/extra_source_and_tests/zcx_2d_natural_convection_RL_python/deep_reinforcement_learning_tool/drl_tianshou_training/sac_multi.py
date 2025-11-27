@@ -9,7 +9,8 @@ GYM_ROOT = os.path.join(DRL_DIR, "drl_gym_environments")  # .../bin/drl/drl_gym_
 if GYM_ROOT not in sys.path:
     sys.path.insert(0, GYM_ROOT)
 
-import gym_env_nc
+from gym_env_nc import parallel_env                 # 你在 gym_env_nc/marl/__init__.py 暴露的工厂
+from gym_env_nc.marl.wrapper import CentralizedParallelToGym
 
 # for test
 # env = gym.make("NC-v0", n_seg=4)
@@ -48,22 +49,22 @@ def get_args():
     parser.add_argument("--test-num", type=int, default=1)
 
     parser.add_argument("--task", type=str, default="NC-v0")  # Environment ID
-    parser.add_argument("--buffer-size", type=int, default=10100)
-    parser.add_argument("--hidden-sizes", type=int, nargs="*", default=[64, 64])
+    parser.add_argument("--buffer-size", type=int, default=10e4)
+    parser.add_argument("--hidden-sizes", type=int, nargs="*", default=[512, 512])
     parser.add_argument("--actor-lr", type=float, default=1e-4)
     parser.add_argument("--critic-lr", type=float, default=1e-4)
-    parser.add_argument("--gamma", type=float, default=0.95)
+    parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--tau", type=float, default=0.005)
     parser.add_argument("--alpha", type=float, default=0.25)
     parser.add_argument("--auto-alpha", default=False, action="store_true")
     parser.add_argument("--alpha-lr", type=float, default=5e-4)
-    parser.add_argument("--start-timesteps", type=int, default=200)  # pre-sampling
-    parser.add_argument("--epoch", type=int, default=100)
-    parser.add_argument("--step-per-epoch", type=int, default=100)
-    parser.add_argument("--step-per-collect", type=int, default=1)
+    parser.add_argument("--start-timesteps", type=int, default=0)  # Replace the step number with episode pre-sampling
+    parser.add_argument("--epoch", type=int, default=50)
+    parser.add_argument("--step-per-epoch", type=int, default=2048)
+    parser.add_argument("--step-per-collect", type=int, default=512)
     parser.add_argument("--update-per-step", type=int, default=1)
     parser.add_argument("--n-step", type=int, default=1)
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--logdir", type=str, default="log")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume-path", type=str, default=None)
@@ -76,8 +77,10 @@ def get_args():
 def training_sac(args=get_args()):
     """Main function for setting up and training a SAC agent in the NC environment."""
 
-    train_env = gym.make("NC-v0", parallel_envs=0, n_seg=10)
-    test_env = gym.make("NC-v0", parallel_envs=999, n_seg=10)
+    pz_train = parallel_env(n_seg=10, parallel_envs=0)
+    pz_test = parallel_env(n_seg=10, parallel_envs=999)
+    train_env = CentralizedParallelToGym(pz_train)
+    test_env = CentralizedParallelToGym(pz_test)
 
     # Create vectorized environments for parallel training
     # envs = SubprocVectorEnv([
@@ -148,7 +151,8 @@ def training_sac(args=get_args()):
         args.buffer_size)
     train_collector = Collector(policy, train_env, buffer, exploration_noise=True)
     test_collector = None
-    train_collector.collect(n_step=args.start_timesteps, random=True)
+    # train_collector.collect(n_step=args.start_timesteps, random=True)
+    train_collector.collect(n_episode=15, random=True)
 
     # Setup logging
     now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
@@ -166,7 +170,7 @@ def training_sac(args=get_args()):
         result = OffpolicyTrainer(
             policy=policy,
             train_collector=train_collector,
-            test_collector=test_collector,
+            test_collector=None,
             episode_per_test=args.test_num,
             max_epoch=args.epoch,
             step_per_epoch=args.step_per_epoch,

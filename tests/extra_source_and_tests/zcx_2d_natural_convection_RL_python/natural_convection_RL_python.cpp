@@ -134,8 +134,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    //Real output_interval = 1.0;
-    Real output_interval = 2.0;
+    Real output_interval = 1.0;
     int number_of_iterations;
     int screen_output_interval = 100;
     int restart_output_interval = screen_output_interval * 10;
@@ -419,6 +418,8 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
                     { 
                         restart_io.writeToFile(number_of_iterations);
                     }
+
+                    //write_states.writeToFile();  // save memory of disk
                         
                 }
                 number_of_iterations++;
@@ -453,7 +454,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
             write_down_PhiFluxSum.writeToFile(number_of_iterations);
             write_recorded_fluid_vel.writeToFile(number_of_iterations);
             write_global_kinetic_energy.writeToFile(number_of_iterations);
-
+            
             TickCount t3 = TickCount::now();
             interval += t3 - t2;
         }

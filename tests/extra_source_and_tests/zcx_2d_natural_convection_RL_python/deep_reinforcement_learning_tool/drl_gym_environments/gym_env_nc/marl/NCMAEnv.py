@@ -2,8 +2,10 @@ import sys
 import os
 import glob, re
 import numpy as np
+from typing import Dict, List, Tuple
 import gymnasium as gym
 from gymnasium import spaces
+from pettingzoo.utils import ParallelEnv
 
 # TODO: replace with an env var or auto-discovery
 sys.path.append(r"D:\SPHinXsys_build\tests\test_python_interface\zcx_2d_natural_convection_RL_python\lib\Release")
@@ -25,62 +27,15 @@ def _latest_restart_step(restart_dir: str) -> int:
     return mx if mx > 0 else -1
 
 
-class NCEnvironment(gym.Env):
+class NCMAEnvParallel(ParallelEnv):
     """
-    Single-agent environment for natural convection control.
-
-    Each action controls n_seg heater segments on the bottom wall.
-
-    Action (per episode step):
-        a[0:n_seg]: target temperature (or temperature command) for each segment.
-
-    Observation (returned by reset() and step()):
-        obs is length (2 * n_seg + 2), laid out as:
-            obs[0]                    = global heat flux (PhiFluxSum)
-            obs[1 + i]                = local heat flux of segment i
-                                        for i in [0 .. n_seg-1]
-            obs[1 + n_seg + i]        = mean kinetic energy of probe block i
-                                        computed from the 8x30 probe grid,
-                                        columns split contiguously into n_seg groups,
-                                        then averaged to remove group-size bias
-            obs[-1]                   = global kinetic energy
-
-    Reward (shaped):
-        We want to enhance heat transfer and suppress convection intensity.
-        Following the style of the Rayleigh-Bénard MARL code:
-
-            Reward_Nu   = 0.9985 * gen_Nu   + 0.0015 * loc_Nu
-            Reward_kinEn = 0.4    * gen_kinEn + 0.6    * loc_kinEn
-
-        where
-            gen_Nu   = global heat flux
-            loc_Nu   = mean per-segment heat flux
-            gen_kinEn = global kinetic energy
-            loc_kinEn = mean per-segment local KE
-
-        raw_reward = Reward_Nu - Reward_kinEn
-
-        final_reward = (raw_reward - baseline_reward) / reward_scale
-
-        baseline_reward is measured after reset(), when the wall is held at
-        uniform temperature 2.0 for warmup_time seconds (the "baseline" case).
-
-    Episode structure:
-        - This environment is multistep episodic.
-          On reset(), we create a fresh CFD simulation, apply a baseline
-          boundary temperature of 2.0 on the lower wall, run for warmup_time,
-          measure baseline_reward, and return the observation.
-        - On step(action), we:
-            - pass the segment temperatures to the solver,
-            - advance by delta_time in simulation time,
-            - read obs and compute reward,
-            - terminate the episode.
-        - So each reset/step pair is a full "episode".
+    Multi-agent environment for natural convection control.
     """
 
-    metadata = {}
+    metadata = {"name": "NCMA-v0"}
 
-    def __init__(self, render_mode=None, parallel_envs=0, n_seg=10):
+    def __init__(self, n_seg: int = 10, warmup_time: float = 400.0, delta_time: float = 2.0,
+                 parallel_envs: int = 0):
         super().__init__()
 
         # ----- identifiers / bookkeeping -----
@@ -88,8 +43,10 @@ class NCEnvironment(gym.Env):
         self.episode = 1  # episode counter
 
         # ----- control segmentation -----
-        # number of bottom-wall control segments
-        self.n_seg = int(n_seg)
+        assert n_seg > 0
+        self.n_seg = n_seg
+        self.agents = [f"agent_{i}" for i in range(n_seg)]
+        self.possible_agents = list(self.agents)
 
         # ----- result folder -----
         proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))  # .../bin/drl
@@ -100,8 +57,8 @@ class NCEnvironment(gym.Env):
 
         # ----- physical timing -----
         self.step_to_load = 0
-        self.warmup_time = 400.0  # warmup_time: run baseline before first action
-        self.delta_time = 2.0  # delta_time: CFD physical time per control step
+        self.warmup_time = float(warmup_time)  # warmup_time: run baseline before first action
+        self.delta_time = float(delta_time)  # delta_time: CFD physical time per control step
         # TODO: test how long it will take to stabilize after the temperature is changed, or it does not need steady solution
         # running simulation time cursor (absolute physical time in solver)
         self.sim_time = 0.0
@@ -113,10 +70,8 @@ class NCEnvironment(gym.Env):
         self.deterministic = False  # training mode by default
 
         # ----- action space -----
-        # The agent directly outputs n_seg scalar commands.
-        self.action_low = np.full(self.n_seg, -1.0, dtype=np.float32)
-        self.action_high = np.full(self.n_seg, 1.0, dtype=np.float32)
-        self.action_space = spaces.Box(self.action_low, self.action_high, dtype=np.float32)
+        self._act_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
+        self._pending_actions: Dict[str, float] = {}
 
         # ----- observation space -----
         # obs dimension = 2*n_seg + 2:
@@ -127,7 +82,8 @@ class NCEnvironment(gym.Env):
         self.obs_numbers = self.n_seg * 2 + 2
         obs_low = np.full(self.obs_numbers, -1e6, dtype=np.float32)
         obs_high = np.full(self.obs_numbers, 1e6, dtype=np.float32)
-        self.observation_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
+        self._obs_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
+        self._last_obs = None  # 缓存观测
 
         # ----- reward shaping / normalization -----
         # We'll compute a "baseline_reward" in reset() after warmup,
@@ -147,64 +103,39 @@ class NCEnvironment(gym.Env):
         self.baseline_obs = None
         self.nc = None  # the C++ solver / simulation handle
         self.total_reward_per_episode = 0.0
+        self._done = False
+
+    # ---------- PettingZoo interface ----------
+    @property
+    def observation_space(self):
+        return self._obs_space
+
+    @property
+    def action_space(self):
+        return self._act_space
+
+    @property
+    def observation_spaces(self):
+        return {agent: self._obs_space for agent in self.possible_agents}
+
+    @property
+    def action_spaces(self):
+        return {agent: self._act_space for agent in self.possible_agents}
 
     # ------------------------------------------------------------------
     # Helper: produce the per-segment temperature array we send to C++
     # ------------------------------------------------------------------
-    def _build_segment_temps(self, action_vec: np.ndarray):
-        """
-        Map raw agent actions -> safe per-segment wall temperatures.
-
-        We do three things:
-        1. Interpret the action as relative commands per segment (not direct temperature).
-        2. Normalize them so they don't bias the whole wall too hot or too cold.
-        3. Scale+shift them around a physical baseline temperature (2.0),
-           with a limited amplitude 'ampl'.
-
-        This mimics the spirit of Tfunc.apply_T:
-        - Keep wall temps near baseline (2.0).
-        - Enforce max contrast between segments.
-        - Prevent runaway heating.
-        """
-
-        if len(action_vec) != self.n_seg:
-            raise ValueError(
-                f"Expected action of length {self.n_seg}, got {len(action_vec)}"
-            )
-
-        # ---- hyperparameters you can tune ----
-        baseline_T = 2.0
-        ampl = 0.75  # max +/- amplitude around baseline (like 2.0 ± 0.75)
-
-        # 1) get raw command per segment as float32
-        raw = np.asarray(action_vec, dtype=np.float32)
-        raw = np.clip(raw, -1.0, 1.0)
-
-        # 2) mean-center them so "all segments high" doesn't just globally heat up
-        # This is similar to subtracting Mean in the original Tfunc.
-        mean_raw = float(np.mean(raw))
-        centered = raw - mean_raw  # now average(centered) == 0
-
-        # 3) compute how large the centered variations are vs. our allowed amplitude
+    def _build_segment_temps(self, actions_dict: Dict[str, np.ndarray]) -> List[float]:
+        """把 10 个 agent 的标量动作合并成 10 段温度"""
+        baseline_T, ampl = 2.0, 0.75
+        # 拉成长度 n_seg 的向量
+        raw = np.array([float(np.clip(actions_dict[f"agent_{i}"], -1.0, 1.0)) for i in range(self.n_seg)],
+                       dtype=np.float32)
+        centered = raw - float(np.mean(raw))
         max_abs = float(np.max(np.abs(centered))) if self.n_seg > 0 else 0.0
-        if max_abs < 1e-8:
-            scale = 0.0
-        else:
-            # We want max deviation -> 'ampl' at most
-            scale = ampl / max_abs  # if max_abs > 1, this scales down the pattern
-
-        scaled = centered * scale  # each segment now in [-ampl, +ampl] approximately
-
-        # 4) shift back around baseline_T
-        temps = baseline_T + scaled  # final segment temperatures
-
-        # 5) final physical safety clip (just in case)
-        T_min = 0.0
-        T_max = 4.0
-        temps = np.clip(temps, T_min, T_max)
-
-        # 6) return as python list for pybind11 -> std::vector<double>
-        return temps.astype(np.float32).tolist()
+        scale = (ampl / max_abs) if max_abs > 1e-8 else 0.0
+        temps = baseline_T + centered * scale
+        return np.clip(temps, 0.0, 4.0).tolist()
 
     # ------------------------------------------------------------------
     # Observation builder
@@ -345,7 +276,16 @@ class NCEnvironment(gym.Env):
         - Measure baseline_reward from that state (this defines our "zero").
         - Return the observation after warmup.
         """
-        super().reset(seed=seed)
+        # super().reset(seed=seed)
+
+        if self._done and self.episode >= 1:
+            self.episode += 1
+            self._done = False
+
+        self.agents = list(self.possible_agents)
+        self.step_count = 0
+        self._pending_actions.clear()
+
         # ---- Episode start banner ----
         msg = f"[env {self.parallel_envs}] ===== Episode {self.episode} start ====="
         print(msg)
@@ -401,17 +341,19 @@ class NCEnvironment(gym.Env):
         self.sim_time = float(self.warmup_time)
 
         # housekeeping
-        self.step_count = 0
         self.total_reward_per_episode = 0.0
 
         # return obs to RL
-        obs0 = self._read_observation(self.nc).astype(np.float32)
-        return self._normalize_obs(obs0), {}
+        obs0 = self._normalize_obs(self._read_observation(self.nc).astype(np.float32))
+        self._last_obs = obs0.copy()
+        obs_dict = {agent: obs0 for agent in self.agents}
+        infos = {agent: {"episode": self.episode} for agent in self.agents}
+        return obs_dict, infos  # observation: Dict[agent, obs],  infos: Dict[agent, dict]
 
     # ------------------------------------------------------------------
     # Gym API: step
     # ------------------------------------------------------------------
-    def step(self, action):
+    def step(self, actions: Dict[str, np.ndarray]):
         """
         Multistep episode:
         - Take an action vector of length n_seg (segment temperatures).
@@ -419,15 +361,29 @@ class NCEnvironment(gym.Env):
         - Advance CFD by delta_time seconds of sim time.
         - Observe, compute reward (baseline-subtracted), return and terminate.
         """
-        # 1. validate action
-        a = np.asarray(action, dtype=np.float32).reshape(-1)
-        if a.size != self.n_seg:
-            raise ValueError(
-                f"Action must have length {self.n_seg}, got shape={action}"
+        # 回合已结束，强制要求上层 reset
+        if self._done:
+            return {}, {}, {}, {}, {}
+
+        # 收动作（并允许分批到达）；当收齐 10 个后统一推进 CFD
+        self._pending_actions.update({k: np.array(v).reshape(-1)[0] for k, v in actions.items()})
+
+        # 如果没收齐，就保持状态不变（PettingZoo parallel 约定：可在一次调用中就传齐；常见做法是训练端总是一次传齐）
+        if len(self._pending_actions) < self.n_seg:
+            obs = self._last_obs if self._last_obs is not None else \
+                self._normalize_obs(self._read_observation(self.nc).astype(np.float32))
+            return (
+                {a: obs for a in self.agents},
+                {a: 0.0 for a in self.agents},
+                {a: False for a in self.agents},
+                {a: False for a in self.agents},
+                {a: {} for a in self.agents},
             )
 
         # 2. convert the action vector to per-segment temperatures
-        seg_temps = self._build_segment_temps(a)  # list[float] of length n_seg
+        raw = np.array([self._pending_actions[f"agent_{i}"] for i in range(self.n_seg)], dtype=np.float32)
+        seg_temps = self._build_segment_temps(self._pending_actions)
+        self._pending_actions.clear()
 
         # 3. tell the solver to apply these temps on the wall
         self.nc.set_segment_temperatures(seg_temps)
@@ -451,7 +407,7 @@ class NCEnvironment(gym.Env):
 
         # 9. optional logging
         with open(os.path.join(self.log_dir, f'action_env{self.parallel_envs}_epi{self.episode}.txt'), 'a') as f:
-            f.write(f"clock: {self.sim_time:.6f}  raw_action: {a.tolist()}  seg_temps: {seg_temps}\n")
+            f.write(f"clock: {self.sim_time:.6f}  raw_action: {raw.tolist()}  seg_temps: {seg_temps}\n")
 
         with open(os.path.join(self.log_dir, f'reward_env{self.parallel_envs}_epi{self.episode}.txt'), 'a') as f:
             f.write(f'clock: {self.sim_time:.6f} | reward: {reward_now:.6f} | temps: {seg_temps}\n')
@@ -462,26 +418,25 @@ class NCEnvironment(gym.Env):
         else:
             episode_limit = self.max_steps_per_episode_eval
 
-        if self.step_count >= episode_limit:
-            terminated = True
-            truncated = False
+        terminated = self.step_count >= episode_limit
+        truncated = False
 
-            # log total episode reward
+        if terminated:
+            # 只标记 done；不在这里自增 episode 和清空 agents
+            self._done = True
             total_log = os.path.join(self.log_dir, f'reward_env{self.parallel_envs}.txt')
             with open(total_log, 'a', encoding='utf-8') as file:
-                file.write(
-                    f'episode: {self.episode}  total_reward: {self.total_reward_per_episode:.6f}\n'
-                )
-
-            # increment episode counter for next reset
-            self.episode += 1
-        else:
-            terminated = False
-            truncated = False
+                file.write(f'episode: {self.episode}  total_reward: {self.total_reward_per_episode:.6f}\n')
 
         # 11. Gym API return
         obs_norm = self._normalize_obs(obs)
-        return obs_norm, float(reward_now), terminated, truncated, {}
+        self._last_obs = obs_norm.copy()
+        obs_dict = {agent: obs_norm for agent in self.agents}
+        reward_dict = {agent: float(reward_now) for agent in self.agents}
+        term_dict = {agent: terminated for agent in self.agents}
+        trunc_dict = {agent: truncated for agent in self.agents}
+        info_dict = {agent: {"sim_time": self.sim_time, "temps": seg_temps} for agent in self.agents}
+        return obs_dict, reward_dict, term_dict, trunc_dict, info_dict
 
     def render(self):
         return 0
