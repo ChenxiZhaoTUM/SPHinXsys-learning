@@ -50,7 +50,7 @@ class NCEnvironment(gym.Env):
 
         # ----- folders -----
         proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "../training_process"))
-        self.training_root = _mkdir(os.path.join(proj_root, "training_results"))
+        self.training_root = _mkdir(os.path.join(proj_root, "training_results_single"))
         self.restart_dir = _mkdir(os.path.join(self.training_root, "restart"))
         self.log_dir = _mkdir(os.path.join(self.training_root, f"logs_env_{self.parallel_envs}"))
 
