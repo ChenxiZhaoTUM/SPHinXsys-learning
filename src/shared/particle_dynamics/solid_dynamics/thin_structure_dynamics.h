@@ -36,6 +36,7 @@
 #include "elastic_solid.h"
 #include "solid_body.h"
 #include "thin_structure_math.h"
+#include "base_general_dynamics.h"
 
 namespace SPH
 {
@@ -293,6 +294,18 @@ class ShellStressRelaxationSecondHalf : public BaseShellRelaxation
     };
 
     void update(size_t index_i, Real dt = 0.0);
+};
+
+class PrincipalStrains : public BaseDerivedVariable<Vecd>
+{
+  public:
+    explicit PrincipalStrains(SPHBody &sph_body);
+    virtual ~PrincipalStrains(){};
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    Matd *F_;
+    Real *max_principal_strain_;
 };
 
 /**@class ConstrainShellBodyRegion

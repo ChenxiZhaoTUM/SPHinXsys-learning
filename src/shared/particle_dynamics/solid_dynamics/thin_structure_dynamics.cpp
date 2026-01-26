@@ -233,6 +233,11 @@ void ShellStressRelaxationSecondHalf::update(size_t index_i, Real dt)
     F_bending_[index_i] += dF_bending_dt_[index_i] * dt * 0.5;
 }
 //=================================================================================================//
+PrincipalStrains::PrincipalStrains(SPHBody &sph_body)
+    : BaseDerivedVariable<Vecd>(sph_body, "PrincipalStrains"),
+      F_(particles_->getVariableDataByName<Matd>("DeformationGradient")),
+      max_principal_strain_(particles_->registerStateVariable<Real>("MaxPrincipalStrain")) {}
+//=================================================================================================//
 ConstrainShellBodyRegion::
     ConstrainShellBodyRegion(BodyPartByParticle &body_part)
     : BaseLocalDynamics<BodyPartByParticle>(body_part),

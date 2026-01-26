@@ -662,6 +662,7 @@ int main(int ac, char *av[])
     InteractionDynamics<thin_structure_dynamics::ShellCorrectConfiguration> shell_corrected_configuration(shell_inner);
     Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationFirstHalf> shell_stress_relaxation_first(shell_inner, 3, true);
     Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf> shell_stress_relaxation_second(shell_inner);
+    SimpleDynamics<thin_structure_dynamics::PrincipalStrains> shell_principal_strains(shell_body);
     ReduceDynamics<thin_structure_dynamics::ShellAcousticTimeStepSize> shell_time_step_size(shell_body);
     SimpleDynamics<thin_structure_dynamics::AverageShellCurvature> shell_average_curvature(shell_curvature_inner);
     SimpleDynamics<thin_structure_dynamics::UpdateShellNormalDirection> shell_update_normal(shell_body);
@@ -756,6 +757,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Vecd>(shell_body, "WallShearStress");
     body_states_recording.addToWrite<Real>(shell_body, "TimeAveragedWallShearStress");
     body_states_recording.addToWrite<Real>(shell_body, "OscillatoryShearIndex");
+    body_states_recording.addToWrite<Vecd>(shell_body, "PrincipalStrains");
+    body_states_recording.addToWrite<Real>(shell_body, "MaxPrincipalStrain");
 
     /**
      * @brief Setup geometry and initial conditions.
@@ -941,6 +944,7 @@ int main(int ac, char *av[])
         }
         TickCount t2 = TickCount::now();
         //compute_helicity.exec();
+        shell_principal_strains.exec();
         body_states_recording.writeToFile();
         compute_inlet_transient_flow_rate.exec();
         compute_inlet_transient_mass_flow_rate.exec();
