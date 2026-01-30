@@ -14,7 +14,7 @@ using namespace SPH;
 //----------------------------------------------------------------------
 Real L = 2 * Pi;
 Real H = 2;
-Real resolution_ref = H / 100.0;
+Real resolution_ref = H / 50;
 Real BW = resolution_ref * 3.0;
 BoundingBox system_domain_bounds(Vec2d(-BW, - H/2 -BW), Vec2d(L + BW, H/2 + BW));
 //----------------------------------------------------------------------
@@ -141,6 +141,19 @@ MultiPolygon createRightDiffusionDomain()
     return multi_polygon;
 }
 
+std::vector<Vecd> LeftDownWallDomain
+{
+    Vecd(0., -H/2 - BW), Vecd(L / 3, -H/2 - BW), Vecd(L / 3, -H/2),
+    Vecd(0.,  -H/2), Vecd(0., -H/2 - BW)
+};
+
+MultiPolygon createLeftDownWallDomain()
+{
+    MultiPolygon multi_polygon;
+    multi_polygon.addAPolygon(LeftDownWallDomain, ShapeBooleanOps::add);
+    return multi_polygon;
+}
+
 //----------------------------------------------------------------------
 // Define extra classes which are used in the main program.
 // These classes are defined under the namespace of SPH.
@@ -256,5 +269,6 @@ StdVec<Vecd> createObservationPoints()
     }
     return observation_points;
 }
+
 } // namespace SPH
 #endif  // NATURAL_CONVECTION_CV_H

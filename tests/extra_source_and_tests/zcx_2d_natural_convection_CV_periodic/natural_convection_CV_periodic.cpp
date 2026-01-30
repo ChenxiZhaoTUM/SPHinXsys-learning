@@ -120,6 +120,10 @@ int main(int ac, char *av[])
     //write_middle_averaged_LocalVerticalHeatFlux(middle_diffusion_domain, "MiddleFluidLocalVerticalHeatFlux");
     //ReducedQuantityRecording<Average<QuantitySummation<Real, BodyPartByCell>>>
     //write_right_averaged_LocalVerticalHeatFlux(right_diffusion_domain, "RightFluidLocalVerticalHeatFlux");
+ 
+    ReducedQuantityRecording<solid_dynamics::AveragedWallNu<SPHBody>> write_global_average_Nu(down_wall_Dirichlet, "WallLocalNusseltNumber");
+    BodyRegionByParticle left_wall_domain(down_wall_Dirichlet, makeShared<MultiPolygonShape>(createLeftDownWallDomain(), "LeftWallDomain"));
+    ReducedQuantityRecording<solid_dynamics::AveragedWallNu<BodyRegionByParticle>> write_local_left_average_Nu(left_wall_domain, "WallLocalNusseltNumber");
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------
@@ -161,8 +165,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real End_Time = 120;
-    Real output_interval = End_Time / 120.0; /**< time stamps for output,WriteToFile*/
+    Real End_Time = 400.0;
+    Real output_interval = 1.0; /**< time stamps for output,WriteToFile*/
     int number_of_iterations = 0;
     int screen_output_interval = 100;
     //----------------------------------------------------------------------
@@ -251,6 +255,9 @@ int main(int ac, char *av[])
         write_left_PhiFluxSum.writeToFile(number_of_iterations);
         write_middle_PhiFluxSum.writeToFile(number_of_iterations);
         write_right_PhiFluxSum.writeToFile(number_of_iterations);
+
+        write_global_average_Nu.writeToFile();
+        write_local_left_average_Nu.writeToFile();
 
         //left_diffusion_domain_flux.exec();
         //write_left_averaged_LocalVerticalHeatFlux.writeToFile(number_of_iterations);

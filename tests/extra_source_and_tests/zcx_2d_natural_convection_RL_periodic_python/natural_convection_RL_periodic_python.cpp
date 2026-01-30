@@ -66,6 +66,11 @@ class SphBodyReloadEnvironment : public SphBasicSystemSetting
     { 
         return diffusion_body; 
     }
+
+    SolidBody &getDownWallBody()
+    { 
+        return down_wall_Dirichlet; 
+    }
 };
 
 class SphNaturalConvection : public SphBodyReloadEnvironment
@@ -124,6 +129,8 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     ObservedQuantityRecording<Vecd> write_recorded_fluid_vel;
     ObservedQuantityRecording<Real> write_recorded_fluid_temperature;
     ExtendedReducedQuantityRecording<TotalKineticEnergy> write_global_kinetic_energy;
+
+    ExtendedReducedQuantityRecording<solid_dynamics::AveragedWallNu<>> write_global_average_Nu;
 
     //----------------------------------------------------------------------
     //	    Basic control parameters for time stepping.
@@ -191,7 +198,8 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           write_down_PhiFluxSum(diffusion_body, "PhiTransferFromDownDirichletWallBoundaryFlux"),
           write_recorded_fluid_vel("Velocity", observer_diffusion_body_contact),
           write_recorded_fluid_temperature("Phi", observer_diffusion_body_contact),
-          write_global_kinetic_energy(diffusion_body)
+          write_global_kinetic_energy(diffusion_body),
+          write_global_average_Nu(down_wall_Dirichlet, "WallLocalNusseltNumber")
     {
         physical_time = 0.0;
         
@@ -206,7 +214,6 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         entire_wall_normal_direction.exec();
         up_Dirichlet_wall_normal_direction.exec();
         down_Dirichlet_wall_normal_direction.exec();
-        
         
         number_of_iterations = sph_system.RestartStep();
 
@@ -242,6 +249,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
         write_recorded_fluid_vel.writeToFile();
         write_recorded_fluid_temperature.writeToFile();
         write_global_kinetic_energy.writeToFile();
+        write_global_average_Nu.writeToFile();
     }
 
     virtual ~SphNaturalConvection(){};
@@ -366,6 +374,46 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     {
         return write_global_kinetic_energy.getReducedQuantity();
     };
+
+    Real getGlobalNusseltNumber()
+    {
+        return write_global_average_Nu.getReducedQuantity();
+    };
+
+    Real getLocalNusselt(int i_seg)
+    {
+        // how many control segments we currently have
+        size_t n = down_wall_segment_T.size();
+        if (n == 0) return Real(0.0);
+        if (i_seg < 0 || static_cast<size_t>(i_seg) >= n) return Real(0.0);
+
+        // horizontal extent of this segment
+        Real seg_len = L / Real(n);
+        Real x0 = seg_len * Real(i_seg);
+        Real x1 = x0 + seg_len;
+
+        // build a vertical strip spanning full cavity height
+        std::vector<Vecd> seg_poly;
+        seg_poly.push_back(Vecd(x0, -H/2 - BW)); // bottom down wall boundary
+        seg_poly.push_back(Vecd(x1, -H/2 - BW));
+        seg_poly.push_back(Vecd(x1, -H/2));
+        seg_poly.push_back(Vecd(x0, -H/2));
+        seg_poly.push_back(Vecd(x0, -H/2 - BW));
+
+        MultiPolygon seg_shape;
+        seg_shape.addAPolygon(seg_poly, ShapeBooleanOps::add);
+
+        // define a particle region over the diffusion_body
+        BodyRegionByParticle seg_region(
+            getDownWallBody(),
+            makeShared<MultiPolygonShape>(seg_shape, "down_wall_seg_region_tmp")
+        );
+
+        // sum the same reduced quantity
+        ExtendedReducedQuantityRecording<solid_dynamics::AveragedWallNu<BodyRegionByParticle>> seg_Nu(seg_region, "WallLocalNusseltNumber");
+
+        return seg_Nu.getReducedQuantity();
+    }
     //----------------------------------------------------------------------
     //  Set bottom-wall temperature layout.
     //----------------------------------------------------------------------
@@ -455,6 +503,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
             write_down_PhiFluxSum.writeToFile(number_of_iterations);
             write_recorded_fluid_vel.writeToFile(number_of_iterations);
             write_global_kinetic_energy.writeToFile(number_of_iterations);
+            write_global_average_Nu.writeToFile(number_of_iterations);
             
             TickCount t3 = TickCount::now();
             interval += t3 - t2;
@@ -483,6 +532,8 @@ PYBIND11_MODULE(zcx_2d_natural_convection_RL_periodic_python, m)
         .def("get_local_velocity", &SphNaturalConvection::getLocalVelocity, py::arg("probe_index"), py::arg("component"))
         .def("get_local_temperature", &SphNaturalConvection::getLocalTemperature, py::arg("probe_index"))
         .def("get_global_kinetic_energy", &SphNaturalConvection::getGlobalKineticEnergy)
+        .def("get_global_Nusselt_number", &SphNaturalConvection::getGlobalNusseltNumber)
+        .def("get_local_Nusselt", &SphNaturalConvection::getLocalNusselt, py::arg("i_seg"))
         .def("run_case", &SphNaturalConvection::runCase, py::arg("target_time"))
         .def("debug_smoke_test", &SphNaturalConvection::debugSmokeTest);
 }

@@ -327,57 +327,42 @@ class ProjectionForNu : public LocalDynamics, public DataDelegateContact
     StdVec<int *> contact_first_layer_indicator_, contact_second_layer_indicator_;
 };
 
-class CalculateAveragedWallNu : public LocalDynamics
+template <class DynamicsIdentifier = SPHBody>
+class AveragedWallNu : public BaseLocalDynamicsReduce<ReduceSum<Real>, DynamicsIdentifier>
 {
   public:
-    explicit CalculateAveragedWallNu(SPHBody& solid_body)
-        : LocalDynamics(solid_body),
-        base_particles_(solid_body.getBaseParticles()),
-        solid_contact_indicator_(particles_->getVariableDataByName<int>("SolidFirstLayerIndicator")),
-        nu_num_(particles_->getVariableDataByName<Real>("WallLocalNusseltNumber")),
-        physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")),
-        averaged_wall_nu_(particles_->registerSingularVariable<Real>("AveragedWallNu")->Data())
-    {};
-
-    virtual ~CalculateAveragedWallNu() {};
-
-    Real calculate_average_value()
+    explicit AveragedWallNu(DynamicsIdentifier &identifier, const std::string &variable_name)
+          : BaseLocalDynamicsReduce<ReduceSum<Real>, DynamicsIdentifier>(identifier),
+            solid_contact_indicator_(this->particles_->template getVariableDataByName<int>("SolidFirstLayerIndicator")),
+            target_variable_(this->particles_->template getVariableDataByName<Real>(variable_name))
     {
-        int num(0);
-        Real total_wall_nu(0);
-        for (size_t i = 0; i != base_particles_.TotalRealParticles(); ++i)
+        this->quantity_name_ = "Averaged" + variable_name;
+    };
+    virtual ~AveragedWallNu(){};
+
+    Real reduce(size_t index_i, Real dt = 0.0)
+    {
+        return target_variable_[index_i];
+    };
+
+    virtual Real outputResult(Real reduced_value) override
+    {
+        size_t count(0);
+        for (size_t index_i = 0; index_i != Real(this->getDynamicsIdentifier().SizeOfLoopRange()); ++index_i)
         {
-            if (solid_contact_indicator_[i])
+            if (solid_contact_indicator_[index_i] == 1)
             {
-                num++;
-                total_wall_nu += nu_num_[i];
+                count++;
             }
         }
 
-        //std::cout << "total_wall_nu = " << total_wall_nu << std::endl;
-        return total_wall_nu / (num + TinyReal);
+        //std::cout << "reduced_value = " << reduced_value << ", count = " << count << std::endl;
+        return -reduced_value / (count + TinyReal);
     }
 
-    void writeAveragedWallNu()
-    {
-        std::string output_folder = "./output";
-        std::string filefullpath = output_folder + "/" + "AveragedWallNu.dat";
-        std::ofstream out_file(filefullpath.c_str(), std::ios::app);
-        out_file << *physical_time_ << "   " << calculate_average_value() <<  "\n";
-        out_file.close();
-    }
-
-    void update(size_t index_i, Real dt = 0.0)
-    {
-        //*averaged_wall_nu_ = calculate_average_value();
-    }
-
-  protected:
-    BaseParticles &base_particles_;
-    int* solid_contact_indicator_;
-    Real* nu_num_;
-    Real *physical_time_;
-    Real* averaged_wall_nu_;
+  private:
+    int *solid_contact_indicator_;
+    Real *target_variable_;
 };
 
 } // namespace solid_dynamics

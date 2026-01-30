@@ -123,7 +123,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::PhiGradientWithWall<LinearGradientCorrection>> calculate_phi_gradient(diffusion_body_inner, fluid_body_contact);
     SimpleDynamics<fluid_dynamics::LocalNusseltNum> local_nusselt_number(diffusion_body, inner_circle_radius/(initial_temperature - wall_temperature));
     InteractionDynamics<solid_dynamics::ProjectionForNu> wall_local_nusselt_number(Dirichlet_contact, inner_circle_radius/(initial_temperature - wall_temperature));
-    SimpleDynamics<solid_dynamics::CalculateAveragedWallNu> calculate_averaged_wall_nu(wall_Dirichlet);
+    // SimpleDynamics<solid_dynamics::CalculateAveragedWallNu> calculate_averaged_wall_nu(wall_Dirichlet);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
     //----------------------------------------------------------------------

@@ -195,109 +195,89 @@ class DiffusionInitialCondition : public LocalDynamics, public SphBasicGeometryS
     Real *phi_;
 };
 
-class DirichletWallBoundaryInitialCondition : public LocalDynamics, public SphBasicGeometrySetting
+class DirichletWallBoundaryInitialCondition
+    : public LocalDynamics
+    , public SphBasicGeometrySetting
 {
-  public:
-    explicit DirichletWallBoundaryInitialCondition(SPHBody &sph_body)
-        : LocalDynamics(sph_body),
-          pos_(particles_->getVariableDataByName<Vecd>("Position")),
-          phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) 
+public:
+    explicit DirichletWallBoundaryInitialCondition(SPHBody& sph_body)
+        : LocalDynamics(sph_body)
+        , pos_(particles_->getVariableDataByName<Vecd>("Position"))
+        , phi_(particles_->registerStateVariable<Real>(diffusion_species_name))
     {
-        this->particles_->template addVariableToRestart<Real>(diffusion_species_name);
-    };
+        particles_->template addVariableToRestart<Real>(diffusion_species_name);
+    }
 
     void update(size_t index_i, Real dt)
     {
-        Real x = pos_[index_i][0];
-        Real y = pos_[index_i][1];
+        const Real x = pos_[index_i][0];
+        const Real y = pos_[index_i][1];
 
-        // --- Bottom wall (Dirichlet with segmented heating control)
-        if (y <= -H / 2.0)
-        {
-            const size_t n = down_wall_segment_T.size();
-            if (n > 0)
-            {
-                Real seg_len = L / Real(n);
-
-                // choose smoothing half-width as a fraction of seg_len
-                Real dx_eff = 0.1 * seg_len;
-                Real dx_max = 0.49 * seg_len;
-                if (dx_eff > dx_max)
-                    dx_eff = dx_max;
-                if (dx_eff < Real(0.0))
-                    dx_eff = Real(0.0);
-
-                // which segment is this x in?
-                // floor(x / seg_len) gives [0, 1, ..., n-1] ideally,
-                // but we clamp just in case x == L (right boundary).
-                size_t k = static_cast<size_t>(std::floor(x / seg_len));
-                if (k >= n)
-                    k = n - 1;
-
-                // segment k spans [xk, xk1]
-                Real xk  = seg_len * Real(k);
-                Real xk1 = xk + seg_len;
-
-                Real Tk = down_wall_segment_T[k];
-
-                bool has_left  = (k > 0);
-                bool has_right = (k < n - 1);
-
-                // define interior "plateau" region after cutting off smoothing bands
-                Real mid_left  = xk  + (has_left  && dx_eff > 0.0 ? dx_eff : 0.0);
-                Real mid_right = xk1 - (has_right && dx_eff > 0.0 ? dx_eff : 0.0);
-
-                Real T_here = Tk; // default plateau value
-
-                // CASE 1: left transition band [xk, xk+dx_eff], only if k>0
-                if (has_left && dx_eff > 0.0 && x < (xk + dx_eff))
-                {
-                    Real T_left = down_wall_segment_T[k - 1];
-                    // cubic "ease" from T_left -> Tk over [xk, xk+dx_eff]
-                    // formula matches our Python smoothing construction:
-                    // expr_left = T_left + ((T_left - Tk)/(4*dx^3)) * (x - xk - 2dx)*(x - xk + dx)^2
-                    Real dx = dx_eff;
-                    Real term1 = (x - xk - 2.0 * dx);
-                    Real term2 = (x - xk + dx);
-                    Real poly  = term1 * term2 * term2; // (x - xk - 2dx)*(x - xk + dx)^2
-                    T_here = T_left + ((T_left - Tk) / (4.0 * std::pow(dx, 3))) * poly;
-                }
-                // CASE 2: plateau region [mid_left, mid_right]
-                else if (x <= mid_right)
-                {
-                    // keep T_here = Tk (already set)
-                }
-                // CASE 3: right transition band [xk1 - dx_eff, xk1], only if k<n-1
-                else if (has_right && dx_eff > 0.0)
-                {
-                    Real T_right = down_wall_segment_T[k + 1];
-                    // cubic "ease" from Tk -> T_right over [xk1 - dx_eff, xk1]
-                    // expr_right = Tk + ((Tk - T_right)/(4*dx^3)) * (x - xk1 - 2dx)*(x - xk1 + dx)^2
-                    Real dx = dx_eff;
-                    Real term1 = (x - xk1 - 2.0 * dx);
-                    Real term2 = (x - xk1 + dx);
-                    Real poly  = term1 * term2 * term2;
-                    T_here = Tk + ((Tk - T_right) / (4.0 * std::pow(dx, 3))) * poly;
-                }
-                else
-                {
-                    // For completeness. If x > mid_right but !has_right, we just keep Tk.
-                    // Similarly if dx_eff == 0 we just keep Tk.
-                }
-
-                phi_[index_i] = T_here;
-            }
-        }
-        
-        // --- Top wall (Dirichlet, fixed uniform up_temperature)
-        if (pos_[index_i][1] >= H/2)
+        // Top wall: uniform Dirichlet
+        if (y >= H * Real(0.5))
         {
             phi_[index_i] = up_temperature;
+            return;
         }
+
+        // Bottom wall: segmented Dirichlet with smoothing
+        if (y > -H * Real(0.5))
+            return;
+
+        const size_t n = down_wall_segment_T.size();
+        if (n == 0)
+            return;
+
+        const Real seg_len = L / Real(n);
+
+        // smoothing half-width = 10% of segment length, clamped
+        Real dx = Real(0.1) * seg_len;
+        dx = std::min(dx, Real(0.49) * seg_len);
+        dx = std::max(dx, Real(0.0));
+
+        // Determine segment index k in [0, n-1]
+        // Assumes x in [0, L]. If x can be negative or periodic, apply wrapping before this.
+        size_t k = static_cast<size_t>(std::floor(x / seg_len));
+        if (k >= n) k = n - 1;
+
+        const size_t kL = (k + n - 1) % n;  // periodic left neighbor
+        const size_t kR = (k + 1) % n;      // periodic right neighbor
+
+        const Real xk  = seg_len * Real(k);
+        const Real xk1 = xk + seg_len;
+
+        const Real Tk = down_wall_segment_T[k];
+        Real T_here = Tk;
+
+        if (dx > Real(0.0))
+        {
+            const Real dx3 = dx * dx * dx;
+
+            // Left transition band: [xk, xk + dx]
+            if (x < xk + dx)
+            {
+                const Real T_left = down_wall_segment_T[kL];
+                const Real t1 = (x - xk - Real(2.0) * dx);
+                const Real t2 = (x - xk + dx);
+                const Real poly = t1 * t2 * t2;  // (x-xk-2dx)*(x-xk+dx)^2
+                T_here = T_left + ((T_left - Tk) / (Real(4.0) * dx3)) * poly;
+            }
+            // Right transition band: [xk1 - dx, xk1]
+            else if (x > xk1 - dx)
+            {
+                const Real T_right = down_wall_segment_T[kR];
+                const Real t1 = (x - xk1 - Real(2.0) * dx);
+                const Real t2 = (x - xk1 + dx);
+                const Real poly = t1 * t2 * t2;
+                T_here = Tk + ((Tk - T_right) / (Real(4.0) * dx3)) * poly;
+            }
+            // Else plateau region: (xk + dx, xk1 - dx) => Tk
+        }
+
+        phi_[index_i] = T_here;
     }
 
-  protected:
-    Vecd *pos_;
-    Real *phi_;
+protected:
+    Vecd* pos_;
+    Real* phi_;
 };
-

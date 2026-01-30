@@ -55,7 +55,7 @@ def get_args():
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--tau", type=float, default=0.005)
     parser.add_argument("--alpha", type=float, default=0.25)
-    parser.add_argument("--auto-alpha", default=False, action="store_true")
+    parser.add_argument("--auto-alpha", default=True, action="store_true")
     parser.add_argument("--alpha-lr", type=float, default=5e-4)
     parser.add_argument("--start-timesteps", type=int, default=0)  # Replace the step number with episode pre-sampling
     parser.add_argument("--epoch", type=int, default=50)
@@ -146,8 +146,8 @@ def training_sac(args=get_args()):
     # Setup replay buffer and collector for training
     buffer = VectorReplayBuffer(args.buffer_size, len(train_env)) if args.training_num > 1 else ReplayBuffer(
         args.buffer_size)
-    train_collector = Collector(policy, train_env, buffer, exploration_noise=True)
-    test_collector = None
+    train_collector = Collector(policy, train_env, buffer, exploration_noise=False)
+    test_collector = Collector(policy, test_env, exploration_noise=False)
     # train_collector.collect(n_step=args.start_timesteps, random=True)
     train_collector.collect(n_episode=15, random=True)
 
@@ -167,7 +167,7 @@ def training_sac(args=get_args()):
         result = OffpolicyTrainer(
             policy=policy,
             train_collector=train_collector,
-            test_collector=None,
+            test_collector=test_collector,
             episode_per_test=args.test_num,
             max_epoch=args.epoch,
             step_per_epoch=args.step_per_epoch,

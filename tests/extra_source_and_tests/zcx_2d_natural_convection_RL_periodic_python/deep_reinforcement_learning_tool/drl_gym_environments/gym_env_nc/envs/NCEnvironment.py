@@ -7,7 +7,8 @@ from gymnasium import spaces
 from collections import deque
 
 # TODO: replace with an env var or auto-discovery
-sys.path.append(r"D:\SPHinXsys_build\tests\test_python_interface\zcx_2d_natural_convection_RL_periodic_python\lib\Release")
+sys.path.append(r"D:\SPHinXsys_build\tests\test_python_interface\zcx_2d_natural_convection_RL_periodic_python\lib"
+                r"\Release")
 import zcx_2d_natural_convection_RL_periodic_python as test_2d
 
 
@@ -80,8 +81,10 @@ class NCEnvironment(gym.Env):
         self._probe_hist = deque(maxlen=4)  # 4-step moving average
 
         # ----- reward shaping params (Nu mix) -----
-        self.beta = 0.0015  # small local contribution
-        self.nu_target = 20.87
+        # self.beta = 0.0015  # small local contribution
+        self.beta = 0
+        self.nu_target = 22.5
+        # self.nu_target = 2.32
         self.reward_scale = 1.0
 
         # ----- solver handles / runtime -----
@@ -103,9 +106,8 @@ class NCEnvironment(gym.Env):
         raw = np.asarray(action_vec, dtype=np.float32)
         raw = np.clip(raw, -1.0, 1.0)
         centered = raw - float(np.mean(raw))
-        max_abs = float(np.max(np.abs(centered))) if self.n_seg > 0 else 0.0
-        scale = (ampl / max_abs) if max_abs > 1e-8 else 0.0
-        temps = baseline_T + centered * scale
+        K2 = max(1.0, float(np.max(np.abs(centered))))
+        temps = baseline_T + ampl * centered / K2
         return np.clip(temps, 0.0, 4.0).astype(np.float32).tolist()
 
     # ------------------------------------------------------------------
@@ -144,9 +146,15 @@ class NCEnvironment(gym.Env):
         """r = nu_target - [(1 - beta) * Nu_global + beta * mean(Nu_local_i)]"""
         gen_Nu = float(self.nc.get_global_heat_flux())
         loc_Nu_vals = [float(self.nc.get_local_phi_flux(i)) for i in range(self.n_seg)]
-        loc_Nu = float(np.sum(loc_Nu_vals)) if self.n_seg > 0 else 0.0
-        reward_nu = (1.0 - self.beta) * gen_Nu + self.beta * loc_Nu
+        loc_Nu = float(np.mean(loc_Nu_vals)) if self.n_seg > 0 else 0.0
+        reward_nu = (1.0 - self.beta) * gen_Nu + self.beta * loc_Nu * self.n_seg
         reward = (self.nu_target - reward_nu) / self.reward_scale
+
+        # gen_Nu = float(self.nc.get_global_Nusselt_number())
+        # loc_Nu_vals = [float(self.nc.get_local_Nusselt(i)) for i in range(self.n_seg)]
+        # loc_Nu = float(np.mean(loc_Nu_vals)) if self.n_seg > 0 else 0.0
+        # reward_nu = (1.0 - self.beta) * gen_Nu + self.beta * loc_Nu
+        # reward = (self.nu_target - reward_nu) / self.reward_scale
 
         # try:
         #     dbg_path = os.path.join(self.log_dir, f"nu_debug_env{self.parallel_envs}_epi{self.episode}.txt")
