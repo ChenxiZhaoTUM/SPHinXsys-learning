@@ -9,7 +9,8 @@ from gymnasium import spaces
 from pettingzoo.utils import ParallelEnv
 
 # ---- Bind to the SPHinXsys C++ interface ----
-sys.path.append(r"D:\SPHinXsys_build\tests\test_python_interface\zcx_2d_natural_convection_RL_periodic_python\lib\Release")
+sys.path.append(r"D:\SPHinXsys_build\tests\test_python_interface\zcx_2d_natural_convection_RL_periodic_python\lib"
+                r"\Release")
 import zcx_2d_natural_convection_RL_periodic_python as test_2d
 
 
@@ -35,9 +36,7 @@ class NCMAEnvParallel(ParallelEnv):
 
     - Observation:
         We sample an 8x30 probe grid of (u, v, T). A 4-frame moving average is kept.
-        Each agent i receives a "recentered" view: [left segment | own segment | right segment],
-        where each segment's probe block is padded/truncated to a uniform width to keep a fixed
-        observation length.
+        Each agent i receives a "recentered" view
 
     - Action:
         Each agent outputs a single scalar in [-1, 1]. All agents' actions are collected; once we
@@ -59,8 +58,8 @@ class NCMAEnvParallel(ParallelEnv):
         # ----- segmentation / agents -----
         assert n_seg > 0
         self.n_seg = int(n_seg)
-        self.agents = [f"agent_{i}" for i in range(self.n_seg)]
-        self.possible_agents = list(self.agents)
+        self.possible_agents = [f"agent_{i}" for i in range(self.n_seg)]
+        self.agents = list(self.possible_agents)
 
         # ----- directories -----
         # keep all runtime artifacts under drl/training_process
@@ -88,8 +87,11 @@ class NCMAEnvParallel(ParallelEnv):
 
         # unified per-segment column width to keep obs length fixed
         self._cols_per_seg_max = int(np.ceil(self.n_cols / self.n_seg))
-        # each agent sees [left|center|right] segments
-        self._obs_len = 3 * self.n_rows * self._cols_per_seg_max * self._probe_dim
+        self._seg_bounds = [(int(np.floor(s * self.n_cols / self.n_seg)),
+                             int(np.floor((s + 1) * self.n_cols / self.n_seg)))
+                            for s in range(self.n_seg)]
+        self.hor_inv_probes = self.n_cols // self.n_seg  # columns per segment
+        self._obs_len = self.n_rows * self.n_cols * self._probe_dim
 
         # ----- spaces -----
         self._act_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
@@ -99,21 +101,21 @@ class NCMAEnvParallel(ParallelEnv):
         # ----- reward parameters -----
         self.beta = 0.0015
         self.reward_scale = 1.0
-        self.nu_target = 20.87
+        self.nu_target = 22.5
 
         # ----- runtime handles -----
         self.nc_base = None  # warmup/baseline solver
         self.nc = None  # training solver
         self.total_reward_per_episode = 0.0
-        self._pending_actions: Dict[str, float] = {}
+
+        if self.n_cols % self.n_seg != 0:
+            raise ValueError("Need n_cols % n_seg == 0 for Vignon-style block recenter.")
 
     # ------------------------ PettingZoo spaces ------------------------
-    @property
-    def observation_space(self):
+    def observation_space(self, agent):
         return self._obs_space
 
-    @property
-    def action_space(self):
+    def action_space(self, agent):
         return self._act_space
 
     @property
@@ -154,36 +156,13 @@ class NCMAEnvParallel(ParallelEnv):
         hist = list(self._probe_hist)
         return np.mean(hist, axis=0).astype(np.float32)
 
-    def _extract_seg_block(self, grid: np.ndarray, seg: int) -> np.ndarray:
-        """
-        Extract the probe block of a segment and pad/truncate to a uniform width
-        so that all agent observations share the same length.
-
-        Returns shape: (n_rows, cols_per_seg_max, 3)
-        """
-        s, e = self._seg_col_range(seg)
-        block = grid[:, s:e, :]  # (n_rows, cols_k, 3)
-        cols_k = block.shape[1]
-        if cols_k < self._cols_per_seg_max:
-            pad = np.zeros((self.n_rows, self._cols_per_seg_max - cols_k, self._probe_dim), dtype=np.float32)
-            block = np.concatenate([block, pad], axis=1)
-        elif cols_k > self._cols_per_seg_max:
-            block = block[:, :self._cols_per_seg_max, :]
-        return block
-
     def _recenter_obs(self, grid_time_avg: np.ndarray, i: int) -> np.ndarray:
-        """
-        Agent i sees a concatenation of its left neighbor, itself, and right neighbor.
-        The neighbor indices wrap around via modulo for i=0 and i=n_seg-1.
-        Returns flattened float32 array of length `self._obs_len`.
-        """
-        left = (i - 1) % self.n_seg
-        right = (i + 1) % self.n_seg
-        blk_l = self._extract_seg_block(grid_time_avg, left)
-        blk_c = self._extract_seg_block(grid_time_avg, i)
-        blk_r = self._extract_seg_block(grid_time_avg, right)
-        obs = np.concatenate([blk_l, blk_c, blk_r], axis=1)  # concat along columns
-        return obs.reshape(-1).astype(np.float32)
+        mid_seg = self.n_seg // 2
+        shift_seg = (i - mid_seg) % self.n_seg
+        shift_cols = shift_seg * self.hor_inv_probes
+        shifted = np.roll(grid_time_avg, shift=-shift_cols, axis=1)
+        # flatten to 1D observation vector
+        return shifted.reshape(-1).astype(np.float32)
 
     # ------------------------ Reward ------------------------
     def _compute_rewards(self) -> Dict[str, float]:
@@ -197,7 +176,7 @@ class NCMAEnvParallel(ParallelEnv):
         rewards = {}
         for i, agent in enumerate(self.agents):
             loc_Nu_i = float(self.nc.get_local_phi_flux(int(i)))
-            mix = (1.0 - self.beta) * gen_Nu + self.beta * loc_Nu_i * 10
+            mix = (1.0 - self.beta) * gen_Nu + self.beta * loc_Nu_i * self.n_seg
             r = (self.nu_target - mix) / self.reward_scale
             rewards[agent] = float(r)
         return rewards
@@ -211,7 +190,6 @@ class NCMAEnvParallel(ParallelEnv):
         # mark all agents as active for a new episode
         self.agents = list(self.possible_agents)
         self.step_count = 0
-        self._pending_actions.clear()
 
         # banner + logs
         msg = f"[env {self.parallel_envs}] ===== Episode {self.episode} start ====="
@@ -257,12 +235,14 @@ class NCMAEnvParallel(ParallelEnv):
         - Limit amplitude to keep temperatures in a safe band around baseline.
         """
         baseline_T, ampl = 2.0, 0.75
-        raw = np.array([float(np.clip(actions_dict[f"agent_{i}"], -1.0, 1.0)) for i in range(self.n_seg)],
-                       dtype=np.float32)
+        raw = np.empty(self.n_seg, dtype=np.float32)
+        for i in range(self.n_seg):
+            val = float(np.asarray(actions_dict[f"agent_{i}"]).reshape(-1)[0])
+            raw[i] = float(np.clip(val, -1.0, 1.0))
+
         centered = raw - float(np.mean(raw))
-        max_abs = float(np.max(np.abs(centered))) if self.n_seg > 0 else 0.0
-        scale = (ampl / max_abs) if max_abs > 1e-8 else 0.0
-        temps = baseline_T + centered * scale
+        K2 = max(1.0, float(np.max(np.abs(centered))))
+        temps = baseline_T + ampl * centered / K2
         return np.clip(temps, 0.0, 4.0).tolist()
 
     def step(self, actions: Dict[str, np.ndarray]):
@@ -272,19 +252,12 @@ class NCMAEnvParallel(ParallelEnv):
         - Advance CFD by `delta_time`
         - Produce recentered observations, per-agent rewards, and termination flags.
         """
-        # 1) collect actions; if not complete, return last obs with zero rewards
-        self._pending_actions.update({k: np.array(v).reshape(-1)[0] for k, v in actions.items()})
-        if len(self._pending_actions) < self.n_seg:
-            if self._last_obs is None:
-                grid_time_avg = self._time_avg_grid()
-                self._last_obs = {agent: self._recenter_obs(grid_time_avg, i) for i, agent in enumerate(self.agents)}
-            zero_rew = {a: 0.0 for a in self.agents}
-            flags = {a: False for a in self.agents}
-            return self._last_obs, zero_rew, flags, flags, {a: {} for a in self.agents}
+        # 1) collect actions
+        if set(actions.keys()) != set(self.agents):
+            raise ValueError("ParallelEnv.step requires a full action dict for all active agents.")
 
         # 2) build temperatures and advance CFD
-        seg_temps = self._build_segment_temps(self._pending_actions)
-        self._pending_actions.clear()
+        seg_temps = self._build_segment_temps(actions)
 
         self.nc.set_segment_temperatures(seg_temps)
         end_time = self.sim_time + self.delta_time
@@ -324,6 +297,7 @@ class NCMAEnvParallel(ParallelEnv):
             with open(os.path.join(self.log_dir, f"reward_env{self.parallel_envs}.txt"), "a", encoding="utf-8") as f:
                 f.write(f"episode: {self.episode}  total_reward: {self.total_reward_per_episode:.6f}\n")
             self.episode += 1
+            self.agents = []
         else:
             term = {a: False for a in self.agents}
             trunc = {a: False for a in self.agents}
@@ -340,3 +314,74 @@ class NCMAEnvParallel(ParallelEnv):
 
     def close(self):
         return 0
+
+
+def _debug_print_blocks(arr_1d, n_rows, n_cols, n_seg, probe_dim, title=""):
+    """Print per-segment mean for a chosen channel (0) to see where the 'hot' block is."""
+    grid = arr_1d.reshape(n_rows, n_cols, probe_dim)
+    ch0 = grid[:, :, 0]  # look at channel 0
+    cols_per_seg = n_cols // n_seg
+    seg_means = []
+    for s in range(n_seg):
+        x0 = s * cols_per_seg
+        x1 = (s + 1) * cols_per_seg
+        seg_means.append(float(np.mean(ch0[:, x0:x1])))
+    print(title, "seg_means(ch0):", ["{:.1f}".format(v) for v in seg_means])
+
+
+def test_recenter_unit(env: "NCMAEnvParallel"):
+    """
+    Unit-test recenter without running CFD:
+    - Build synthetic grid where segment i has value 1, others 0 (on channel 0 only).
+    - Recenter for agent i should move that block to mid_seg.
+    """
+    Ny, Nx, C = env.n_rows, env.n_cols, env._probe_dim
+    n_seg = env.n_seg
+    cols_per_seg = env.hor_inv_probes
+    mid_seg = n_seg // 2
+
+    print(f"[TEST] Ny={Ny}, Nx={Nx}, C={C}, n_seg={n_seg}, cols_per_seg={cols_per_seg}, mid_seg={mid_seg}")
+
+    ok = True
+    for i in range(n_seg):
+        grid = np.zeros((Ny, Nx, C), dtype=np.float32)
+
+        # put a clear marker only in segment i, channel 0
+        x0 = i * cols_per_seg
+        x1 = (i + 1) * cols_per_seg
+        grid[:, x0:x1, 0] = 1.0
+
+        rec = env._recenter_obs(grid, i).reshape(Ny, Nx, C)
+
+        # expected: the '1.0' block is now at mid_seg
+        mx0 = mid_seg * cols_per_seg
+        mx1 = (mid_seg + 1) * cols_per_seg
+
+        # check mean inside mid block should be ~1, outside should be ~0
+        inside = float(np.mean(rec[:, mx0:mx1, 0]))
+        outside_left = float(np.mean(rec[:, :mx0, 0])) if mx0 > 0 else 0.0
+        outside_right = float(np.mean(rec[:, mx1:, 0])) if mx1 < Nx else 0.0
+
+        cond = (inside > 0.99) and (outside_left < 1e-3) and (outside_right < 1e-3)
+        if not cond:
+            ok = False
+            print(f"[FAIL] agent={i}: inside={inside:.3f}, outL={outside_left:.3e}, outR={outside_right:.3e}")
+            # print per-seg means for diagnosis
+            _debug_print_blocks(grid.reshape(-1), Ny, Nx, n_seg, C, title=f"orig(i={i})")
+            _debug_print_blocks(rec.reshape(-1), Ny, Nx, n_seg, C, title=f"recenter(i={i})")
+            # hint about direction
+            print("Hint: if the hot block lands in the wrong place, try flipping roll sign: "
+                  "`np.roll(..., shift=+shift_cols, axis=1)` instead of `-shift_cols`.")
+            break
+
+    if ok:
+        print("[PASS] recenter unit-test passed for all agents.")
+
+
+if __name__ == "__main__":
+    # Build env object only for testing recenter math (no CFD needed).
+    # We won't call env.reset() or env.step() here.
+    env = NCMAEnvParallel(n_seg=10, parallel_envs=0)
+
+    # run the unit test
+    test_recenter_unit(env)
