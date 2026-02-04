@@ -128,16 +128,7 @@ class NCPseudoEnv(gym.Env):
 
         # ---- logging ----
         self.log_root = os.path.join(self.training_root, f"logs_env_{self.parallel_envs}")
-        self.agent_log_dir = os.path.join(self.log_root, f"agent_{self.inv_id}")
-        os.makedirs(self.agent_log_dir, exist_ok=True)
 
-        # leader 的 group log
-        self.group_log_dir = os.path.join(self.log_root, "group")
-        if self.is_leader:
-            os.makedirs(self.group_log_dir, exist_ok=True)
-
-        self._agent_log_file = None
-        self._group_log_file = None
 
     @property
     def is_leader(self) -> bool:
@@ -155,18 +146,6 @@ class NCPseudoEnv(gym.Env):
         loc_i = float(local_flux[self.inv_id])
         mix = (1.0 - self.beta) * gen_flux + self.beta * loc_i * self.n_seg
         return float((self.nu_target - mix) / self.reward_scale)
-
-    def _open_episode_logs(self):
-        self._agent_log_file = os.path.join(self.agent_log_dir, f"ep_{self.episode}.csv")
-        if not os.path.exists(self._agent_log_file):
-            with open(self._agent_log_file, "w", encoding="utf-8") as f:
-                f.write("episode,actuation,sim_time,action_scalar,reward,gen_flux,local_flux_i\n")
-
-        if self.is_leader:
-            self._group_log_file = os.path.join(self.group_log_dir, f"group_ep_{self.episode}.csv")
-            if not os.path.exists(self._group_log_file):
-                with open(self._group_log_file, "w", encoding="utf-8") as f:
-                    f.write("episode,actuation,sim_time,gen_flux,raw_actions,seg_temps,local_flux,rewards\n")
 
     def _append_line(self, path: str, line: str):
         # 行缓冲写入，尽量减少丢日志风险
@@ -228,12 +207,6 @@ class NCPseudoEnv(gym.Env):
             "actuation": 0,
             "sim_time": float(self.sim_time),
         }
-
-        self._open_episode_logs()
-        # 可选：写个 banner
-        self._append_line(self._agent_log_file, f"# start episode {self.episode} inv_id {self.inv_id}")
-        if self.is_leader:
-            self._append_line(self._group_log_file, f"# start episode {self.episode} group {self.parallel_envs}")
 
         return obs0, info
 

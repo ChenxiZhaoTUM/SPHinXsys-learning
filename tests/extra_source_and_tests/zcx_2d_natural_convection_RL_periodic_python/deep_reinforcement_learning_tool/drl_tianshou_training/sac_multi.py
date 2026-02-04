@@ -30,6 +30,8 @@ from tianshou.utils import TensorboardLogger
 
 import shutil
 import stat
+
+
 # -------------------------------------------------
 # Env factory (MUST be top-level for Windows spawn)
 # -------------------------------------------------
@@ -114,26 +116,34 @@ def rebuild_training_root(training_root: str) -> str:
     Return absolute training_root.
     """
     training_root = os.path.abspath(training_root)
-    restart_dir = os.path.join(training_root, "restart")
+
+    # SAFETY GUARD: only allow clearing a dir named training_results_pseudo
+    base = os.path.basename(training_root.rstrip("\\/"))
+    if base != "training_results_pseudo":
+        raise RuntimeError(
+            f"Refuse to clear unexpected directory:\n  {training_root}\n"
+            f"Expected basename == 'training_results_pseudo'."
+        )
 
     # best-effort retry to avoid transient locks
     if os.path.isdir(training_root):
-        for k in range(5):
+        for _ in range(5):
             try:
                 shutil.rmtree(training_root, onerror=_rmtree_onerror)
                 break
             except Exception:
                 time.sleep(0.2)
-        # if still exists, last attempt without swallowing
         if os.path.isdir(training_root):
             shutil.rmtree(training_root, onerror=_rmtree_onerror)
 
+    # recreate skeleton
     os.makedirs(training_root, exist_ok=True)
-    os.makedirs(restart_dir, exist_ok=True)
-    for name in ["input", "output", "reload"]:
+    os.makedirs(os.path.join(training_root, "restart"), exist_ok=True)
+    for name in ("input", "output", "reload"):
         os.makedirs(os.path.join(training_root, name), exist_ok=True)
 
     return training_root
+
 
 # -------------------------------------------------
 # Args
@@ -174,7 +184,8 @@ def get_args():
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--tau", type=float, default=0.005)
     p.add_argument("--alpha", type=float, default=0.2)
-
+    p.add_argument("--auto-alpha", default=True, action="store_true")
+    p.add_argument("--alpha-lr", type=float, default=5e-4)
     p.add_argument("--epoch", type=int, default=50)
     p.add_argument("--step-per-epoch", type=int, default=2048)
     p.add_argument("--step-per-collect", type=int, default=512)
@@ -198,8 +209,8 @@ def main():
 
     # ---- paths ----
     if args.training_root is None:
-        here = os.path.dirname(os.path.abspath(__file__))
-        args.training_root = os.path.join(here, "training_results_pseudo")
+        proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "../training_process"))
+        args.training_root = os.path.join(proj_root, "training_results_pseudo")
     args.training_root = os.path.abspath(args.training_root)
 
     # >>> 每次运行都全删并重建（关键点：必须在 spawn 子进程前做） <<<
@@ -267,6 +278,12 @@ def main():
     critic2 = Critic(net_c2, device=args.device).to(args.device)
     critic2_optim = torch.optim.Adam(critic2.parameters(), lr=args.critic_lr)
 
+    if args.auto_alpha:
+        target_entropy = -np.prod(act_shape)
+        log_alpha = torch.zeros(1, requires_grad=True, device=args.device)
+        alpha_optim = torch.optim.Adam([log_alpha], lr=args.alpha_lr)
+        args.alpha = (target_entropy, log_alpha, alpha_optim)
+
     policy = SACPolicy(
         actor=actor,
         actor_optim=actor_optim,
@@ -277,12 +294,12 @@ def main():
         gamma=args.gamma,
         tau=args.tau,
         alpha=args.alpha,
-        action_space=train_envs.action_space,
+        action_space=act_space,
     )
 
     # ---- collector ----
     buffer = VectorReplayBuffer(args.buffer_size, len(train_envs))
-    collector = Collector(policy, train_envs, buffer, exploration_noise=True)
+    collector = Collector(policy, train_envs, buffer, exploration_noise=False)
 
     # ---- logging ----
     now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
