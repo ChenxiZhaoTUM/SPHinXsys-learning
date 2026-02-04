@@ -1,15 +1,23 @@
-from .NCMAEnv import NCMAEnvParallel
+# gym_env_nc/marl/__init__.py
+
+from .NCPseudoEnv import NCPseudoEnv
 
 
 def parallel_env(**kwargs):
-    """PettingZoo 并行环境工厂：返回一个 ParallelEnv 实例。"""
-    return NCMAEnvParallel(**kwargs)
+    """
+    Factory required by gym_env_nc/__init__.py.
+    NOTE: 这里返回的是 Gymnasium Env (NCPseudoEnv)，不是 PettingZoo ParallelEnv。
+    你的 sac_multi.py 训练只用 NCPseudoEnv，因此这样即可满足导入链。
+    """
+    return NCPseudoEnv(**kwargs)
 
 
 def raw_env(**kwargs):
-    """可选：把并行环境包装成 AEC 接口（部分 MARL 库更喜欢这个）。"""
-    from pettingzoo.utils import parallel_to_aec
-    return parallel_to_aec(parallel_env(**kwargs))
+    """
+    保持接口名字存在，避免 gym_env_nc/__init__.py 导入失败。
+    如果你未来真要 PettingZoo AEC，请另外实现一个 ParallelEnv 再在这里转换。
+    """
+    return parallel_env(**kwargs)
 
 
-__all__ = ["parallel_env", "raw_env", "NCMAEnvParallel"]
+__all__ = ["parallel_env", "raw_env", "NCPseudoEnv"]
