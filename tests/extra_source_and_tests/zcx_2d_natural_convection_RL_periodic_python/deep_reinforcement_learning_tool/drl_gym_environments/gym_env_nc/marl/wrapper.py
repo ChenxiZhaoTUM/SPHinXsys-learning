@@ -8,7 +8,7 @@ import glob
 
 
 # ------------------------------
-#  Utilities: action->temps, recenter
+#  Utilities: action->temperatures, recenter
 # ------------------------------
 def actions_to_segment_temps(
         raw_actions: np.ndarray,
@@ -18,8 +18,8 @@ def actions_to_segment_temps(
         Tmax: float = 4.0,
 ) -> np.ndarray:
     """
-    raw_actions: shape (n_seg,), expected in [-1, 1]
-    temps = baseline_T + ampl * centered / K2
+    Map joint actions in [-1, 1] to physically safe segment temperatures.
+    This matches the "demean + normalize by max abs" strategy
     """
     a = np.asarray(raw_actions, dtype=np.float32).reshape(-1)
     a = np.clip(a, -1.0, 1.0)
@@ -54,8 +54,11 @@ def recenter_grid_vignon(
     return np.roll(grid, shift=shift_cols, axis=1)
 
 
+# ------------------------------
+# Windows-friendly filesystem helpers
+# ------------------------------
 def _rmtree_retry(path: str, retry: int = 30, sleep: float = 0.1) -> None:
-    """Windows 下目录删除容易被占用：带重试。"""
+    """Best-effort recursive delete with retries (useful for Windows transient locks)."""
     for _ in range(retry):
         try:
             if os.path.isdir(path):
@@ -63,7 +66,6 @@ def _rmtree_retry(path: str, retry: int = 30, sleep: float = 0.1) -> None:
             return
         except PermissionError:
             time.sleep(sleep)
-    # 最后一次再试，失败就抛出
     if os.path.isdir(path):
         shutil.rmtree(path)
 
@@ -104,7 +106,7 @@ class SyncPaths:
         return os.path.join(self.ep_dir(episode), f"is_finished_Actuation{actuation}.flag")
 
     def baseline_flag(self) -> str:
-        return os.path.join(self.root, f"CFD_n{self.parallel_envs}", "baseline_done.flag")
+        return os.path.join(self.cfd_root(), "baseline_done.flag")
 
     def episode_ready_flag(self, episode: int) -> str:
         return os.path.join(self.ep_dir(episode), "_episode_ready.flag")
@@ -116,23 +118,38 @@ class SyncPaths:
         # 每个 agent 一个临时文件
         return os.path.join(self.log_dir(), f"ep_{episode:06d}_agent_{inv_id:03d}.npy")
 
-    def mean_reward_file(self) -> str:
-        # 最终只保留这一份 txt
-        return os.path.join(self.log_dir(), f"reward_env_{self.parallel_envs}.txt")
+    # ---- folder A: per-episode step curve ----
+    def step_curve_dir(self) -> str:
+        return os.path.join(self.log_dir(), "mean_reward_curve")
 
+    def step_curve_file(self, episode: int) -> str:
+        return os.path.join(self.step_curve_dir(), f"episode_{episode:06d}.txt")
+
+    # ---- folder B: per-episode total mean return ----
+    def episode_curve_dir(self) -> str:
+        return os.path.join(self.log_dir(), "mean_reward_by_episode")
+
+    def episode_curve_file(self) -> str:
+        return os.path.join(self.episode_curve_dir(), f"reward_env_{self.parallel_envs}.txt")
+
+
+# ------------------------------
+# Wrapper
+# ------------------------------
 class Wrapper:
     """
     - Each pseudo-env (inv_id in [0..n_seg-1]) writes its scalar action.
     - Leader inv_id==0 waits for all actions, runs ONE CFD step, writes result.
      - Followers wait for result file and read it.
 
-    Public API (what Env is allowed to call):
-      - prepare_episode(...)
-      - ensure_baseline_once(...)
-      - submit_action(...)
-      - publish_initial_state(...)
-      - step_shared(...)
-      - wait_result(...)
+    Public API
+    - prepare_episode(...)
+    - ensure_baseline_once(...)
+    - merge_action(...)
+    - publish_initial_state(...)
+    - step_shared(...)
+    - wait_result(...)
+    - append_mean_reward(...)
     """
 
     def __init__(
@@ -159,7 +176,7 @@ class Wrapper:
         # Leader-side moving average history (followers do not use this)
         self._probe_hist: List[np.ndarray] = []
 
-        os.makedirs(os.path.join(sync_root, f"CFD_n{parallel_envs}"), exist_ok=True)
+        os.makedirs(self.paths.cfd_root(), exist_ok=True)
 
         if self.n_cols % self.n_seg != 0:
             raise ValueError(f"Need n_cols % n_seg == 0. n_cols={self.n_cols}, n_seg={self.n_seg}")
@@ -176,18 +193,16 @@ class Wrapper:
         ready = self.paths.episode_ready_flag(episode)
 
         if is_leader:
-            # 1) 如果 epd 被错误创建成“文件”，先删掉
+            # If epd is accidentally created as a file, remove it.
             if os.path.isfile(epd):
                 _safe_remove(epd)
 
-            # 2) 清理旧 episode 目录（仅 leader）
             if clean and os.path.isdir(epd):
                 _rmtree_retry(epd)
 
-            # 3) 创建 episode 目录
             os.makedirs(epd, exist_ok=True)
 
-            # 4) 清理残留文件（避免读到上次的结果/flag）
+            # Remove stale flags/results from previous runs.
             _safe_remove(ready)
             for f in glob.glob(os.path.join(epd, "is_finished_Actuation*.flag")):
                 _safe_remove(f)
@@ -197,11 +212,11 @@ class Wrapper:
                 if os.path.isdir(d):
                     _rmtree_retry(d)
 
-            # 5) 写 ready flag，释放 follower
+            # write ready flag, release follower
             open(ready, "w").close()
 
         else:
-            # follower：只等待，不做任何 mkdir/rmtree
+            # follower：only wait, do not make mkdir/rmtree
             while not os.path.isfile(ready):
                 time.sleep(self.poll_dt)
 
@@ -230,10 +245,21 @@ class Wrapper:
         ep = int(episode)
         ac = int(actuation)
         flag = self.paths.done_flag(ep, ac)
-        while not os.path.isfile(flag):
-            time.sleep(self.poll_dt)
-        data = np.load(self.paths.result_file(ep, ac))
-        return {k: data[k] for k in data.files}
+        res = self.paths.result_file(ep, ac)
+
+        while True:
+            if not os.path.isfile(flag):
+                time.sleep(self.poll_dt)
+                continue
+            if not os.path.isfile(res):
+                time.sleep(self.poll_dt)
+                continue
+
+            try:
+                data = np.load(res)
+                return {k: data[k] for k in data.files}
+            except (FileNotFoundError, PermissionError, OSError, ValueError):
+                time.sleep(self.poll_dt)
 
     # --------------------------
     # Internal: leader waits all actions
@@ -273,11 +299,14 @@ class Wrapper:
     ) -> None:
         ep = int(episode)
         ac = int(actuation)
+        res = self.paths.result_file(ep, ac)
+        os.makedirs(os.path.dirname(res), exist_ok=True)
 
-        os.makedirs(self.paths.ep_dir(ep), exist_ok=True)
+        tmp_base = res + ".tmp"
+        tmp = tmp_base if tmp_base.endswith(".npz") else (tmp_base + ".npz")
 
         np.savez_compressed(
-            self.paths.result_file(ep, ac),
+            tmp,
             sim_time=np.array([sim_time], dtype=np.float32),
             raw_actions=raw_actions.astype(np.float32),
             seg_temps=seg_temps.astype(np.float32),
@@ -285,6 +314,7 @@ class Wrapper:
             gen_flux=np.array([gen_flux], dtype=np.float32),
             local_flux=local_flux.astype(np.float32),  # (n_seg,)
         )
+        os.replace(tmp, res)
         open(self.paths.done_flag(ep, ac), "w").close()
 
     # --------------------------
@@ -461,41 +491,50 @@ class Wrapper:
         out = self.wait_result(ep, ac)
         return out, None
 
-    def write_agent_episode_reward(self, episode: int, inv_id: int, episode_return: float) -> None:
-        """每个 pseudo-env 写自己的 episode return（原子写，避免半写入）"""
-        os.makedirs(self.paths.log_dir(), exist_ok=True)
-        f = self.paths.agent_episode_reward_file(episode, inv_id)
-        tmp = f + ".tmp"
-        arr = np.array([float(episode_return)], dtype=np.float32)
-        with open(tmp, "wb") as fp:
-            np.save(fp, arr)
-        os.replace(tmp, f)
+    # --------------------------
+    # reward logging (leader only)
+    # --------------------------
+    def init_step_curve_file(self, episode: int) -> str:
+        """Create/overwrite the per-episode step curve file (folder A)."""
+        os.makedirs(self.paths.step_curve_dir(), exist_ok=True)
+        f = self.paths.step_curve_file(int(episode))
 
-    def leader_wait_and_write_mean_reward(self, episode: int) -> float:
-        """leader 等齐所有 agent 的 episode return，求均值，追加写入 txt，然后清理临时文件"""
-        os.makedirs(self.paths.log_dir(), exist_ok=True)
+        with open(f, "w", encoding="utf-8") as fp:
+            header = ["actuation", "sim_time", "mean_reward"]
+            header += [f"reward_seg{i}" for i in range(self.n_seg)]
+            fp.write(",".join(header) + "\n")
+            return f
 
-        files = [self.paths.agent_episode_reward_file(episode, i) for i in range(self.n_seg)]
-        while True:
-            if all(os.path.isfile(p) for p in files):
-                break
-            time.sleep(self.poll_dt)
+    def append_step_mean_reward(
+            self,
+            episode: int,
+            actuation: int,
+            sim_time: float,
+            mean_reward: float,
+            rewards_vec: np.ndarray,
+    ) -> None:
+        """
+        Append one actuation record (folder A):
+        actuation,sim_time,mean_reward,reward_seg0,...,reward_seg{n_seg-1}
+        """
+        os.makedirs(self.paths.step_curve_dir(), exist_ok=True)
+        f = self.paths.step_curve_file(int(episode))
+        rv = np.asarray(rewards_vec, dtype=np.float32).reshape(-1)
 
-        vals = []
-        for p in files:
-            with open(p, "rb") as fp:
-                vals.append(float(np.load(fp)[0]))
-        mean_rew = float(np.mean(vals)) if vals else 0.0
+        if rv.size != self.n_seg:
+            raise ValueError(f"rewards_vec size mismatch: got {rv.size}, expected {self.n_seg}")
 
-        out_txt = self.paths.mean_reward_file()
-        with open(out_txt, "a", encoding="utf-8") as f:
-            f.write(f"episode: {episode}  mean_reward: {mean_rew:.6f}\n")
+        row = [str(int(actuation)),
+               f"{float(sim_time):.6f}",
+               f"{float(mean_reward):.6f}",
+               ] + [f"{float(x):.6f}" for x in rv.tolist()]
 
-        # 清理临时文件，避免“记录太多”
-        for p in files:
-            try:
-                os.remove(p)
-            except OSError:
-                pass
+        with open(f, "a", encoding="utf-8", buffering=1) as fp:
+            fp.write(",".join(row) + "\n")
 
-        return mean_rew
+    def append_episode_mean_return(self, episode: int, mean_return: float) -> None:
+        """Append per-episode total mean return (folder B)."""
+        os.makedirs(self.paths.episode_curve_dir(), exist_ok=True)
+        f = self.paths.episode_curve_file()
+        with open(f, "a", encoding="utf-8", buffering=1) as fp:
+            fp.write(f"episode: {int(episode)}  mean_return: {float(mean_return):.6f}\n")

@@ -82,6 +82,7 @@ class NCPseudoEnv(gym.Env):
         self.baseline_temp = float(baseline_temp)
 
         self.episode_return = 0.0
+        self.mean_episode_return = 0.0
 
         if not (0 <= self.inv_id < self.n_seg):
             raise ValueError(f"inv_id must be in [0, n_seg-1], got {self.inv_id}")
@@ -128,7 +129,7 @@ class NCPseudoEnv(gym.Env):
 
         # ---- logging ----
         self.log_root = os.path.join(self.training_root, f"logs_env_{self.parallel_envs}")
-
+        self._step_curve_inited = False
 
     @property
     def is_leader(self) -> bool:
@@ -147,10 +148,16 @@ class NCPseudoEnv(gym.Env):
         mix = (1.0 - self.beta) * gen_flux + self.beta * loc_i * self.n_seg
         return float((self.nu_target - mix) / self.reward_scale)
 
-    def _append_line(self, path: str, line: str):
-        # 行缓冲写入，尽量减少丢日志风险
-        with open(path, "a", encoding="utf-8", buffering=1) as f:
-            f.write(line + "\n")
+    def _all_rewards_from_result(self, result: Dict[str, np.ndarray]) -> np.ndarray:
+        """
+        Compute rewards for all segments (shape: [n_seg]).
+        Leader uses this to log 10 rewards + mean at each actuation.
+        """
+        gen_flux = float(result["gen_flux"][0])
+        local_flux = np.asarray(result["local_flux"], dtype=np.float32).reshape(-1)  # (n_seg,)
+        mixes = (1.0 - self.beta) * gen_flux + self.beta * local_flux * float(self.n_seg)
+        rewards = (self.nu_target - mixes) / float(self.reward_scale)
+        return rewards.astype(np.float32)
 
     # -------- Gym API --------
     def reset(self, *, seed=None, options=None):
@@ -163,6 +170,7 @@ class NCPseudoEnv(gym.Env):
         self.step_count = 0
         self.sim_time = float(self.warmup_time)
         self.episode_return = 0.0
+        self.mean_episode_return = 0.0
 
         # solver 很可能依赖相对路径
         os.chdir(self.training_root)
@@ -208,6 +216,11 @@ class NCPseudoEnv(gym.Env):
             "sim_time": float(self.sim_time),
         }
 
+        # leader: init per-episode step curve file (folder A)
+        if self.is_leader:
+            self.wrap.init_step_curve_file(self.episode)
+            self._step_curve_inited = True
+
         return obs0, info
 
     def step(self, action):
@@ -244,24 +257,38 @@ class NCPseudoEnv(gym.Env):
         reward = self._reward_from_result(result)
         self.episode_return += float(reward)
 
+        # leader: write per-actuation 10 rewards + mean reward (folder A)
+        if self.is_leader:
+            if not self._step_curve_inited:
+                self.wrap.init_step_curve_file(self.episode)
+                self._step_curve_inited = True
+
+            rewards_all = self._all_rewards_from_result(result)  # (n_seg,)
+            mean_r = float(np.mean(rewards_all))
+            self.mean_episode_return += mean_r
+            self.wrap.append_step_mean_reward(
+                episode=self.episode,
+                actuation=actuation,
+                sim_time=self.sim_time,
+                mean_reward=mean_r,
+                rewards_vec=rewards_all,
+            )
+
         self.step_count += 1
         terminated = (self.step_count >= self.max_steps)
         truncated = False
 
         if terminated:
-            cur_ep = self.episode
-
-            # 1) 每个 pseudo-env 写自己的 episode_return（一个小 npy）
-            self.wrap.write_agent_episode_reward(cur_ep, self.inv_id, self.episode_return)
-
-            # 2) 只有 leader 汇总 + 写入最终 txt
             if self.is_leader:
-                self.wrap.leader_wait_and_write_mean_reward(cur_ep)
+                # leader: append episode total mean return (folder B)
+                self.wrap.append_episode_mean_return(self.episode, self.mean_episode_return)
 
             # 3) 准备下一个 episode
             self.episode += 1
             self.episode_return = 0.0
+            self.mean_episode_return = 0.0
             self._sim = None
+            self._step_curve_inited = False
 
         info = {
             "episode": int(self.episode),
