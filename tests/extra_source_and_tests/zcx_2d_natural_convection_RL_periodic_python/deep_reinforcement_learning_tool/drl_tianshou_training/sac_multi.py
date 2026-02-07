@@ -39,6 +39,7 @@ def make_env(
     *,
     sph_lib_path: str,
     training_root: str,
+    sync_root: str,
     restart_dir: str,
     parallel_envs: int,
     inv_id: int,
@@ -74,6 +75,7 @@ def make_env(
     return NCPseudoEnv(
         solver_factory=test_2d.natural_convection_from_sph_cpp,
         training_root=training_root,
+        sync_root=sync_root,
         restart_dir=restart_dir,
         parallel_envs=parallel_envs,
         inv_id=inv_id,
@@ -102,39 +104,47 @@ def _rmtree_onerror(func, path, exc_info):
         pass
 
 
-def rebuild_training_root(training_root: str) -> str:
+def rebuild_run_dir(run_dir: str, run_name: str, groups: int, test_gid: int = 999):
     """
-    ALWAYS delete training_root entirely, then recreate:
-      - training_root/
-      - training_root/restart/
-      - training_root/input, output, reload
-    Return absolute training_root.
+      run_dir/
+        sync/CFD_n{gid}/input|output|reload|restart
+        logs/
     """
-    training_root = os.path.abspath(training_root)
+    run_dir = os.path.abspath(run_dir)
 
-    base = os.path.basename(training_root.rstrip("\\/"))
-    if base != "training_results_pseudo":
+    base = os.path.basename(run_dir.rstrip("\\/"))
+    if base != run_name:
         raise RuntimeError(
-            f"Refuse to clear unexpected directory:\n  {training_root}\n"
-            f"Expected basename == 'training_results_pseudo'."
+            f"Refuse to clear unexpected directory:\n  {run_dir}\n"
+            f"Expected basename == '{run_name}'."
         )
 
-    if os.path.isdir(training_root):
+    if os.path.isdir(run_dir):
         for _ in range(5):
             try:
-                shutil.rmtree(training_root, onerror=_rmtree_onerror)
+                shutil.rmtree(run_dir, onerror=_rmtree_onerror)
                 break
             except Exception:
                 time.sleep(0.2)
-        if os.path.isdir(training_root):
-            shutil.rmtree(training_root, onerror=_rmtree_onerror)
+        if os.path.isdir(run_dir):
+            shutil.rmtree(run_dir, onerror=_rmtree_onerror)
 
-    os.makedirs(training_root, exist_ok=True)
-    os.makedirs(os.path.join(training_root, "restart"), exist_ok=True)
-    for name in ("input", "output", "reload"):
-        os.makedirs(os.path.join(training_root, name), exist_ok=True)
+    # root
+    os.makedirs(run_dir, exist_ok=True)
 
-    return training_root
+    # sync/logs
+    sync_root = os.path.join(run_dir, "sync")
+    logs_root = os.path.join(run_dir, "logs")
+    os.makedirs(sync_root, exist_ok=True)
+    os.makedirs(logs_root, exist_ok=True)
+
+    gids = list(range(groups)) + [test_gid]
+    for gid in gids:
+        gdir = os.path.join(sync_root, f"CFD_n{gid}")
+        for sub in ("input", "output", "reload", "restart"):
+            os.makedirs(os.path.join(gdir, sub), exist_ok=True)
+
+    return run_dir, sync_root, logs_root
 
 
 # -------------------------------------------------
@@ -160,8 +170,8 @@ def get_args():
     p.add_argument("--reward-scale", type=float, default=1.0)
     p.add_argument("--baseline-temp", type=float, default=2.0)
 
-    p.add_argument("--training-root", type=str, default=None)
-    p.add_argument("--restart-dir", type=str, default=None)
+    p.add_argument("--run-name", type=str, default="training_results_pseudo")
+    p.add_argument("--run-root", type=str, default=None)
     p.add_argument(
         "--sph-lib-path",
         type=str,
@@ -205,29 +215,40 @@ def main():
     torch.manual_seed(args.seed)
     torch.set_num_threads(1)
 
-    # ---- paths (match single style: clear + rebuild before spawn) ----
-    if args.training_root is None:
-        proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "../training_process"))
-        args.training_root = os.path.join(proj_root, "training_results_pseudo")
-    args.training_root = rebuild_training_root(os.path.abspath(args.training_root))
+    # ---- fixed run_dir under training_process/ ----
+    if args.run_root is None:
+        proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "training_process"))
+        args.run_root = proj_root
 
-    # keep ONE restart dir (same style as your single after fix)
-    args.restart_dir = os.path.join(args.training_root, "restart")
-    os.makedirs(args.restart_dir, exist_ok=True)
+    run_dir = os.path.join(os.path.abspath(args.run_root), args.run_name)
 
-    print(f"[main] training_root rebuilt: {args.training_root}")
-    print(f"[main] restart_dir: {args.restart_dir}")
+    run_dir, sync_root, logs_root = rebuild_run_dir(
+        run_dir=run_dir,
+        run_name=args.run_name,
+        groups=args.groups,
+        test_gid=999,
+    )
+
+    print(f"[main] run_dir rebuilt: {run_dir}")
+    print(f"[main] sync_root: {sync_root}")
+    print(f"[main] logs_root: {logs_root}")
+
+    args.training_root = run_dir
+    args.sync_root = sync_root
+    args.logs_root = logs_root
 
     # ---- build TRAIN envs: groups * n_seg ----
     train_env_fns = []
     for g in range(args.groups):
+        restart_dir_g = os.path.join(args.sync_root, f"CFD_n{g}", "restart")
         for inv_id in range(args.n_seg):
             train_env_fns.append(
                 partial(
                     make_env,
                     sph_lib_path=args.sph_lib_path,
                     training_root=args.training_root,
-                    restart_dir=args.restart_dir,
+                    sync_root=args.sync_root,
+                    restart_dir=restart_dir_g,
                     parallel_envs=g,          # train groups: 0..groups-1
                     inv_id=inv_id,
                     n_seg=args.n_seg,
@@ -246,6 +267,7 @@ def main():
     train_envs = SubprocVectorEnv(train_env_fns)
 
     # ---- build TEST envs: one isolated group parallel_envs=999 ----
+    restart_dir_t = os.path.join(args.sync_root, "CFD_n999", "restart")
     test_env_fns = []
     for inv_id in range(args.n_seg):
         test_env_fns.append(
@@ -253,7 +275,8 @@ def main():
                 make_env,
                 sph_lib_path=args.sph_lib_path,
                 training_root=args.training_root,
-                restart_dir=args.restart_dir,
+                sync_root=args.sync_root,
+                restart_dir=restart_dir_t,
                 parallel_envs=999,          # isolated test CFD_n999
                 inv_id=inv_id,
                 n_seg=args.n_seg,
@@ -341,7 +364,7 @@ def main():
 
     # ---- logging (align single style) ----
     now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
-    log_path = os.path.join(args.logdir, os.path.join(args.task, "sac", str(args.seed), now))
+    log_path = os.path.join(args.logs_root, os.path.join(args.task, "sac", str(args.seed), now))
     writer = SummaryWriter(log_path)
     writer.add_text("args", str(args))
     logger = TensorboardLogger(writer)
@@ -353,6 +376,7 @@ def main():
     # one joint episode -> steps_per_episode * num_envs transitions
     step_per_collect = steps_per_episode * int(args.episodes_per_epoch) * num_envs
     step_per_epoch = step_per_collect
+    args.update_per_step = 1.0 / args.n_seg
 
     # test_num is joint episodes; Collector counts env-episodes, so multiply by n_seg (test_envs length)
     episode_per_test = int(args.test_num) * len(test_envs)

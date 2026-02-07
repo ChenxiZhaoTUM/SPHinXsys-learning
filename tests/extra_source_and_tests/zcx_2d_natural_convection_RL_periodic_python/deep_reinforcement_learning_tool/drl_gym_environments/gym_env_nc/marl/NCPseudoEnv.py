@@ -58,8 +58,8 @@ class NCPseudoEnv(gym.Env):
             reward_scale: float = 1.0,
             baseline_temp: float = 2.0,
             training_root: Optional[str] = None,
-            restart_dir: Optional[str] = None,
-            poll_dt: float = 0.05,
+            sync_root: Optional[str] = None,
+            restart_dir: Optional[str] = None
     ):
         super().__init__()
 
@@ -91,25 +91,23 @@ class NCPseudoEnv(gym.Env):
 
         # ---- default paths (match NCEnvironment style) ----
         if training_root is None:
-            proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "../training_process"))
-            training_root = os.path.join(proj_root, "training_results_multi")
-        self.training_root = _mkdir(os.path.abspath(training_root))
+            raise ValueError("training_root must be provided by sac_multi.py")
 
-        if restart_dir is None:
-            restart_dir = os.path.join(self.training_root, "restart")
-        self.restart_dir = _mkdir(os.path.abspath(restart_dir))
+        self.training_root = os.path.abspath(training_root)
+        self.sync_root = _mkdir(os.path.abspath(sync_root if sync_root else os.path.join(self.training_root, "sync")))
+        self.restart_dir = _mkdir(
+            os.path.abspath(restart_dir if restart_dir else os.path.join(self.sync_root, "restart")))
 
         # Wrapper (public API only)
         self.wrap = Wrapper(
-            sync_root=self.training_root,
+            sync_root=self.sync_root,
             parallel_envs=self.parallel_envs,
             n_seg=self.n_seg,
             n_rows=self.n_rows,
             n_cols=self.n_cols,
             avg_len=self.avg_len,
             warmup_time=self.warmup_time,
-            delta_time=self.delta_time,
-            poll_dt=poll_dt,
+            delta_time=self.delta_time
         )
 
         # Gym spaces
@@ -173,7 +171,7 @@ class NCPseudoEnv(gym.Env):
         self.mean_episode_return = 0.0
 
         # solver 很可能依赖相对路径
-        os.chdir(self.training_root)
+        os.chdir(self.wrap.paths.cfd_root())
 
         # 清理本 episode 的 EP 目录（只让 leader clean）
         self.wrap.prepare_episode(self.episode, is_leader=self.is_leader, clean=self.is_leader)

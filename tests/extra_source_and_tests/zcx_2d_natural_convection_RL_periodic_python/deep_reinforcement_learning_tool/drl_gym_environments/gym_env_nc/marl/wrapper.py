@@ -162,7 +162,7 @@ class Wrapper:
             avg_len: int = 4,
             warmup_time: float = 400.0,
             delta_time: float = 2.0,
-            poll_dt: float = 0.05,
+            poll_dt: float = 0.001,
     ):
         self.paths = SyncPaths(sync_root, parallel_envs, n_seg)
         self.n_seg = int(n_seg)
@@ -305,7 +305,7 @@ class Wrapper:
         tmp_base = res + ".tmp"
         tmp = tmp_base if tmp_base.endswith(".npz") else (tmp_base + ".npz")
 
-        np.savez_compressed(
+        np.savez(
             tmp,
             sim_time=np.array([sim_time], dtype=np.float32),
             raw_actions=raw_actions.astype(np.float32),
