@@ -149,7 +149,8 @@ class Wrapper:
     - publish_initial_state(...)
     - step_shared(...)
     - wait_result(...)
-    - append_mean_reward(...)
+    - append_step_mean_reward(...)
+    - append_episode_mean_return(...)
     """
 
     def __init__(

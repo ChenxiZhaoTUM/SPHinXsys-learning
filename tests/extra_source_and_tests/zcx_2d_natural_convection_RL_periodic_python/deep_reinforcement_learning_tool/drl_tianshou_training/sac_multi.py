@@ -196,7 +196,7 @@ def get_args():
     p.add_argument("--auto-alpha", default=False, action="store_true")
     p.add_argument("--alpha-lr", type=float, default=5e-4)
 
-    p.add_argument("--epoch", type=int, default=50)
+    p.add_argument("--epoch", type=int, default=30)
     p.add_argument("--update-per-step", type=float, default=1.0)
     p.add_argument("--batch-size", type=int, default=256)
 
@@ -210,7 +210,6 @@ def get_args():
 # -------------------------------------------------
 def main():
     args = get_args()
-
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.set_num_threads(1)
@@ -374,12 +373,12 @@ def main():
 
     # ---- align "20 episodes per epoch" with vector env semantics ----
     # one joint episode -> steps_per_episode * num_envs transitions
-    step_per_collect = steps_per_episode * int(args.episodes_per_epoch) * num_envs
-    step_per_epoch = step_per_collect
+    step_per_epoch = steps_per_episode * int(args.episodes_per_epoch) * num_envs
+    step_per_collect = steps_per_episode * 2 * num_envs
     args.update_per_step = 1.0 / args.n_seg
 
     # test_num is joint episodes; Collector counts env-episodes, so multiply by n_seg (test_envs length)
-    episode_per_test = int(args.test_num) * len(test_envs)
+    episode_per_test = int(args.test_num) * len(test_envs)  # 1个epoch测试一次
 
     result = OffpolicyTrainer(
         policy=policy,
