@@ -60,19 +60,18 @@ int main(int ac, char *av[])
 
     ContactRelation phase_1_contact_up_Dirichlet(PhaseOne_diffusion_body, {&up_Dirichlet});
     ContactRelation phase_1_contact_down_Dirichlet(PhaseOne_diffusion_body, {&down_Dirichlet});
-    ContactRelation phase_2_contact_up_Dirichlet(PhaseTwo_diffusion_body, {&up_Dirichlet});
-    ContactRelation phase_2_contact_down_Dirichlet(PhaseTwo_diffusion_body, {&down_Dirichlet});
-
-    ContactRelation up_Dirichlet_contacts(up_Dirichlet, {&PhaseOne_diffusion_body, &PhaseTwo_diffusion_body});
-    ContactRelation down_Dirichlet_contacts(down_Dirichlet, {&PhaseOne_diffusion_body, &PhaseTwo_diffusion_body});
-
     ContactRelation phase_1_contact_wall_boundary(PhaseOne_diffusion_body, {&wall_boundary});
     ContactRelation phase_1_contact_two(PhaseOne_diffusion_body, {&PhaseTwo_diffusion_body});
     ContactRelation phase_1_contacts(PhaseOne_diffusion_body, {&PhaseTwo_diffusion_body, &wall_boundary});
 
+    ContactRelation phase_2_contact_up_Dirichlet(PhaseTwo_diffusion_body, {&up_Dirichlet});
+    ContactRelation phase_2_contact_down_Dirichlet(PhaseTwo_diffusion_body, {&down_Dirichlet});
     ContactRelation phase_2_contact_wall_boundary(PhaseTwo_diffusion_body, {&wall_boundary});
     ContactRelation phase_2_contact_one(PhaseTwo_diffusion_body, {&PhaseOne_diffusion_body});
     ContactRelation phase_2_contacts(PhaseTwo_diffusion_body, {&PhaseOne_diffusion_body, &wall_boundary});
+
+    ContactRelation up_Dirichlet_contacts(up_Dirichlet, {&PhaseOne_diffusion_body, &PhaseTwo_diffusion_body});
+    ContactRelation down_Dirichlet_contacts(down_Dirichlet, {&PhaseOne_diffusion_body, &PhaseTwo_diffusion_body});
 
     ComplexRelation phase_1_complex(phase_1_inner, {&phase_1_contact_up_Dirichlet, &phase_1_contact_down_Dirichlet, 
         &phase_1_contact_wall_boundary, &phase_1_contact_two, &phase_1_contacts});
