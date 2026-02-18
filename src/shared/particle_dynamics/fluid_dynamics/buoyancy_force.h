@@ -118,7 +118,8 @@ template <class KernelCorrectionType>
 using PhiGradientWithWall = ComplexInteraction<PhiGradient<Inner<KernelCorrectionType>, Contact<Wall>>>;
 template <class KernelCorrectionType>
 using MultiPhasePhiGradientWithWall = ComplexInteraction<PhiGradient<Inner<KernelCorrectionType>, Contact<>, Contact<Wall>>>;
-
+template <class KernelCorrectionType>
+using MultiPhasePhiGradientWithWalls = ComplexInteraction<PhiGradient<Inner<KernelCorrectionType>, Contact<>, Contact<Wall>, Contact<Wall>>>;
 /**
  * @class LocalNusseltNum
  * @brief  compute Nusselt number in the fluid field

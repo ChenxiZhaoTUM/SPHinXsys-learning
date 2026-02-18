@@ -64,11 +64,24 @@ class NoRiemannSolver
     Real DissipativePJump(const Real &u_jump);
     Real DissipativeUJump(const Real &p_jump);
 
-    template <typename T>
-    T AverageP(const T &p_i, const T &p_j)
+    //template <typename T>
+    //T AverageP(const T &p_i, const T &p_j)
+    //{
+    //    return (p_i * rho0c0_j_ + p_j * rho0c0_i_) * inv_rho0c0_sum_;
+    //};
+
+    Real AverageP(const Real &p_i, const Real &p_j) const
     {
         return (p_i * rho0c0_j_ + p_j * rho0c0_i_) * inv_rho0c0_sum_;
-    };
+    }
+
+    template <class Derived>
+    typename Derived::PlainObject
+    AverageP(const Eigen::MatrixBase<Derived> &p_i,
+             const Eigen::MatrixBase<Derived> &p_j) const
+    {
+        return ((p_i * rho0c0_j_ + p_j * rho0c0_i_) * inv_rho0c0_sum_).eval();
+    }
 
     Vecd AverageV(const Vecd &vel_i, const Vecd &vel_j);
     FluidStateOut InterfaceState(const FluidStateIn &state_i, const FluidStateIn &state_j, const Vecd &e_ij);

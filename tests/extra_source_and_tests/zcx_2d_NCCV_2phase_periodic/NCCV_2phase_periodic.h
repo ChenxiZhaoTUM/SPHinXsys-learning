@@ -27,8 +27,13 @@ const Real kappa  = 1.0 / sqrt(Pr * Ra);  // thermal diffusivity
 const Real g = 9.81;
 Real rho0_f = 1.0;                  /**< Reference density of fluid. */
 Real mu_f = rho0_f * nu;               /**< Dynamics viscosity. */
-Real C_p = 1.0;
+//Real mu_f_one = mu_f * 1.5;
+//Real mu_f_two = mu_f * 0.5;
+Real mu_f_one = mu_f;
+Real mu_f_two = mu_f;
+Real C_p = 1.0; 
 Real diffusion_coeff = kappa;
+Real k = diffusion_coeff * (rho0_f * C_p);
 std::string diffusion_species_name = "Phi";
 //----------------------------------------------------------------------
 //	Initial and boundary conditions.
@@ -37,19 +42,31 @@ Real up_temperature = 1.0;
 Real down_temperature = 2.0;
 Real thermal_expansion_coeff = 1/ (g * (down_temperature - up_temperature) * pow(H, 3));
 Real heat_flux = 0;
-Real U_f = sqrt(g * thermal_expansion_coeff * (down_temperature - up_temperature) * H);                     /**< Characteristic velocity. */
+Real U_f = sqrt(g * thermal_expansion_coeff * (down_temperature - up_temperature) * H);   /**< Characteristic velocity. */
 Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
 //----------------------------------------------------------------------
-std::vector<Vecd> createThermalDomain()
+std::vector<Vecd> createThermalDomainOne()
 {
     std::vector<Vecd> thermalDomainShape;
     thermalDomainShape.push_back(Vecd(0.0, -H/2));
-    thermalDomainShape.push_back(Vecd(0.0, H/2));
-    thermalDomainShape.push_back(Vecd(L, H/2));
+    thermalDomainShape.push_back(Vecd(0.0, 0.0));
+    thermalDomainShape.push_back(Vecd(L, 0.0));
     thermalDomainShape.push_back(Vecd(L, -H/2));
     thermalDomainShape.push_back(Vecd(0.0, -H/2));
+
+    return thermalDomainShape;
+}
+
+std::vector<Vecd> createThermalDomainTwo()
+{
+    std::vector<Vecd> thermalDomainShape;
+    thermalDomainShape.push_back(Vecd(0.0, 0.0));
+    thermalDomainShape.push_back(Vecd(0.0, H/2));
+    thermalDomainShape.push_back(Vecd(L, H/2));
+    thermalDomainShape.push_back(Vecd(L, 0.0));
+    thermalDomainShape.push_back(Vecd(0.0, 0.0));
 
     return thermalDomainShape;
 }
@@ -163,12 +180,21 @@ namespace SPH
 //----------------------------------------------------------------------
 //	Define SPH bodies.
 //----------------------------------------------------------------------
-class DiffusionBody : public MultiPolygonShape
+class PhaseOneDiffusionBody : public MultiPolygonShape
 {
   public:
-    explicit DiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    explicit PhaseOneDiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
-        multi_polygon_.addAPolygon(createThermalDomain(), ShapeBooleanOps::add);
+        multi_polygon_.addAPolygon(createThermalDomainOne(), ShapeBooleanOps::add);
+    }
+};
+
+class PhaseTwoDiffusionBody : public MultiPolygonShape
+{
+  public:
+    explicit PhaseTwoDiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    {
+        multi_polygon_.addAPolygon(createThermalDomainTwo(), ShapeBooleanOps::add);
     }
 };
 
@@ -189,23 +215,24 @@ class WallBoundary : public MultiPolygonShape
 //    explicit WallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
 //    {
 //        multi_polygon_.addAPolygon(createOuterWall(), ShapeBooleanOps::add);
-//        multi_polygon_.addAPolygon(createThermalDomain(), ShapeBooleanOps::sub);
+//        multi_polygon_.addAPolygon(createThermalDomainOne(), ShapeBooleanOps::sub);
+//        multi_polygon_.addAPolygon(createThermalDomainTwo(), ShapeBooleanOps::sub);
 //    }
 //};
 
-class UpDirichletWallBoundary : public MultiPolygonShape
+class UpDirichlet : public MultiPolygonShape
 {
   public:
-    explicit UpDirichletWallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    explicit UpDirichlet(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
         multi_polygon_.addAPolygon(createUpWallDomain(), ShapeBooleanOps::add);
     }
 };
 
-class DownDirichletWallBoundary : public MultiPolygonShape
+class DownDirichlet : public MultiPolygonShape
 {
   public:
-    explicit DownDirichletWallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    explicit DownDirichlet(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
         multi_polygon_.addAPolygon(createDownWallDomain(), ShapeBooleanOps::add);
     }
@@ -261,15 +288,15 @@ class DirichletWallBoundaryInitialCondition : public LocalDynamics
 //----------------------------------------------------------------------
 //	Specify diffusion relaxation method.
 //----------------------------------------------------------------------
-using DiffusionBodyRelaxation = DiffusionBodyRelaxationComplex<
-    IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet>;
+using MultiPhaseDiffusionBodyRelaxation = MultiPhaseDiffusionBodyRelaxationComplex<
+    IsotropicThermalDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet>;
 
 StdVec<Vecd> createObservationPoints()
 {
-    Real dx = L / 33;
+    Real dx = L / 31;
     Real dy = H / 9;
     StdVec<Vecd> observation_points;
-    for (size_t i = 0; i < 32; ++i)
+    for (size_t i = 0; i < 30; ++i)
     {
         for (size_t j = 0; j < 8; ++j)
         {

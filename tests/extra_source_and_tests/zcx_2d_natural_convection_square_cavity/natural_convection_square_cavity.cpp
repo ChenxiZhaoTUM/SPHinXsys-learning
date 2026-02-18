@@ -147,7 +147,6 @@ int main(int ac, char *av[])
     Real output_interval = End_Time / 100.0; /**< time stamps for output,WriteToFile*/
     int number_of_iterations = 0;
     int screen_output_interval = 100;
-    Real dt = 0.0;
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
