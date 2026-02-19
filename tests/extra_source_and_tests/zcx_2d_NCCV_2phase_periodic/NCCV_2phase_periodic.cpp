@@ -108,11 +108,11 @@ int main(int ac, char *av[])
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_2_kernel_correction_complex(InteractArgs(phase_2_inner, 0.1), phase_2_contacts);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfCorrectionWithWallRiemann>
         phase_1_pressure_relaxation(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallNoRiemann>
+    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
         phase_1_density_relaxation(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfCorrectionWithWallRiemann>
         phase_2_pressure_relaxation(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallNoRiemann>
+    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
         phase_2_density_relaxation(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);
 
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
@@ -156,6 +156,7 @@ int main(int ac, char *av[])
     InteractionDynamics<solid_dynamics::ProjectionForNu> down_wall_local_nusselt_number(down_Dirichlet_contacts, H/(down_temperature - up_temperature));
     
     ReducedQuantityRecording<QuantitySummation<Real>> write_phase_1_PhiFluxSum(PhaseOne_diffusion_body, "PhiTransferFromDownDirichletFlux");
+    ReducedQuantityRecording<QuantitySummation<Real>> write_phase_1_PhiFluxSumFromPhase2(PhaseOne_diffusion_body, "PhiTransferFromPhaseTwoDiffusionBodyFlux");
     ReducedQuantityRecording<QuantitySummation<Real>> write_phase_2_PhiFluxSum(PhaseTwo_diffusion_body, "PhiTransferFromDownDirichletFlux");
 
     BodyRegionByParticle left_diffusion_domain(PhaseOne_diffusion_body, makeShared<MultiPolygonShape>(createLeftDiffusionDomain(), "LeftDiffusionDomain"));
@@ -267,6 +268,7 @@ int main(int ac, char *av[])
                 Real dt = SMIN(SMIN(dt_phase_1, dt_phase_2), SMIN(thermal_phase_1, thermal_phase_2), Dt - relaxation_time);
                 phase_1_buoyancy_force.exec();
                 phase_2_buoyancy_force.exec();
+
                 phase_1_pressure_relaxation.exec(dt);
                 phase_2_pressure_relaxation.exec(dt);
                 phase_1_density_relaxation.exec(dt);
@@ -326,6 +328,7 @@ int main(int ac, char *av[])
 
         write_states.writeToFile();
         write_phase_1_PhiFluxSum.writeToFile(number_of_iterations);
+        write_phase_1_PhiFluxSumFromPhase2.writeToFile(number_of_iterations);
         write_phase_2_PhiFluxSum.writeToFile(number_of_iterations);
         write_recorded_fluid_vel.writeToFile(number_of_iterations);
         write_phase_1_global_kinetic_energy.writeToFile(number_of_iterations);

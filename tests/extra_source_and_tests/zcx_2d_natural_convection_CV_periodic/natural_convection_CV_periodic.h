@@ -29,6 +29,7 @@ Real rho0_f = 1.0;                  /**< Reference density of fluid. */
 Real mu_f = rho0_f * nu;               /**< Dynamics viscosity. */
 Real C_p = 1.0;
 Real diffusion_coeff = kappa;
+Real k = diffusion_coeff * (rho0_f * C_p);
 std::string diffusion_species_name = "Phi";
 //----------------------------------------------------------------------
 //	Initial and boundary conditions.
@@ -262,7 +263,7 @@ class DirichletWallBoundaryInitialCondition : public LocalDynamics
 //	Specify diffusion relaxation method.
 //----------------------------------------------------------------------
 using DiffusionBodyRelaxation = DiffusionBodyRelaxationComplex<
-    IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet>;
+    IsotropicThermalDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet>;
 
 StdVec<Vecd> createObservationPoints()
 {

@@ -124,7 +124,7 @@ DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>::
             std::string variable_name = diffusion->GradientSpeciesName() + "Transfer" + diffusion_direction;
             contact_transfer_[k].push_back(
                 this->particles_->template registerStateVariable<Real>(variable_name));
-                this->particles_->template addVariableToSort<Real>(variable_name);
+            this->particles_->template addVariableToSort<Real>(variable_name);
             this->particles_->template addVariableToWrite<Real>(variable_name);
 
             contact_diffusion_flux_[k].push_back(
@@ -142,6 +142,7 @@ void DiffusionRelaxation<Contact<ContactKernelGradientType>, DiffusionType>::
     for (size_t m = 0; m < this->diffusions_.size(); ++m)
     {
         this->diffusion_dt_[m][index_i] = 0;
+        this->diffusion_flux_sum_[m][index_i] = 0;
     }
 }
 //=================================================================================================//
@@ -231,7 +232,8 @@ void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, Diffusion
 template <class ContactKernelGradientType, class DiffusionType>
 void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, DiffusionType>::
     getDiffusionChangeRateMultiPhaseContact(size_t particle_i, size_t particle_j, Vecd &e_ij, Real surface_area_ij,
-        const StdVec<Real *> &contact_gradient_species_k, const StdVec<DiffusionType *> &contact_diffusions_k)
+                                            const StdVec<Real *> &contact_gradient_species_k, const StdVec<DiffusionType *> &contact_diffusions_k,
+                                            StdVec<Real *> &contact_transfer_k, StdVec<Real *> &contact_diffusion_flux_k, const Real coff)
 {
     for (size_t m = 0; m < this->diffusions_.size(); ++m)
     {
@@ -242,7 +244,9 @@ void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, Diffusion
         Real kappa_ij =
             this->getMultiPhaseInterThermalConductivity(thermal_conductivity_i, thermal_conductivity_j);
         Real phi_ij = this->gradient_species_[m][particle_i] - contact_gradient_species_k[m][particle_j];
-        this->diffusion_dt_[m][particle_i] += kappa_ij * phi_ij * surface_area_ij / rho_i / Cp_i;
+        Real transfer = kappa_ij * phi_ij * surface_area_ij / rho_i / Cp_i;
+        contact_transfer_k[m][particle_i] += transfer;
+        contact_diffusion_flux_k[m][particle_i] += kappa_ij * phi_ij * coff;
     }
 }
 //=================================================================================================//
@@ -256,6 +260,8 @@ void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, Diffusion
     {
         StdVec<Real *> &gradient_species_k = this->contact_gradient_species_[k];
         StdVec<DiffusionType *> &contact_diffusions_k = this->contact_diffusions_[k];
+        StdVec<Real*> &contact_transfer_k = this->contact_transfer_[k];
+        StdVec<Real *> &contact_diffusion_flux_k = this->contact_diffusion_flux_[k];
         Real *contact_Vol_k = this->contact_Vol_[k];
         Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
         for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
@@ -266,8 +272,10 @@ void DiffusionRelaxation<MultiPhaseContact<ContactKernelGradientType>, Diffusion
             Vecd &e_ij = contact_neighborhood.e_ij_[n];
             const Vecd &grad_ijV_j = this->contact_kernel_gradients_[k](index_i, index_j, dW_ijV_j, e_ij);
             Real area_ij = 2.0 * grad_ijV_j.dot(e_ij) / r_ij;
+            Real coff = 2.0 * sqrt(2) * grad_ijV_j.dot(e_ij) * r_ij;
 
-            getDiffusionChangeRateMultiPhaseContact(index_i, index_j, e_ij, area_ij, gradient_species_k, contact_diffusions_k);
+            getDiffusionChangeRateMultiPhaseContact(index_i, index_j, e_ij, area_ij, gradient_species_k, contact_diffusions_k,
+                                                    contact_transfer_k, contact_diffusion_flux_k, coff);
         }
     }
 
@@ -299,14 +307,15 @@ DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>::
 template <class ContactKernelGradientType, class DiffusionType>
 void DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>::
     getDiffusionChangeRateDirichlet(size_t particle_i, size_t particle_j, Vecd &e_ij,
-                                    Real surface_area_ij, const StdVec<Real *> &gradient_species_k, StdVec<Real *> &contact_diffusion_flux_k, const Real coff)
+                                    Real surface_area_ij, const StdVec<Real *> &gradient_species_k,
+                                    StdVec<Real *> &contact_transfer_k, StdVec<Real *> &contact_diffusion_flux_k, const Real coff)
 {
     for (size_t m = 0; m < this->diffusions_.size(); ++m)
     {
         Real diff_coeff_ij =
             this->diffusions_[m]->getDiffusionCoeffWithBoundary(particle_i);
         Real phi_ij = 2.0 * (this->gradient_species_[m][particle_i] - gradient_species_k[m][particle_j]);
-        this->diffusion_dt_[m][particle_i] += diff_coeff_ij * phi_ij * surface_area_ij;
+        contact_transfer_k[m][particle_i] += diff_coeff_ij * phi_ij * surface_area_ij;
         Real kappa_ij =
             this->diffusions_[m]->getThermalConductivityWithBoundary(particle_i);
         contact_diffusion_flux_k[m][particle_i] += kappa_ij * phi_ij * coff;
@@ -323,6 +332,7 @@ void DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>::
     {
         StdVec<Real *> &gradient_species_k = this->contact_gradient_species_[k];
         Real *wall_Vol_k = this->contact_Vol_[k];
+        StdVec<Real*> &contact_transfer_k = this->contact_transfer_[k];
         StdVec<Real *> &contact_diffusion_flux_k = this->contact_diffusion_flux_[k];
         Vecd *n_k = contact_n_[k];
         Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
@@ -330,22 +340,21 @@ void DiffusionRelaxation<Dirichlet<ContactKernelGradientType>, DiffusionType>::
         for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
         {
             size_t index_j = contact_neighborhood.j_[n];
-            Real r_ij_ = contact_neighborhood.r_ij_[n];
+            Real r_ij = contact_neighborhood.r_ij_[n];
             Real dW_ijV_j = contact_neighborhood.dW_ij_[n] * wall_Vol_k[index_j];
             Vecd &e_ij = contact_neighborhood.e_ij_[n];
 
             const Vecd &grad_ijV_j = this->contact_kernel_gradients_[k](index_i, index_j, dW_ijV_j, e_ij);
-            Real area_ij = 2.0 * grad_ijV_j.dot(e_ij) / r_ij_;
+            Real area_ij = 2.0 * grad_ijV_j.dot(e_ij) / r_ij;
 
-            Real coff = 2.0 * sqrt(2) * grad_ijV_j.dot(e_ij) * r_ij_;
+            Real coff = 2.0 * sqrt(2) * grad_ijV_j.dot(e_ij) * r_ij;
 
-            //Vecd n_ij = n_[index_i] - n_k[index_j];
-            //Real coff = grad_ijV_j.dot(n_ij) * r_ij_;
+            // Vecd n_ij = n_[index_i] - n_k[index_j];
+            // Real coff = grad_ijV_j.dot(n_ij) * r_ij;
 
+            // Real coff = 2.0 * r_ij_ * grad_ijV_j.dot(n_k[index_j]);
 
-            //Real coff = 2.0 * r_ij_ * grad_ijV_j.dot(n_k[index_j]); 
-
-            getDiffusionChangeRateDirichlet(index_i, index_j, e_ij, area_ij, gradient_species_k, contact_diffusion_flux_k, coff);
+            getDiffusionChangeRateDirichlet(index_i, index_j, e_ij, area_ij, gradient_species_k, contact_transfer_k, contact_diffusion_flux_k, coff);
         }
     }
     this->accumulateDiffusionRate(index_i);
