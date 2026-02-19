@@ -106,11 +106,11 @@ int main(int ac, char *av[])
     // fluid dynamics
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_1_kernel_correction_complex(InteractArgs(phase_1_inner, 0.1), phase_1_contacts);
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_2_kernel_correction_complex(InteractArgs(phase_2_inner, 0.1), phase_2_contacts);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfCorrectionWithWallRiemann>
+    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfWithWallRiemann>
         phase_1_pressure_relaxation(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
         phase_1_density_relaxation(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfCorrectionWithWallRiemann>
+    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfWithWallRiemann>
         phase_2_pressure_relaxation(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
         phase_2_density_relaxation(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);

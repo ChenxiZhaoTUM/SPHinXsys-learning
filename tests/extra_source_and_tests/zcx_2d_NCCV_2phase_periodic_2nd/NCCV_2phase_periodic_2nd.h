@@ -3,8 +3,8 @@
  * @brief 	This is the head files used by diffusion_NeumannBC.cpp.
  * @author	Chenxi Zhao, Bo Zhang, Chi Zhang and Xiangyu Hu
  */
-#ifndef NATURAL_CONVECTION_CV_H
-#define NATURAL_CONVECTION_CV_H
+#ifndef DIFFUSION_NEUMANN_BC_H
+#define DIFFUSION_NEUMANN_BC_H
 
 #include "sphinxsys.h"
 using namespace SPH;
@@ -47,19 +47,7 @@ Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
 //----------------------------------------------------------------------
-std::vector<Vecd> createThermalDomainOne()
-{
-    std::vector<Vecd> thermalDomainShape;
-    thermalDomainShape.push_back(Vecd(0.0, -H/2));
-    thermalDomainShape.push_back(Vecd(0.0, 0.0));
-    thermalDomainShape.push_back(Vecd(L, 0.0));
-    thermalDomainShape.push_back(Vecd(L, -H/2));
-    thermalDomainShape.push_back(Vecd(0.0, -H/2));
-
-    return thermalDomainShape;
-}
-
-std::vector<Vecd> createThermalDomainTwo()
+std::vector<Vecd> createThermalDomainUp()
 {
     std::vector<Vecd> thermalDomainShape;
     thermalDomainShape.push_back(Vecd(0.0, 0.0));
@@ -67,6 +55,18 @@ std::vector<Vecd> createThermalDomainTwo()
     thermalDomainShape.push_back(Vecd(L, H/2));
     thermalDomainShape.push_back(Vecd(L, 0.0));
     thermalDomainShape.push_back(Vecd(0.0, 0.0));
+
+    return thermalDomainShape;
+}
+
+std::vector<Vecd> createThermalDomainDown()
+{
+    std::vector<Vecd> thermalDomainShape;
+    thermalDomainShape.push_back(Vecd(0.0, -H/2));
+    thermalDomainShape.push_back(Vecd(0.0, 0.0));
+    thermalDomainShape.push_back(Vecd(L, 0.0));
+    thermalDomainShape.push_back(Vecd(L, -H/2));
+    thermalDomainShape.push_back(Vecd(0.0, -H/2));
 
     return thermalDomainShape;
 }
@@ -119,58 +119,6 @@ std::vector<Vecd> createDownWallDomain()
     return DownWallDomainShape;
 }
 
-std::vector<Vecd> LeftDiffusionDomain
-{
-    Vecd(0., -H / 2), Vecd(L / 3, -H / 2), Vecd(L / 3, H / 2),
-    Vecd(0.,  H / 2), Vecd(0., -H / 2)
-};
-
-MultiPolygon createLeftDiffusionDomain()
-{
-    MultiPolygon multi_polygon;
-    multi_polygon.addAPolygon(LeftDiffusionDomain, ShapeBooleanOps::add);
-    return multi_polygon;
-}
-
-std::vector<Vecd> MiddleDiffusionDomain
-{
-    Vecd(L / 3, -H / 2), Vecd(2 * L / 3, -H / 2), Vecd(2 * L / 3, H / 2),
-    Vecd(L / 3,  H / 2), Vecd(L / 3, -H / 2)
-};
-
-MultiPolygon createMiddleDiffusionDomain()
-{
-    MultiPolygon multi_polygon;
-    multi_polygon.addAPolygon(MiddleDiffusionDomain, ShapeBooleanOps::add);
-    return multi_polygon;
-}
-
-std::vector<Vecd> RightDiffusionDomain
-{
-     Vecd(2 * L / 3, -H / 2), Vecd(L, -H / 2), Vecd(L, H / 2),
-     Vecd(2 * L / 3,  H / 2), Vecd(2 * L / 3, -H / 2)
-};
-
-MultiPolygon createRightDiffusionDomain()
-{
-    MultiPolygon multi_polygon;
-    multi_polygon.addAPolygon(RightDiffusionDomain, ShapeBooleanOps::add);
-    return multi_polygon;
-}
-
-std::vector<Vecd> LeftDownWallDomain
-{
-    Vecd(0., -H/2 - BW), Vecd(L / 3, -H/2 - BW), Vecd(L / 3, -H/2),
-    Vecd(0.,  -H/2), Vecd(0., -H/2 - BW)
-};
-
-MultiPolygon createLeftDownWallDomain()
-{
-    MultiPolygon multi_polygon;
-    multi_polygon.addAPolygon(LeftDownWallDomain, ShapeBooleanOps::add);
-    return multi_polygon;
-}
-
 //----------------------------------------------------------------------
 // Define extra classes which are used in the main program.
 // These classes are defined under the namespace of SPH.
@@ -180,21 +128,21 @@ namespace SPH
 //----------------------------------------------------------------------
 //	Define SPH bodies.
 //----------------------------------------------------------------------
-class PhaseOneDiffusionBody : public MultiPolygonShape
+class UpPhaseDiffusionBody : public MultiPolygonShape
 {
   public:
-    explicit PhaseOneDiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    explicit UpPhaseDiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
-        multi_polygon_.addAPolygon(createThermalDomainOne(), ShapeBooleanOps::add);
+        multi_polygon_.addAPolygon(createThermalDomainUp(), ShapeBooleanOps::add);
     }
 };
 
-class PhaseTwoDiffusionBody : public MultiPolygonShape
+class DownPhaseDiffusionBody : public MultiPolygonShape
 {
   public:
-    explicit PhaseTwoDiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    explicit DownPhaseDiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
-        multi_polygon_.addAPolygon(createThermalDomainTwo(), ShapeBooleanOps::add);
+        multi_polygon_.addAPolygon(createThermalDomainDown(), ShapeBooleanOps::add);
     }
 };
 
@@ -208,32 +156,12 @@ class WallBoundary : public MultiPolygonShape
     }
 };
 
-/* non-periodic boundary */
-//class WallBoundary : public MultiPolygonShape
-//{
-//  public:
-//    explicit WallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
-//    {
-//        multi_polygon_.addAPolygon(createOuterWall(), ShapeBooleanOps::add);
-//        multi_polygon_.addAPolygon(createThermalDomainOne(), ShapeBooleanOps::sub);
-//        multi_polygon_.addAPolygon(createThermalDomainTwo(), ShapeBooleanOps::sub);
-//    }
-//};
-
-class UpDirichlet : public MultiPolygonShape
+class DirichletWallBoundary : public MultiPolygonShape
 {
   public:
-    explicit UpDirichlet(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    explicit DirichletWallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
     {
         multi_polygon_.addAPolygon(createUpWallDomain(), ShapeBooleanOps::add);
-    }
-};
-
-class DownDirichlet : public MultiPolygonShape
-{
-  public:
-    explicit DownDirichlet(const std::string &shape_name) : MultiPolygonShape(shape_name)
-    {
         multi_polygon_.addAPolygon(createDownWallDomain(), ShapeBooleanOps::add);
     }
 };
@@ -246,17 +174,14 @@ class DiffusionInitialCondition : public LocalDynamics
   public:
     explicit DiffusionInitialCondition(SPHBody &sph_body)
         : LocalDynamics(sph_body),
-          pos_(particles_->getVariableDataByName<Vecd>("Position")),
           phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) {};
 
     void update(size_t index_i, Real dt)
     {
-        //phi_[index_i] = down_temperature + (up_temperature - down_temperature) * (pos_[index_i][1] + H/2) / H;
         phi_[index_i] = (up_temperature + down_temperature) /2.0;
     };
 
   protected:
-    Vecd *pos_;
     Real *phi_;
 };
 
@@ -289,24 +214,38 @@ class DirichletWallBoundaryInitialCondition : public LocalDynamics
 //	Specify diffusion relaxation method.
 //----------------------------------------------------------------------
 using MultiPhaseDiffusionBodyRelaxation = MultiPhaseDiffusionBodyRelaxationComplex<
-    IsotropicThermalDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet>;
+    IsotropicThermalDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet>;
 
-StdVec<Vecd> createObservationPoints()
+StdVec<Vecd> createVerticalVelObservationPoints()
 {
-    Real dx = L / 31;
-    Real dy = H / 9;
     StdVec<Vecd> observation_points;
-    for (size_t i = 0; i < 30; ++i)
+    /** A line of measuring points at the middle line. */
+    size_t number_of_observation_points = 21;
+    Real range_of_measure = L;
+    Real start_of_measure = 0;
+
+    for (size_t i = 0; i < number_of_observation_points; ++i)
     {
-        for (size_t j = 0; j < 8; ++j)
-        {
-            Real x_i = (i + 0.5) * dx;
-            Real y_i = H / 2 - (j + 0.5) * dy;
-            observation_points.push_back(Vecd(x_i, y_i));
-        }
+        Vec2d point_coordinate(range_of_measure * Real(i) / Real(number_of_observation_points - 1) + start_of_measure, H/2);
+        observation_points.push_back(point_coordinate);
     }
     return observation_points;
-}
+};
 
+StdVec<Vecd> createHorizontalVelObservationPoints()
+{
+    StdVec<Vecd> observation_points;
+    /** A line of measuring points at the middle line. */
+    size_t number_of_observation_points = 21;
+    Real range_of_measure = H;
+    Real start_of_measure = 0;
+
+    for (size_t i = 0; i < number_of_observation_points; ++i)
+    {
+        Vec2d point_coordinate(L/2, range_of_measure * Real(i) / Real(number_of_observation_points - 1) + start_of_measure);
+        observation_points.push_back(point_coordinate);
+    }
+    return observation_points;
+};
 } // namespace SPH
-#endif  // NATURAL_CONVECTION_CV_H
+#endif // DIFFUSION_NEUMANN_BC_H
