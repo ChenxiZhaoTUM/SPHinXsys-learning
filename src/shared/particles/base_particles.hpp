@@ -206,11 +206,11 @@ void BaseParticles::addVariableToWrite(DiscreteVariableArray<DataType> *variable
 }
 //===============================================================================
 template <typename DataType>
-BaseParticles *BaseParticles::reloadExtraVariable(const std::string &name)
+BaseParticles &BaseParticles::reloadExtraVariable(const std::string &name)
 {
     registerStateVariableFromReload<DataType>(name);
     addEvolvingVariable<DataType>(name);
-    return this;
+    return *this;
 }
 //=================================================================================================//
 template <typename DataType>

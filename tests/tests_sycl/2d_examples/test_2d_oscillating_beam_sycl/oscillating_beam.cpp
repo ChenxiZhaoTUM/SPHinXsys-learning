@@ -91,7 +91,7 @@ int main(int ac, char *av[])
     beam_shape.add(&beam_base_shape);
     beam_shape.add(&beam_column);
     auto &beam_body = sph_system.addBody<SolidBody>(beam_shape);
-    auto *beam_material = beam_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
+    auto &beam_material = beam_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     beam_body.generateParticles<BaseParticles, Lattice>();
     ComplexShape beam_constrain_shape("BeamConstrain");
     beam_constrain_shape.add(&beam_base_shape);
@@ -127,7 +127,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     host_methods.addStateDynamics<VariableAssignment, SpatialDistribution<LinearProfile>>(
-                    beam_body, "Velocity", beam_material->ReferenceSoundSpeed())
+                    beam_body, "Velocity", beam_material.ReferenceSoundSpeed())
         .exec();
     //-----------------------------------------------------------------------------
     // this section define all numerical methods will be used in this case
