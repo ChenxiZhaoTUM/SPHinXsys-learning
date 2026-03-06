@@ -93,12 +93,12 @@ int main(int ac, char *av[])
     auto &beam_body = sph_system.addBody<SolidBody>(beam_shape);
     auto &beam_material = beam_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
     beam_body.generateParticles<BaseParticles, Lattice>();
-    ComplexShape beam_constrain_shape("BeamConstrain");
+    auto &beam_constrain_shape = sph_system.addShape<ComplexShape>("BeamConstrain");
     beam_constrain_shape.add(&beam_base_shape);
     beam_constrain_shape.subtract(&beam_column);
-    BodyRegionByParticle beam_base(beam_body, beam_constrain_shape);
+    auto &beam_base = beam_body.addBodyPart<BodyRegionByParticle>(beam_constrain_shape);
 
-    ObserverBody beam_observer(sph_system, "BeamObserver");
+    auto &beam_observer = sph_system.addBody<ObserverBody>("BeamObserver");
     beam_observer.defineAdaptationRatios(1.15, 2.0);
     beam_observer.generateParticles<ObserverParticles>(observation_location);
     //----------------------------------------------------------------------
