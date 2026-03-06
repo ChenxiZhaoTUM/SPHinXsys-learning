@@ -94,7 +94,7 @@ class SPHBody
     SPHBody &getSPHBody() { return *this; };
     Shape &getInitialShape() { return *initial_shape_; };
     void assignBaseParticles(BaseParticles *base_particles) { base_particles_ = base_particles; };
-    SPHAdaptation &getSPHAdaptation() { return *sph_adaptation_; };
+    SPHAdaptation &getSPHAdaptation();
     BaseParticles &getBaseParticles();
     BaseMaterial &getBaseMaterial();
     StdVec<SPHRelation *> &getBodyRelations() { return body_relations_; };
@@ -169,9 +169,9 @@ class SPHBody
     template <class MaterialType = BaseMaterial, typename... Args>
     MaterialType &defineMaterial(Args &&...args)
     {
-        MaterialType *material = base_material_keeper_.createPtr<MaterialType>(
+        base_material_ = base_material_keeper_.createPtr<MaterialType>(
             std::forward<Args>(args)...);
-        return *static_cast<MaterialType *>(material);
+        return *static_cast<MaterialType *>(base_material_);
     };
 
     template <class BaseModel, typename... AuxiliaryModels, typename... Args>
