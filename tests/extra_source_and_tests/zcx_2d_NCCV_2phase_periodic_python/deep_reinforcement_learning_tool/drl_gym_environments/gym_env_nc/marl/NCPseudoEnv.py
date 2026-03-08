@@ -6,6 +6,7 @@ from typing import Callable, Dict, Optional
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
+from collections import deque
 
 try:
     from .wrapper import Wrapper, recenter_grid_vignon
@@ -54,8 +55,6 @@ class NCPseudoEnv(gym.Env):
             n_cols: int = 30,
             avg_len: int = 4,
             beta: float = 0.0015,
-            nu_target: float = 22.5,
-            reward_scale: float = 1.0,
             baseline_temp: float = 2.0,
             training_root: Optional[str] = None,
             sync_root: Optional[str] = None,
@@ -67,6 +66,7 @@ class NCPseudoEnv(gym.Env):
         self.parallel_envs = int(parallel_envs)
         self.inv_id = int(inv_id)
         self.n_seg = int(n_seg)
+        self.baseline_temp = float(baseline_temp)
 
         self.warmup_time = float(warmup_time)
         self.delta_time = float(delta_time)
@@ -76,10 +76,19 @@ class NCPseudoEnv(gym.Env):
         self.n_cols = int(n_cols)
         self.avg_len = int(avg_len)
 
+        # ----- reward shaping params (Nu mix) -----
         self.beta = float(beta)
-        self.nu_target = float(nu_target)
-        self.reward_scale = float(reward_scale)
-        self.baseline_temp = float(baseline_temp)
+        self._fluxes_hist = deque(maxlen=self.avg_len)  # 4-step moving average for 10 fluxes
+        self._ke_hist = deque(maxlen=self.avg_len)  # 4-step moving average for kinetic energy
+        # baselines
+        self.flux_base = 0.19
+        self.ke_base = 0.04
+        # scales
+        self.flux_scale = 0.018
+        self.ke_scale = 0.004  # 10% * 0.04 = 0.004
+        # weights
+        self.w_flux = 1.0
+        self.w_ke = 0.0
 
         self.episode_return = 0.0
         self.mean_episode_return = 0.0
@@ -139,22 +148,62 @@ class NCPseudoEnv(gym.Env):
         grid_rc = recenter_grid_vignon(grid, seg_index=self.inv_id, n_seg=self.n_seg)
         return grid_rc.reshape(-1).astype(np.float32)
 
-    def _reward_from_result(self, result: Dict[str, np.ndarray]) -> float:
-        gen_flux = float(result["gen_flux"][0])
-        local_flux = np.asarray(result["local_flux"], dtype=np.float32).reshape(-1)
-        loc_i = float(local_flux[self.inv_id])
-        mix = (1.0 - self.beta) * gen_flux + self.beta * loc_i * self.n_seg
-        return float((self.nu_target - mix) / self.reward_scale)
-
-    def _all_rewards_from_result(self, result: Dict[str, np.ndarray]) -> np.ndarray:
-        """
-        Compute rewards for all segments (shape: [n_seg]).
-        Leader uses this to log 10 rewards + mean at each actuation.
-        """
+    # ------------------------------------------------------------------
+    # Reward functions
+    # ------------------------------------------------------------------
+    def _mixes_flux_vec_from_result(self, result: Dict[str, np.ndarray]) -> np.ndarray:
+        """(1-beta)*gen_flux + beta*local_flux_i*n_seg"""
         gen_flux = float(result["gen_flux"][0])
         local_flux = np.asarray(result["local_flux"], dtype=np.float32).reshape(-1)  # (n_seg,)
         mixes = (1.0 - self.beta) * gen_flux + self.beta * local_flux * float(self.n_seg)
-        rewards = (self.nu_target - mixes) / float(self.reward_scale)
+        return mixes.astype(np.float32)  # (n_seg,)
+
+    def _reward_from_result(self, result: Dict[str, np.ndarray]) -> float:
+        mixes = self._mixes_flux_vec_from_result(result)
+        gen_ke = float(result["gen_ke"][0])
+
+        # push into avg_len buffers
+        self._fluxes_hist.append(mixes)
+        self._ke_hist.append(gen_ke)
+
+        # frame averages
+        fluxes_bar = np.mean(np.stack(list(self._fluxes_hist), axis=0), axis=0)  # (n_seg,)
+        ke_bar = float(np.mean(self._ke_hist))
+        mix_i = float(fluxes_bar[self.inv_id])
+
+        x_flux = (self.flux_base - mix_i) / (2.0 * self.flux_scale)
+        x_ke = (self.ke_base - ke_bar) / (2.0 * self.ke_scale)
+
+        # numerical safety
+        x_flux = float(np.clip(x_flux, -10.0, 10.0))
+        x_ke = float(np.clip(x_ke, -10.0, 10.0))
+
+        r_flux = float(np.tanh(x_flux))  # (-1, 1)
+        r_ke = float(np.tanh(x_ke))  # (-1, 1)
+        reward = self.w_flux * r_flux + self.w_ke * r_ke
+        return reward
+
+    def _all_rewards_from_result(self, result: Dict[str, np.ndarray]) -> np.ndarray:
+        """
+        Return rewards for all segments using the SAME avg_len history.
+        IMPORTANT: do NOT append to history here (avoid double count).
+        """
+        # history must already be updated once in _reward_from_result() this step
+
+        fluxes_bar = np.mean(np.stack(list(self._fluxes_hist), axis=0), axis=0)  # (n_seg,)
+        ke_bar = float(np.mean(self._ke_hist))
+
+        # flux part: per segment
+        x_fluxes = (self.flux_base - fluxes_bar) / (2.0 * self.flux_scale)
+        x_fluxes = np.clip(x_fluxes, -10.0, 10.0).astype(np.float32)
+        r_fluxes = np.tanh(x_fluxes).astype(np.float32)  # (n_seg,)
+
+        # KE part: shared scalar
+        x_ke = (self.ke_base - ke_bar) / (2.0 * self.ke_scale)
+        x_ke = float(np.clip(x_ke, -10.0, 10.0))
+        r_ke = float(np.tanh(x_ke))  # (-1, 1)
+
+        rewards = self.w_flux * r_fluxes + self.w_ke * r_ke
         return rewards.astype(np.float32)
 
     # -------- Gym API --------
@@ -205,6 +254,15 @@ class NCPseudoEnv(gym.Env):
         else:
             result0 = self.wrap.wait_result(self.episode, actuation=0)
             self._sim = None
+
+        self._fluxes_hist.clear()
+        self._ke_hist.clear()
+        fluxes0 = self._mixes_flux_vec_from_result(result0)
+        ke0 = float(result0["gen_ke"][0])
+
+        for _ in range(self.avg_len):
+            self._fluxes_hist.append(fluxes0.copy())
+            self._ke_hist.append(float(ke0))
 
         obs0 = self._obs_from_result(result0)
         info = {
@@ -273,10 +331,17 @@ class NCPseudoEnv(gym.Env):
             )
 
         self.step_count += 1
-        terminated = (self.step_count >= self.max_steps)
-        truncated = False
+        terminated = False
+        truncated = (self.step_count >= self.max_steps)
 
-        if terminated:
+        info = {
+            "episode": int(self.episode),
+            "inv_id": int(self.inv_id),
+            "actuation": int(actuation),
+            "sim_time": float(self.sim_time),
+        }
+
+        if truncated:
             if self.is_leader:
                 # leader: append episode total mean return (folder B)
                 self.wrap.append_episode_mean_return(self.episode, self.mean_episode_return)
@@ -287,13 +352,6 @@ class NCPseudoEnv(gym.Env):
             self.mean_episode_return = 0.0
             self._sim = None
             self._step_curve_inited = False
-
-        info = {
-            "episode": int(self.episode),
-            "inv_id": int(self.inv_id),
-            "actuation": int(actuation),
-            "sim_time": float(self.sim_time),
-        }
         return obs, reward, terminated, truncated, info
 
     def close(self):

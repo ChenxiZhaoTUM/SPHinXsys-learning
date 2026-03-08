@@ -297,6 +297,7 @@ class Wrapper:
             grid_time_avg: np.ndarray,
             gen_flux: float,
             local_flux: np.ndarray,
+            gen_ke: float,
     ) -> None:
         ep = int(episode)
         ac = int(actuation)
@@ -314,6 +315,7 @@ class Wrapper:
             grid_time_avg=grid_time_avg.astype(np.float32),  # (Ny, Nx, 3)
             gen_flux=np.array([gen_flux], dtype=np.float32),
             local_flux=local_flux.astype(np.float32),  # (n_seg,)
+            gen_ke=np.array([gen_ke], dtype=np.float32),
         )
         os.replace(tmp, res)
         open(self.paths.done_flag(ep, ac), "w").close()
@@ -401,6 +403,7 @@ class Wrapper:
 
         gen_flux = float(sim.get_global_heat_flux())
         local_flux = np.array([float(sim.get_local_phi_flux(i)) for i in range(self.n_seg)], dtype=np.float32)
+        gen_ke = float(sim.get_global_kinetic_energy())
 
         raw_actions = np.zeros((self.n_seg,), dtype=np.float32)
         self._leader_write_result(
@@ -412,6 +415,7 @@ class Wrapper:
             grid_time_avg=grid_time_avg,
             gen_flux=gen_flux,
             local_flux=local_flux,
+            gen_ke=gen_ke,
         )
 
         out = {
@@ -421,6 +425,7 @@ class Wrapper:
             "grid_time_avg": grid_time_avg,
             "gen_flux": np.array([gen_flux], dtype=np.float32),
             "local_flux": local_flux,
+            "gen_ke": np.array([gen_ke], dtype=np.float32),
         }
         return out, sim
 
@@ -466,6 +471,7 @@ class Wrapper:
 
             gen_flux = float(sim.get_global_heat_flux())
             local_flux = np.array([float(sim.get_local_phi_flux(i)) for i in range(self.n_seg)], dtype=np.float32)
+            gen_ke = float(sim.get_global_kinetic_energy())
 
             self._leader_write_result(
                 episode=ep,
@@ -476,6 +482,7 @@ class Wrapper:
                 grid_time_avg=grid_time_avg,
                 gen_flux=gen_flux,
                 local_flux=local_flux,
+                gen_ke=gen_ke,
             )
 
             out = {
@@ -485,6 +492,7 @@ class Wrapper:
                 "grid_time_avg": grid_time_avg.astype(np.float32),
                 "gen_flux": np.array([gen_flux], dtype=np.float32),
                 "local_flux": local_flux.astype(np.float32),
+                "gen_ke": np.array([gen_ke], dtype=np.float32),
             }
             return out, sim
 

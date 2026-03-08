@@ -51,8 +51,6 @@ def make_env(
     avg_len: int,
     max_steps: int,
     beta: float,
-    nu_target: float,
-    reward_scale: float,
     baseline_temp: float,
 ):
     # ---- SPHinXsys binding ----
@@ -87,8 +85,6 @@ def make_env(
         avg_len=avg_len,
         max_steps_per_episode=max_steps,
         beta=beta,
-        nu_target=nu_target,
-        reward_scale=reward_scale,
         baseline_temp=baseline_temp,
     )
 
@@ -258,8 +254,6 @@ def main():
                     avg_len=args.avg_len,
                     max_steps=args.max_steps,
                     beta=args.beta,
-                    nu_target=args.nu_target,
-                    reward_scale=args.reward_scale,
                     baseline_temp=args.baseline_temp,
                 )
             )
@@ -286,8 +280,6 @@ def main():
                 avg_len=args.avg_len,
                 max_steps=args.max_steps,
                 beta=args.beta,
-                nu_target=args.nu_target,
-                reward_scale=args.reward_scale,
                 baseline_temp=args.baseline_temp,
             )
         )
