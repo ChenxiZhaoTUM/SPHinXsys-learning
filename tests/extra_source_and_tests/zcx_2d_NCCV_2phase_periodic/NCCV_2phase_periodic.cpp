@@ -104,13 +104,13 @@ int main(int ac, char *av[])
     SimpleDynamics<DirichletWallBoundaryInitialCondition> setup_down_Dirichlet_initial_condition(down_Dirichlet);
 
     // fluid dynamics
-    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_1_kernel_correction_complex(InteractArgs(phase_1_inner, 0.1), phase_1_contacts);
-    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_2_kernel_correction_complex(InteractArgs(phase_2_inner, 0.1), phase_2_contacts);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfWithWallRiemann>
+    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_1_kernel_correction_complex(InteractArgs(phase_1_inner, 0.5), phase_1_contacts);
+    InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_2_kernel_correction_complex(InteractArgs(phase_2_inner, 0.5), phase_2_contacts);
+    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfCorrectionWithWallRiemann>
         phase_1_pressure_relaxation(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
         phase_1_density_relaxation(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary);
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfWithWallRiemann>
+    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfCorrectionWithWallRiemann>
         phase_2_pressure_relaxation(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
         phase_2_density_relaxation(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);
@@ -220,7 +220,7 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real End_Time = 400.0;
+    Real End_Time = 600.0;
     Real output_interval = 1.0; /**< time stamps for output,WriteToFile*/
     int number_of_iterations = 0;
     int screen_output_interval = 100;

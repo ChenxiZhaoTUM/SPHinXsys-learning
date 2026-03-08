@@ -566,7 +566,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
                         restart_io.writeToFile(number_of_iterations);
                     }
 
-                    write_states.writeToFile(); // save memory of disk
+                    //write_states.writeToFile(); // save memory of disk
                 }
                 number_of_iterations++;
 
@@ -602,7 +602,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
             up_wall_local_nusselt_number.exec();
             down_wall_local_nusselt_number.exec();
 
-            // write_states.writeToFile();
+            write_states.writeToFile();
             write_phase_1_PhiFluxSum.writeToFile(number_of_iterations);
             write_phase_2_PhiFluxSum.writeToFile(number_of_iterations);
             write_observed_fluid_vel.writeToFile(number_of_iterations);

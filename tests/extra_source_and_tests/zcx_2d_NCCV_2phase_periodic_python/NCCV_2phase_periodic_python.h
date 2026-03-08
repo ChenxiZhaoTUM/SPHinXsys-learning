@@ -24,8 +24,8 @@ class SphBasicGeometrySetting
     const Real g = 9.81;
     Real rho0_f = 1.0;                  /**< Reference density of fluid. */
     Real mu_f = rho0_f * nu;               /**< Dynamics viscosity. */
-    Real mu_f_one = mu_f * 1.5;
-    Real mu_f_two = mu_f * 0.5;
+    Real mu_f_one = mu_f * 10;
+    Real mu_f_two = mu_f * 0.1;
     Real C_p = 1.0;
     Real diffusion_coeff = kappa;
     Real k = diffusion_coeff * (rho0_f * C_p);
