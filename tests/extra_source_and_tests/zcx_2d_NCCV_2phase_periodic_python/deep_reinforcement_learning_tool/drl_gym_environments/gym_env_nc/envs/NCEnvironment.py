@@ -94,11 +94,17 @@ class NCEnvironment(gym.Env):
         self._probe_hist = deque(maxlen=4)  # 4-step moving average
 
         # ----- reward shaping params (Nu mix) -----
-        # self.beta = 0.0015  # small local contribution
-        self.beta = 0
-        self.nu_target = 22.5
-        # self.nu_target = 2.32
-        self.reward_scale = 1.0
+        self._flux_hist = deque(maxlen=4)  # 4-step moving average for global heat flux
+        self._ke_hist = deque(maxlen=4)  # 4-step moving average for kinetic energy
+        # baselines
+        self.flux_base = 0.19
+        self.ke_base = 0.04
+        # scales
+        self.flux_scale = 0.018
+        self.ke_scale = 0.004  # 10% * 0.04 = 0.004
+        # weights
+        self.w_flux = 0.8
+        self.w_ke = 0.2
 
         # ----- solver handles / runtime -----
         self.nc_base = None
@@ -156,31 +162,27 @@ class NCEnvironment(gym.Env):
     # Reward functions
     # ------------------------------------------------------------------
     def _compute_reward(self) -> float:
-        """r = nu_target - [(1 - beta) * Nu_global + beta * mean(Nu_local_i)]"""
-        gen_Nu = float(self.nc.get_global_heat_flux())
-        loc_Nu_vals = [float(self.nc.get_local_phi_flux(i)) for i in range(self.n_seg)]
-        loc_Nu = float(np.mean(loc_Nu_vals)) if self.n_seg > 0 else 0.0
-        reward_nu = (1.0 - self.beta) * gen_Nu + self.beta * loc_Nu * self.n_seg
-        reward = (self.nu_target - reward_nu) / self.reward_scale
+        gen_Flux = float(self.nc.get_global_heat_flux())
+        gen_KE = float(self.nc.get_global_kinetic_energy())
 
-        # gen_Nu = float(self.nc.get_global_Nusselt_number())
-        # loc_Nu_vals = [float(self.nc.get_local_Nusselt(i)) for i in range(self.n_seg)]
-        # loc_Nu = float(np.mean(loc_Nu_vals)) if self.n_seg > 0 else 0.0
-        # reward_nu = (1.0 - self.beta) * gen_Nu + self.beta * loc_Nu
-        # reward = (self.nu_target - reward_nu) / self.reward_scale
+        # push into 4-frame buffers
+        self._flux_hist.append(gen_Flux)
+        self._ke_hist.append(gen_KE)
 
-        # try:
-        #     dbg_path = os.path.join(self.log_dir, f"nu_debug_env{self.parallel_envs}_epi{self.episode}.txt")
-        #     line = (
-        #         f"t={self.sim_time:.3f}, gen_Nu={gen_Nu:.6f}, "
-        #         f"loc_Nu_sum={loc_Nu:.6f}\n"
-        #     )
-        #     print("[NuDbg]", line.strip())
-        #     with open(dbg_path, "a", encoding="utf-8") as f:
-        #         f.write(line)
-        # except Exception as e:
-        #     print(f"[NuDbg][warn] logging failed: {e}")
+        # frame averages
+        flux_bar = float(np.mean(self._flux_hist))
+        ke_bar = float(np.mean(self._ke_hist))
 
+        x_flux = (self.flux_base - flux_bar) / (2.0 * self.flux_scale)
+        x_ke = (self.ke_base - ke_bar) / (2.0 * self.ke_scale)
+
+        # numerical safety
+        x_flux = float(np.clip(x_flux, -10.0, 10.0))
+        x_ke = float(np.clip(x_ke, -10.0, 10.0))
+
+        r_flux = float(np.tanh(x_flux))  # (-1, 1)
+        r_ke = float(np.tanh(x_ke))  # (-1, 1)
+        reward = self.w_flux * r_flux + self.w_ke * r_ke
         return reward
 
     # ------------------------------------------------------------------
@@ -230,9 +232,15 @@ class NCEnvironment(gym.Env):
 
         # fill probe history with current snapshot to start averaging
         self._probe_hist.clear()
+        self._flux_hist.clear()
+        self._ke_hist.clear()
         snap0 = self._snapshot_probes(self.nc)
+        flux0 = float(self.nc.get_global_heat_flux())
+        ke0 = float(self.nc.get_global_kinetic_energy())
         for _ in range(4):
             self._probe_hist.append(snap0.copy())
+            self._flux_hist.append(flux0)
+            self._ke_hist.append(ke0)
 
         obs0 = self._read_observation(self.nc)
         return obs0, {}
@@ -273,12 +281,14 @@ class NCEnvironment(gym.Env):
             f.write(f"clock: {self.sim_time:.6f}  raw_action: {a.tolist()}  seg_temps: {seg_temps}\n")
 
         with open(os.path.join(self.log_dir, f'reward_env{self.parallel_envs}_epi{self.episode}.txt'), 'a') as f:
-            f.write(f'clock: {self.sim_time:.6f} | reward: {reward_now:.6f} | temps: {seg_temps}\n')
+            flux_bar = float(np.mean(self._flux_hist))
+            ke_bar = float(np.mean(self._ke_hist))
+            f.write(f'clock: {self.sim_time:.6f} | reward: {reward_now:.6f} | flux_bar: {flux_bar:.6f} | ke_bar: {ke_bar:.6f}\n')
 
         # 6) termination
         episode_limit = self.max_steps_per_episode if not self.deterministic else self.max_steps_per_episode_eval
         if self.step_count >= episode_limit:
-            terminated, truncated = True, False
+            terminated, truncated = False, True
             with open(os.path.join(self.log_dir, f'reward_env{self.parallel_envs}.txt'), 'a',
                       encoding='utf-8') as file:
                 file.write(f'episode: {self.episode}  total_reward: {self.total_reward_per_episode:.6f}\n')
@@ -296,4 +306,3 @@ class NCEnvironment(gym.Env):
 
     def close(self):
         return 0
-

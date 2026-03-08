@@ -102,7 +102,7 @@ def get_args():
     parser.add_argument("--test-num", type=int, default=1)
 
     parser.add_argument("--task", type=str, default="NC-v0")  # Environment ID
-    parser.add_argument("--episodes-per-epoch", type=int, default=20)
+    parser.add_argument("--episodes-per-epoch", type=int, default=15)
     parser.add_argument("--buffer-size", type=int, default=10e4)
     parser.add_argument("--hidden-sizes", type=int, nargs="*", default=[512, 512])
     parser.add_argument("--actor-lr", type=float, default=1e-4)
@@ -113,7 +113,7 @@ def get_args():
     parser.add_argument("--auto-alpha", default=False, action="store_true")
     parser.add_argument("--alpha-lr", type=float, default=5e-4)
     parser.add_argument("--start-timesteps", type=int, default=0)  # Replace the step number with episode pre-sampling
-    parser.add_argument("--epoch", type=int, default=30)
+    parser.add_argument("--epoch", type=int, default=50)
     parser.add_argument("--update-per-step", type=int, default=1)
     parser.add_argument("--n-step", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=256)
@@ -157,16 +157,16 @@ def training_sac(args=get_args()):
     torch.manual_seed(args.seed)
 
     # Define the actor and critic neural networks for SAC
-    net_a = Net(args.state_shape, hidden_sizes=args.hidden_sizes, activation=nn.Tanh, device=args.device)
+    net_a = Net(args.state_shape, hidden_sizes=args.hidden_sizes, device=args.device)
     actor = ActorProb(net_a, args.action_shape, device=args.device, max_action=args.max_action,
                       conditioned_sigma=True).to(args.device)
     actor_optim = torch.optim.Adam(actor.parameters(), lr=args.actor_lr)
 
-    net_c1 = Net(args.state_shape, args.action_shape, hidden_sizes=args.hidden_sizes, activation=nn.Tanh, concat=True, device=args.device)
+    net_c1 = Net(args.state_shape, args.action_shape, hidden_sizes=args.hidden_sizes, concat=True, device=args.device)
     critic1 = Critic(net_c1, device=args.device).to(args.device)
     critic1_optim = torch.optim.Adam(critic1.parameters(), lr=args.critic_lr)
 
-    net_c2 = Net(args.state_shape, args.action_shape, hidden_sizes=args.hidden_sizes, activation=nn.Tanh, concat=True, device=args.device)
+    net_c2 = Net(args.state_shape, args.action_shape, hidden_sizes=args.hidden_sizes, concat=True, device=args.device)
     critic2 = Critic(net_c2, device=args.device).to(args.device)
     critic2_optim = torch.optim.Adam(critic2.parameters(), lr=args.critic_lr)
 
@@ -229,8 +229,9 @@ def training_sac(args=get_args()):
 
     max_steps = getattr(train_env.unwrapped, "max_steps_per_episode", 200)
     steps_per_episode = int(max_steps)
-    step_per_collect = steps_per_episode * int(args.episodes_per_epoch)
-    step_per_epoch = step_per_collect  # one collect batch per epoch
+    # step_per_collect = steps_per_episode * int(args.episodes_per_epoch)  # one collect batch per epoch
+    step_per_collect = steps_per_episode * 3
+    step_per_epoch = steps_per_episode * int(args.episodes_per_epoch)
 
     # Training loop using OffpolicyTrainer
     if not args.watch:
