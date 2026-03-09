@@ -61,7 +61,10 @@ class ContactRelationCrossResolution : public BaseContactRelation
         }
     };
     virtual ~ContactRelationCrossResolution() {};
-    StdVec<CellLinkedList *> getContactCellLinkedList() { return target_cell_linked_lists_; }
+    StdVec<CellLinkedList *> getContactCellLinkedList()
+    {
+        return target_cell_linked_lists_;
+    }
 
   protected:
     StdVec<CellLinkedList *> target_cell_linked_lists_;
