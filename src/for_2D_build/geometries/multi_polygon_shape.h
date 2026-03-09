@@ -12,7 +12,7 @@
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
  *  HU1527/12-1 and HU1527/12-4.                                             *
  *                                                                           *
- * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2025 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -53,7 +53,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include "base_data_package.h"
+#include "base_data_type_package.h"
 #include "base_geometry.h"
 
 #include <fstream>
@@ -85,7 +85,7 @@ class MultiPolygon
     explicit MultiPolygon(const Vecd &center, Real radius, int resolution);
     boost_multi_poly &getBoostMultiPoly() { return multi_poly_; };
 
-    BoundingBox findBounds();
+    BoundingBoxd findBounds();
     bool checkContain(const Vecd &pnt, bool BOUNDARY_INCLUDED = true);
     Vecd findClosestPoint(const Vecd &probe_point);
 
@@ -120,11 +120,10 @@ class MultiPolygonShape : public Shape
     virtual bool isValid() override;
     virtual bool checkContain(const Vecd &probe_point, bool BOUNDARY_INCLUDED = true) override;
     virtual Vecd findClosestPoint(const Vecd &probe_point) override;
+    virtual BoundingBoxd findBounds() override;
 
   protected:
     MultiPolygon multi_polygon_;
-
-    virtual BoundingBox findBounds() override;
 };
 } // namespace SPH
 

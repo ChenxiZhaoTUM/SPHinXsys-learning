@@ -12,7 +12,7 @@
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
  *  HU1527/12-1 and HU1527/12-4.                                             *
  *                                                                           *
- * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2025 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -30,8 +30,8 @@
 #define BODY_PART_FOR_SIMBODY_H
 
 #include "base_body_part.h"
-
 #include "simtk_wrapper.h"
+
 namespace SPH
 {
 /**
@@ -43,7 +43,7 @@ namespace SPH
 class SolidBodyPartForSimbody : public BodyRegionByParticle
 {
   protected:
-    UniquePtrKeeper<SimTK::MassProperties> mass_properties_ptr_keeper_;
+    UniquePtrKeeper<SimTK::MassProperties> mass_properties_keeper_;
 
   public:
     Vecd initial_mass_center_;

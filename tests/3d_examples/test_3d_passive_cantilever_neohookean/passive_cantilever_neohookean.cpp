@@ -12,14 +12,14 @@ Real PL = 0.1;
 Real PH = 0.04;
 Real PW = 0.04;
 Real SL = 0.02;
-Real resolution_ref = PH / 6.0; /**< Initial particle spacing. */
-Real BW = resolution_ref * 4;   /**< Boundary width. */
+Real global_resolution = PH / 6.0; /**< Initial particle spacing. */
+Real BW = global_resolution * 4;   /**< Boundary width. */
 Vecd halfsize_cantilever(0.5 * (PL + SL), 0.5 * PH, 0.5 * PW);
 Vecd translation_cantilever(0.5 * (PL - SL), 0.5 * PH, 0.5 * PW);
 Vecd halfsize_holder(0.5 * SL, 0.5 * PH, 0.5 * PW);
 Vecd translation_holder(-0.5 * SL, 0.5 * PH, 0.5 * PW);
 /** Domain bounds of the system. */
-BoundingBox system_domain_bounds(Vecd(-SL, 0, 0), Vecd(PL, PH, PH));
+BoundingBoxd system_domain_bounds(Vecd(-SL, 0, 0), Vecd(PL, PH, PH));
 // Observer location
 StdVec<Vecd> observation_location = {Vecd(PL, PH, PW)};
 /** For material properties of the solid. */
@@ -47,7 +47,7 @@ class Cantilever : public ComplexShape
 int main(int ac, char *av[])
 {
     /** Setup the system. */
-    SPHSystem sph_system(system_domain_bounds, resolution_ref);
+    SPHSystem sph_system(system_domain_bounds, global_resolution);
 // handle command line arguments
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av);
@@ -86,7 +86,6 @@ int main(int ac, char *av[])
     DampingWithRandomChoice<InteractionSplit<DampingProjectionInner<Vec3d, FixedDampingRate>>>
         muscle_damping(0.1, cantilever_body_inner, "Velocity", physical_viscosity);
     /** Output */
-    IOEnvironment io_environment(sph_system);
     BodyStatesRecordingToVtp write_states(sph_system);
     RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
         write_displacement("Position", cantilever_observer_contact);

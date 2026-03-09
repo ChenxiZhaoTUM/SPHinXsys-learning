@@ -12,7 +12,7 @@
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
  *  HU1527/12-1 and HU1527/12-4.                                             *
  *                                                                           *
- * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2025 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -40,10 +40,8 @@ class GeometricShapeBox : public TransformShape<GeometricBox>
   public:
     GeometricShapeBox(const Transform &transform, const Vecd &halfsize,
                       const std::string &name = "GeometricShapeBox");
-    explicit GeometricShapeBox(const BoundingBox &bounding_box,
+    explicit GeometricShapeBox(const BoundingBoxd &bounding_box,
                                const std::string &name = "GeometricShapeBox");
-    GeometricShapeBox(const Vecd &lower_bound, const Vecd &upper_bound,
-                      const std::string &name = "GeometricShapeBox");
     virtual ~GeometricShapeBox() {};
 };
 
@@ -60,7 +58,15 @@ class GeometricShapeBall : public GeometricBall, public Shape
     virtual Vecd findClosestPoint(const Vecd &probe_point) override;
 
   protected:
-    virtual BoundingBox findBounds() override;
+    virtual BoundingBoxd findBounds() override;
+};
+
+class GeometricShapeCylinder : public TransformShape<GeometricCylinder>
+{
+  public:
+    GeometricShapeCylinder(const Transform &transform, Real radius, Real halflength,
+                           const std::string &name = "GeometricShapeCylinder");
+    virtual ~GeometricShapeCylinder() {};
 };
 } // namespace SPH
 

@@ -13,14 +13,14 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
-    BoundingBox system_domain_bounds(Vec2d(-DL_sponge, -0.25 * DH), Vec2d(DL, 1.25 * DH));
+    BoundingBoxd system_domain_bounds(Vec2d(-DL_sponge, -0.25 * DH), Vec2d(DL, 1.25 * DH));
     SPHSystem sph_system(system_domain_bounds, particle_spacing_ref);
     /** Tag for run particle relaxation for the initial body fitted distribution. */
     sph_system.setRunParticleRelaxation(false);
     /** Tag for computation start with relaxed body fitted particles distribution. */
     sph_system.setReloadParticles(true);
     /** handle command line arguments. */
-    sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
+    sph_system.handleCommandlineOptions(ac, av);
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------

@@ -21,7 +21,7 @@ int particle_number_mid_surface = 2 * radius_mid_surface * Pi * 80.0 / 360.0 / p
 int BWD = 1;                                /** number of boundary particles layers . */
 Real BW = particle_spacing_ref * (Real)BWD; /** Boundary width, determined by specific layer of boundary particles. */
 /** Domain bounds of the system. */
-BoundingBox system_domain_bounds(Vec2d(-radius - thickness, 0.0),
+BoundingBoxd system_domain_bounds(Vec2d(-radius - thickness, 0.0),
                                  Vec2d(radius + thickness, radius + thickness));
 // Shell observer location
 StdVec<Vecd> observation_location = {Vecd(0.0, radius_mid_surface)};
@@ -120,7 +120,6 @@ int main(int ac, char *av[])
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec2d, FixedDampingRate>>>
         cylinder_rotation_damping(0.2, cylinder_body_inner, "AngularVelocity", physical_viscosity);
     /** Output */
-    IOEnvironment io_environment(sph_system);
     BodyStatesRecordingToVtp write_states(sph_system);
     write_states.addToWrite<Vecd>(cylinder_body, "PseudoNormal");
     RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>

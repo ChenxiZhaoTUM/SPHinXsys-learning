@@ -126,10 +126,10 @@ int main(int ac, char *av[])
 {
     output_setup();
     //	Build up an SPHSystem
-    BoundingBox system_domain_bounds(Vecd(-boundary_width * 2, -boundary_width * 2),
+    BoundingBoxd system_domain_bounds(Vecd(-boundary_width * 2, -boundary_width * 2),
                                      Vecd(width + boundary_width * 2, height + boundary_width * 2));
     SPHSystem sph_system(system_domain_bounds, particle_spacing);
-    sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
+    sph_system.handleCommandlineOptions(ac, av);
 
     //	Creating bodies with corresponding materials and particles
     FluidBody fluid(sph_system, makeShared<FluidFilling>("FluidBody"));

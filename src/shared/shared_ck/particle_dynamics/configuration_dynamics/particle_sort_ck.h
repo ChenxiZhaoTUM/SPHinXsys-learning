@@ -12,7 +12,7 @@
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
  *  HU1527/12-1 and HU1527/12-4.                                             *
  *                                                                           *
- * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2025 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -37,62 +37,6 @@
  */
 namespace SPH
 {
-class UpdateSortableVariables
-{
-    typedef DataAssemble<UniquePtr, DiscreteVariable> TemporaryVariables;
-
-    struct InitializeTemporaryVariables
-    {
-        template <typename DataType>
-        void operator()(UniquePtr<DiscreteVariable<DataType>> &variable_ptr, UnsignedInt data_size);
-    };
-
-    TemporaryVariables temp_variables_;
-    OperationOnDataAssemble<TemporaryVariables, InitializeTemporaryVariables> initialize_temp_variables_;
-
-  public:
-    UpdateSortableVariables(BaseParticles *particles);
-
-    template <class ExecutionPolicy, typename DataType>
-    void operator()(DataContainerAddressKeeper<DiscreteVariable<DataType>> &variables,
-                    ExecutionPolicy &ex_policy, UnsignedInt total_real_particles,
-                    DiscreteVariable<UnsignedInt> *dv_index_permutation);
-};
-
-class QuickSort
-{
-    class SwapParticleIndex
-    {
-        UnsignedInt *sequence_;
-        UnsignedInt *index_permutation_;
-
-      public:
-        SwapParticleIndex(UnsignedInt *sequence, UnsignedInt *index_permutation);
-        ~SwapParticleIndex() {};
-
-        void operator()(UnsignedInt *a, UnsignedInt *b);
-    };
-
-  public:
-    template <class ExecutionPolicy>
-    explicit QuickSort(const ExecutionPolicy &ex_policy,
-                       DiscreteVariable<UnsignedInt> *dv_sequence,
-                       DiscreteVariable<UnsignedInt> *dv_index_permutation);
-    void sort(const ParallelPolicy &ex_policy, BaseParticles *particles);
-
-  protected:
-    UnsignedInt *sequence_;
-    UnsignedInt *index_permutation_;
-    SwapParticleIndex swap_particle_index_;
-    CompareParticleSequence compare_;
-    tbb::interface9::QuickSortParticleRange<
-        UnsignedInt *, CompareParticleSequence, SwapParticleIndex>
-        quick_sort_particle_range_;
-    tbb::interface9::QuickSortParticleBody<
-        UnsignedInt *, CompareParticleSequence, SwapParticleIndex>
-        quick_sort_particle_body_;
-};
-
 template <class ExecutionPolicy>
 class ParticleSortCK : public LocalDynamics, public BaseDynamics<void>
 {
@@ -138,13 +82,13 @@ class ParticleSortCK : public LocalDynamics, public BaseDynamics<void>
 
   protected:
     ExecutionPolicy ex_policy_;
-    CellLinkedList &cell_linked_list_;
+    BaseCellLinkedList &cell_linked_list_;
     DiscreteVariable<Vecd> *dv_pos_;
     DiscreteVariable<UnsignedInt> *dv_sequence_;
     DiscreteVariable<UnsignedInt> *dv_index_permutation_;
     DiscreteVariable<UnsignedInt> *dv_original_id_;
     DiscreteVariable<UnsignedInt> *dv_sorted_id_;
-    OperationOnDataAssemble<ParticleVariables, UpdateSortableVariables> update_variables_to_sort_;
+    OperationOnDataAssemble<ParticleVariables, UpdateSortableVariables<DiscreteVariable>> update_variables_to_sort_;
     SortMethodType sort_method_;
     Implementation<ExecutionPolicy, LocalDynamicsType, ComputingKernel> kernel_implementation_;
 

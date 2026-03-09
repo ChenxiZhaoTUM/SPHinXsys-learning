@@ -12,7 +12,7 @@
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
  *  HU1527/12-1 and HU1527/12-4.                                             *
  *                                                                           *
- * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2025 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -23,14 +23,16 @@
 /**
  * @file 	base_body_part.h
  * @brief 	This is the base classes of body parts.
- * @details	There two main type of body parts. One is part by particle.
+ * @details	There two main type of body parts. One is part by particle, the other is part by cell.
  * @author	Chi Zhang and Xiangyu Hu
  */
 
 #ifndef BASE_BODY_PART_H
 #define BASE_BODY_PART_H
 
-#include "base_body.h"
+#include "all_geometries.h"
+#include "base_data_type_package.h"
+#include "sphinxsys_containers.h"
 
 #include <optional>
 
@@ -47,13 +49,16 @@ class BodyPart
     UniquePtrsKeeper<Entity> unique_variable_ptrs_;
 
   public:
+    typedef SPHAdaptation Adaptation;
     BodyPart(SPHBody &sph_body);
     virtual ~BodyPart() {};
     SPHBody &getSPHBody() { return sph_body_; };
-    SPHSystem &getSPHSystem() { return sph_body_.getSPHSystem(); };
+    SPHSystem &getSPHSystem();
     std::string getName() const { return alias_.value_or(part_name_); };
     int getPartID() { return part_id_; };
     SingularVariable<UnsignedInt> *svRangeSize() { return sv_range_size_; };
+    SPHAdaptation &getSPHAdaptation() { return sph_adaptation_; };
+    BaseCellLinkedList &getCellLinkedList();
 
     template <typename TargetCriterion>
     class TargetParticleMask : public TargetCriterion
@@ -63,7 +68,7 @@ class BodyPart
         TargetParticleMask(ExecutionPolicy &ex_policy, EnclosureType &encloser, Args &&...args)
             : TargetCriterion(std::forward<Args>(args)...), part_id_(encloser.part_id_),
               body_part_id_(encloser.dv_body_part_id_->DelegatedData(ex_policy)) {}
-        virtual ~TargetParticleMask() {}
+        ~TargetParticleMask() {}
 
         template <typename... Args>
         bool operator()(UnsignedInt target_index, Args &&...args)
@@ -79,10 +84,11 @@ class BodyPart
 
   protected:
     SPHBody &sph_body_;
+    BaseParticles &base_particles_;
     int part_id_;
     std::string part_name_;
     std::optional<std::string> alias_;
-    BaseParticles &base_particles_;
+    SPHAdaptation &sph_adaptation_;
     SingularVariable<UnsignedInt> *sv_range_size_;
     DiscreteVariable<int> *dv_body_part_id_;
     Vecd *pos_;
@@ -91,7 +97,7 @@ class BodyPart
 class BodyPartByID : public BodyPart
 {
   public:
-    typedef BodyPartByID BaseIdentifier;
+    typedef BodyPartByID RangeIdentifier;
     BodyPartByID(SPHBody &sph_body);
     virtual ~BodyPartByID() {};
 };
@@ -103,7 +109,7 @@ class BodyPartByID : public BodyPart
 class BodyPartByParticle : public BodyPart
 {
   public:
-    typedef BodyPartByParticle BaseIdentifier;
+    typedef BodyPartByParticle RangeIdentifier;    
     IndexVector body_part_particles_; /**< Collection particle in this body part. */
     BaseParticles &getBaseParticles() { return base_particles_; };
     DiscreteVariable<UnsignedInt> *dvParticleList() { return dv_particle_list_; };
@@ -111,13 +117,9 @@ class BodyPartByParticle : public BodyPart
     size_t SizeOfLoopRange() { return body_part_particles_.size(); };
     BodyPartByParticle(SPHBody &sph_body);
     virtual ~BodyPartByParticle() {};
-    void setBodyPartBounds(BoundingBox bbox);
-    BoundingBox getBodyPartBounds();
 
   protected:
     DiscreteVariable<UnsignedInt> *dv_particle_list_;
-    BoundingBox body_part_bounds_;
-    bool body_part_bounds_set_;
     typedef std::function<bool(size_t)> TaggingParticleMethod;
     void tagParticles(TaggingParticleMethod &tagging_particle_method);
 };
@@ -129,7 +131,7 @@ class BodyPartByParticle : public BodyPart
 class BodyPartByCell : public BodyPart
 {
   public:
-    typedef BodyPartByCell BaseIdentifier;
+    typedef BodyPartByCell RangeIdentifier;
     ConcurrentCellLists body_part_cells_; /**< Collection of cells to indicate the body part. */
     ConcurrentCellLists &LoopRange() { return body_part_cells_; };
     size_t SizeOfLoopRange();
@@ -156,7 +158,7 @@ class BodyPartByCell : public BodyPart
 class BodyRegionByParticle : public BodyPartByParticle
 {
   private:
-    SharedPtrKeeper<Shape> shape_ptr_keeper_;
+    SharedPtrKeeper<Shape> shape_keeper_;
 
   public:
     BodyRegionByParticle(SPHBody &sph_body, Shape &body_part_shape);
@@ -206,7 +208,7 @@ class BodySurfaceLayer : public BodyPartByParticle
 class BodyRegionByCell : public BodyPartByCell
 {
   private:
-    SharedPtrKeeper<Shape> shape_ptr_keeper_;
+    SharedPtrKeeper<Shape> shape_keeper_;
 
   public:
     BodyRegionByCell(RealBody &real_body, Shape &body_part_shape);
@@ -249,12 +251,14 @@ class AlignedBoxPart
     UniquePtrKeeper<SingularVariable<AlignedBox>> sv_aligned_box_keeper_;
 
   public:
-    AlignedBoxPart(const std::string &part_name, const AlignedBox &aligned_box);
+    AlignedBoxPart(SPHSystem &sph_system, const std::string &part_name, const AlignedBox &aligned_box);
     virtual ~AlignedBoxPart() {};
     SingularVariable<AlignedBox> *svAlignedBox() { return sv_aligned_box_keeper_.getPtr(); };
     AlignedBox &getAlignedBox() { return aligned_box_; };
+    void writeShapeProxy();
 
   protected:
+    SPHSystem &sph_system_;
     AlignedBox &aligned_box_;
 };
 

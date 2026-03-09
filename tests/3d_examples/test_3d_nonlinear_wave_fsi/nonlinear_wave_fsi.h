@@ -25,7 +25,7 @@ Real particle_spacing_structure = 0.1;         /**< Structure particle spacing. 
 Real BW = particle_spacing_ref * 4.0;          /**< Extending width for BCs. */
 Real Maker_width = particle_spacing_ref * 4.0; /**< Width of the wave_maker. */
 
-BoundingBox system_domain_bounds(Vecd(-BW, -EXS - BW, -BW), Vecd(EXS + BW, DL + BW, DH + BW));
+BoundingBoxd system_domain_bounds(Vecd(-BW, -EXS - BW, -BW), Vecd(EXS + BW, DL + BW, DH + BW));
 
 Vecd offset = Vecd::Zero();
 // water block parameters
@@ -281,7 +281,7 @@ class StructureSystemForSimbody : public SolidBodyPartForSimbody
         // Vecd mass_center(G[0], G[1], G[2]);
         // initial_mass_center_ = SimTK::Vec3(mass_center[0], mass_center[1], mass_center[2]);
         body_part_mass_properties_ =
-            mass_properties_ptr_keeper_
+            mass_properties_keeper_
                 .createPtr<SimTK::MassProperties>(StructureMass, SimTK::Vec3(0.0), SimTK::UnitInertia(Ix, Iy, Iz));
     }
 };
@@ -456,8 +456,8 @@ class WaveMaking : public BodyPartMotionConstraint
     WaveMaking(BodyPartByParticle &body_part)
         : BodyPartMotionConstraint(body_part),
           h(WH), tf(5), xf(4.5), fmn(0.32), fmx(0.96), a(0.0078), N(32), g(gravity_g),
-          acc_(particles_->registerStateVariable<Vecd>("Acceleration")),
-          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime"))
+          acc_(particles_->registerStateVariableData<Vecd>("Acceleration")),
+          physical_time_(sph_system_->getSystemVariableDataByName<Real>("PhysicalTime"))
 
     {
         ComputeWaveChar();

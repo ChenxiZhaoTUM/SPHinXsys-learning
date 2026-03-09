@@ -10,11 +10,11 @@ using namespace SPH;
 //----------------------------------------------------------------------
 Real DL = 2.0;                          /**< Channel length. */
 Real DH = 0.4;                          /**< Channel height. */
-Real resolution_ref = DH / 25.0;        /**< Global reference resolution. */
-Real DL_sponge = resolution_ref * 20.0; /**< Sponge region to impose inflow condition. */
+Real global_resolution = DH / 25.0;        /**< Global reference resolution. */
+Real DL_sponge = global_resolution * 20.0; /**< Sponge region to impose inflow condition. */
 /** Boundary width, determined by specific layer of boundary particles. */
-Real BW = resolution_ref * 4.0; /** Domain bounds of the system. */
-BoundingBox system_domain_bounds(Vec2d(-DL_sponge - BW, -BW), Vec2d(DL + BW, DH + BW));
+Real BW = global_resolution * 4.0; /** Domain bounds of the system. */
+BoundingBoxd system_domain_bounds(Vec2d(-DL_sponge - BW, -BW), Vec2d(DL + BW, DH + BW));
 // temperature observer location
 StdVec<Vecd> observation_location = {Vecd(0.0, DH * 0.5)};
 //----------------------------------------------------------------------
@@ -102,7 +102,7 @@ class ThermosolidBodyInitialCondition : public LocalDynamics
     explicit ThermosolidBodyInitialCondition(SPHBody &sph_body)
         : LocalDynamics(sph_body),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
-          phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) {};
+          phi_(particles_->registerStateVariableData<Real>(diffusion_species_name)) {};
 
     void update(size_t index_i, Real dt)
     {
@@ -130,7 +130,7 @@ class ThermofluidBodyInitialCondition : public LocalDynamics
     explicit ThermofluidBodyInitialCondition(SPHBody &sph_body)
         : LocalDynamics(sph_body),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
-          phi_(particles_->registerStateVariable<Real>(diffusion_species_name)) {};
+          phi_(particles_->registerStateVariableData<Real>(diffusion_species_name)) {};
 
     void update(size_t index_i, Real dt)
     {
@@ -183,9 +183,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem with global controls.
     //----------------------------------------------------------------------
-    SPHSystem sph_system(system_domain_bounds, resolution_ref);
+    SPHSystem sph_system(system_domain_bounds, global_resolution);
     sph_system.handleCommandlineOptions(ac, av); // handle command line arguments
-    IOEnvironment io_environment(sph_system);
     //----------------------------------------------------------------------
     //	Creating body, materials and particles.
     //----------------------------------------------------------------------

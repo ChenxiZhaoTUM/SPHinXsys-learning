@@ -12,7 +12,7 @@
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
  *  HU1527/12-1 and HU1527/12-4.                                             *
  *                                                                           *
- * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2025 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -29,7 +29,7 @@
 #ifndef GEOMETRIC_ELEMENT_H
 #define GEOMETRIC_ELEMENT_H
 
-#include "base_data_package.h"
+#include "base_data_type_package.h"
 
 namespace SPH
 {
@@ -55,7 +55,7 @@ class GeometricBox
     };
 
     Vecd findClosestPoint(const Vecd &probe_point);
-    BoundingBox findBounds();
+    BoundingBoxd findBounds();
 
   protected:
     Vecd halfsize_;
@@ -69,10 +69,31 @@ class GeometricBall
 
     bool checkContain(const Vecd &probe_point);
     Vecd findClosestPoint(const Vecd &probe_point);
-    BoundingBox findBounds();
+    BoundingBoxd findBounds();
 
   protected:
     Real radius_;
+};
+
+class GeometricCylinder
+{
+  public:
+    explicit GeometricCylinder(Real radius, Real halflength);
+    ~GeometricCylinder() {};
+
+    bool checkContain(const Vecd &probe_point)
+    {
+        if (ABS(probe_point[0]) > halflength_)
+            return false;
+        return probe_point.tail(Dimensions - 1).norm() <= radius_;
+    };
+
+    Vecd findClosestPoint(const Vecd &probe_point);
+    BoundingBoxd findBounds();
+
+  protected:
+    Real radius_;
+    Real halflength_;
 };
 } // namespace SPH
 

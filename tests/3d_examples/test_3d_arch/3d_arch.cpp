@@ -23,7 +23,7 @@ int particle_number_mid_surface = int(2.0 * radius_mid_surface * Pi * 215.0 / 36
 int BWD = 1;                                /** Width of the boundary layer measured by number of particles. */
 Real BW = particle_spacing_ref * (Real)BWD; /** Boundary width, determined by specific layer of boundary particles. */
 /** Domain bounds of the system. */
-BoundingBox system_domain_bounds(Vec3d(-radius - thickness, 0.0, -radius - thickness),
+BoundingBoxd system_domain_bounds(Vec3d(-radius - thickness, 0.0, -radius - thickness),
                                  Vec3d(radius + thickness, height, radius + thickness));
 // rotation matrix
 Real rot_cos = cos(rotation);
@@ -140,7 +140,6 @@ int main(int ac, char *av[])
 #ifdef BOOST_AVAILABLE
     sph_system.handleCommandlineOptions(ac, av);
 #endif
-    IOEnvironment io_environment(sph_system);
     /** create a cylinder body with shell particles and linear elasticity. */
     SolidBody cylinder_body(sph_system, makeShared<DefaultShape>("CylinderBody"));
     cylinder_body.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);

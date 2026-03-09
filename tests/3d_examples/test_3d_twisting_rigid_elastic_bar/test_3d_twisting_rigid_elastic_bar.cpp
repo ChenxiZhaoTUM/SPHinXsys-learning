@@ -54,7 +54,7 @@ Real get_physical_viscosity_general(Real rho, Real youngs_modulus, Real length_s
     return shape_constant / 4.0 * std::sqrt(rho * youngs_modulus) * length_scale;
 }
 
-Vec3d get_central_position(const BoundingBox &bbox) { return 0.5 * (bbox.first_ + bbox.second_); };
+Vec3d get_central_position(const BoundingBoxd &bbox) { return 0.5 * (bbox.lower_ + bbox.upper_); };
 
 struct solid_algs
 {
@@ -178,7 +178,7 @@ class ExcludeRigidNeighbors : public LocalDynamics, public DataDelegateInner
   public:
     explicit ExcludeRigidNeighbors(BaseInnerRelation &inner_relation)
         : LocalDynamics(inner_relation.getSPHBody()), DataDelegateInner(inner_relation),
-          is_rigid_(particles_->registerStateVariable<int>("isRigid")) {}
+          is_rigid_(particles_->registerStateVariableData<int>("isRigid")) {}
 
     void update(size_t index_i, Real dt = 0.0)
     {
@@ -251,18 +251,17 @@ void run_rigid_elastic_coupling(int res_factor)
 
     // System bounding box
     auto bbox = mesh->getBounds();
-    ASSERT_DOUBLE_EQ(bbox.first_.x(), min_x_pos);
+    ASSERT_DOUBLE_EQ(bbox.lower_.x(), min_x_pos);
 
     // System
     SPHSystem system(bbox, dp);
-    IOEnvironment io_environment(system);
 
     // change output path
     {
         std::string path = "./output_res_x" + std::to_string(res_factor);
         fs::remove_all(path);
         fs::create_directory(path);
-        io_environment.output_folder_ = path;
+        system.getIOEnvironment().resetOutputFolder(path);
     }
 
     // Create objects
@@ -289,8 +288,8 @@ void run_rigid_elastic_coupling(int res_factor)
     SimpleDynamics<FixBodyPartConstraint> fix_elastic_bc(fix_elastic_part);
 
     // record rigid particle id for debug
-    body.getBaseParticles().registerStateVariable<int>("isRigid", [&](size_t i)
-                                                       { return mesh_rigid->checkContain(body.getBaseParticles().ParticlePositions()[i]); });
+    body.getBaseParticles().registerStateVariableData<int>("isRigid", [&](size_t i)
+                                                           { return mesh_rigid->checkContain(body.getBaseParticles().ParticlePositions()[i]); });
 
     // output
     BodyStatesRecordingToVtp vtp_output(system);

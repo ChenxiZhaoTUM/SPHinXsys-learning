@@ -12,7 +12,7 @@
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
  *  HU1527/12-1 and HU1527/12-4.                                             *
  *                                                                           *
- * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2025 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -30,7 +30,7 @@
 #define XML_ENGINE_SIMBODY_H
 
 #include "SimTKcommon/internal/Xml.h"
-#include "base_data_package.h"
+#include "base_data_type_package.h"
 #include "simbody_middle.h"
 #include "simtk_wrapper.h"
 #include "sphinxsys_containers.h"

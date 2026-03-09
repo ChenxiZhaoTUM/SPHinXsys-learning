@@ -22,15 +22,15 @@ const Real DH = 0.4;                                        // tank height
 const Real DL = 0.8;                                        // tank length
 const Real DW = 0.2;                                        // tank width
 const Real resolution_shell = t;                            // shell particle spacing
-const Real resolution_ref = 2 * resolution_shell;           // system particle spacing
-const Real BW = resolution_ref * 4;                         // boundary width
+const Real global_resolution = 2 * resolution_shell;           // system particle spacing
+const Real BW = global_resolution * 4;                         // boundary width
 const Real plate_x_pos = DL - 0.2 + 0.5 * resolution_shell; // center x coordinate of plate
 
 const Real marker_h = 0.0875; // height of marker
 const std::vector<Vec3d> observer_position_1 = {Vec3d(plate_x_pos, marker_h, (DW - plate_width) * 0.5)};
 const std::vector<Vec3d> observer_position_2 = {Vec3d(plate_x_pos, marker_h, 0.5 * DW)};
 
-const BoundingBox system_domain_bounds(Vec3d(-BW, -BW, -BW), Vec3d(DL + BW, DH + BW, DW + BW));
+const BoundingBoxd system_domain_bounds(Vec3d(-BW, -BW, -BW), Vec3d(DL + BW, DH + BW, DW + BW));
 
 // for material properties of the fluid
 const Real rho0_f = 997.0;
@@ -67,7 +67,7 @@ class WallBoundary : public ComplexShape
         add<GeometricShapeBox>(Transform(translation_wall), halfsize_outer);
         subtract<GeometricShapeBox>(Transform(translation_wall), halfsize_inner);
 
-        Vec3d halfsize_plate(0.5 * resolution_ref, 0.5 * plate_width, 0.5 * (plate_height + BW));
+        Vec3d halfsize_plate(0.5 * global_resolution, 0.5 * plate_width, 0.5 * (plate_height + BW));
         Transform translation_plate(halfsize_plate + Vec3d(plate_x_pos, -BW, (DW - plate_width) * 0.5));
         subtract<GeometricShapeBox>(Transform(translation_plate), halfsize_plate);
     }
@@ -91,8 +91,8 @@ template <>
 class ParticleGenerator<SurfaceParticles, Plate> : public ParticleGenerator<SurfaceParticles>
 {
   public:
-    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles) 
-    : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles){};
+    explicit ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles)
+        : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles) {};
     void prepareGeometricData() override
     {
         Real y = -BW + 0.5 * resolution_shell;
@@ -134,8 +134,8 @@ class GateMotionConstraint : public MotionConstraint<SPHBody>
   public:
     GateMotionConstraint(SPHBody &body)
         : MotionConstraint<SPHBody>(body),
-          physical_time_(sph_system_.getSystemVariableDataByName<Real>("PhysicalTime")){};
-    virtual ~GateMotionConstraint(){};
+          physical_time_(sph_system_->getSystemVariableDataByName<Real>("PhysicalTime")) {};
+    virtual ~GateMotionConstraint() {};
     void update(size_t index_i, Real dt)
     {
         Real run_time = *physical_time_;
@@ -153,8 +153,8 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Build up an SPHSystem.
     //----------------------------------------------------------------------
-    SPHSystem sph_system(system_domain_bounds, resolution_ref);
-    sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
+    SPHSystem sph_system(system_domain_bounds, global_resolution);
+    sph_system.handleCommandlineOptions(ac, av);
     sph_system.setGenerateRegressionData(false);
     //----------------------------------------------------------------------
     //	Creating bodies with corresponding materials and particles.
@@ -172,14 +172,14 @@ int main(int ac, char *av[])
     gate.generateParticles<BaseParticles, Lattice>();
 
     SolidBody plate(sph_system, makeShared<DefaultShape>("Plate"));
-    plate.defineAdaptation<SPHAdaptation>(1.15, resolution_ref / resolution_shell);
+    plate.defineAdaptation<SPHAdaptation>(1.15, global_resolution / resolution_shell);
     plate.defineMaterial<SaintVenantKirchhoffSolid>(rho0_s, youngs_modulus, poisson_ratio);
     plate.generateParticles<SurfaceParticles, Plate>();
 
     ObserverBody disp_observer_1(sph_system, "Observer1");
-    disp_observer_1.defineAdaptation<SPHAdaptation>(1.15, resolution_ref / resolution_shell);
+    disp_observer_1.defineAdaptation<SPHAdaptation>(1.15, global_resolution / resolution_shell);
     ObserverBody disp_observer_2(sph_system, "Observer2");
-    disp_observer_2.defineAdaptation<SPHAdaptation>(1.15, resolution_ref / resolution_shell);
+    disp_observer_2.defineAdaptation<SPHAdaptation>(1.15, global_resolution / resolution_shell);
     disp_observer_1.generateParticles<ObserverParticles>(observer_position_1);
     disp_observer_2.generateParticles<ObserverParticles>(observer_position_2);
     //----------------------------------------------------------------------

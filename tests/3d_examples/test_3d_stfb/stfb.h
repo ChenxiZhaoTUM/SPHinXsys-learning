@@ -18,7 +18,7 @@ Real L = 1.0;                   /**< Base of the floating body. */
 Real particle_spacing_ref = L / 10;
 Real BW = particle_spacing_ref * 4.0;          /**< Extending width for BCs. */
 Real Maker_width = particle_spacing_ref * 4.0; /**< Width of the wave_maker. */
-BoundingBox system_domain_bounds(Vecd(-BW, -BW, -BW), Vecd(DW + BW, DL + BW, DH + BW));
+BoundingBoxd system_domain_bounds(Vecd(-BW, -BW, -BW), Vecd(DW + BW, DL + BW, DH + BW));
 Vecd offset = Vecd::Zero();
 //----------------------------------------------------------------------
 //	Material properties of the fluid.
@@ -77,7 +77,7 @@ class StructureSystemForSimbody : public SolidBodyPartForSimbody
         // Vec2d mass_center(G[0], G[1]);
         // initial_mass_center_ = SimTKVec3(mass_center[0], mass_center[1], 0.0);
         body_part_mass_properties_ =
-            mass_properties_ptr_keeper_
+            mass_properties_keeper_
                 .createPtr<SimTK::MassProperties>(StructureMass, SimTKVec3(0.0), SimTK::UnitInertia(Ix, Iy, Iz));
     }
 };

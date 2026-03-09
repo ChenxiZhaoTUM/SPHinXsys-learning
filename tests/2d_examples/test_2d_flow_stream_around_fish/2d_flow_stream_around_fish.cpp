@@ -12,14 +12,14 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem.
     //----------------------------------------------------------------------
-    BoundingBox system_domain_bounds(Vec2d(-DL_sponge - BW, -BW), Vec2d(DL + BW, DH + BW));
+    BoundingBoxd system_domain_bounds(Vec2d(-DL_sponge - BW, -BW), Vec2d(DL + BW, DH + BW));
     SPHSystem sph_system(system_domain_bounds, particle_spacing_ref);
     /** Tag for run particle relaxation for the initial body fitted distribution. */
     sph_system.setRunParticleRelaxation(false);
     /** Tag for computation start with relaxed body fitted particles distribution. */
     sph_system.setReloadParticles(false);
     // handle command line arguments
-    sph_system.handleCommandlineOptions(ac, av)->setIOEnvironment();
+    sph_system.handleCommandlineOptions(ac, av);
     //----------------------------------------------------------------------
     //	Creating bodies with corresponding materials and particles.
     //----------------------------------------------------------------------
@@ -30,7 +30,7 @@ int main(int ac, char *av[])
 
     SolidBody fish_body(sph_system, makeShared<FishBody>("FishBody"));
     fish_body.defineAdaptationRatios(1.15, 2.0);
-    fish_body.defineBodyLevelSetShape()->writeLevelSet(sph_system);
+    fish_body.defineBodyLevelSetShape().writeLevelSet();
     fish_body.defineMaterial<FishBodyComposite>();
     //  Using relaxed particle distribution if needed
     (!sph_system.RunParticleRelaxation() && sph_system.ReloadParticles())
@@ -153,7 +153,6 @@ int main(int ac, char *av[])
     write_real_body_states.addToWrite<int>(water_block, "Indicator");
     write_real_body_states.addToWrite<int>(fish_body, "MaterialID");
     write_real_body_states.addToWrite<Matd>(fish_body, "ActiveStrain");
-    RestartIO restart_io(sph_system);
     ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_viscous_force_from_fluid(fish_body, "ViscousForceFromFluid");
     ReducedQuantityRecording<QuantitySummation<Vecd>> write_total_pressure_force_from_fluid(fish_body, "PressureForceFromFluid");
     //----------------------------------------------------------------------

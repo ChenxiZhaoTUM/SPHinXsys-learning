@@ -12,7 +12,7 @@
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
  *  HU1527/12-1 and HU1527/12-4.                                             *
  *                                                                           *
- * Portions copyright (c) 2017-2023 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2025 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -41,20 +41,20 @@ namespace SPH
 struct PeriodicAlongAxis
 {
   public:
-    PeriodicAlongAxis(BoundingBox bounding_bounds, int axis)
+    PeriodicAlongAxis(BoundingBoxd bounding_bounds, int axis)
         : bounding_bounds_(bounding_bounds), axis_(axis),
           periodic_translation_(Vecd::Zero())
     {
         periodic_translation_[axis] =
-            bounding_bounds.second_[axis] - bounding_bounds.first_[axis];
+            bounding_bounds.upper_[axis] - bounding_bounds.lower_[axis];
     };
     virtual ~PeriodicAlongAxis() {};
-    BoundingBox getBoundingBox() { return bounding_bounds_; };
+    BoundingBoxd getBoundingBox() { return bounding_bounds_; };
     int getAxis() { return axis_; };
     Vecd getPeriodicTranslation() { return periodic_translation_; };
 
   protected:
-    BoundingBox bounding_bounds_; /**< lower and upper bound for checking. */
+    BoundingBoxd bounding_bounds_; /**< lower and upper bound for checking. */
     const int axis_;              /**< the axis directions for bounding*/
     Vecd periodic_translation_;
 };
@@ -86,7 +86,7 @@ class BasePeriodicCondition
     class PeriodicBounding : public LocalDynamics, public BaseDynamics<void>
     {
       protected:
-        BoundingBox bounding_bounds_;
+        BoundingBoxd bounding_bounds_;
         const int axis_;
         Vecd periodic_translation_;
         Real cut_off_radius_max_; /**< maximum cut off radius to avoid boundary particle depletion */
@@ -95,13 +95,13 @@ class BasePeriodicCondition
 
         virtual void checkLowerBound(size_t index_i, Real dt = 0.0)
         {
-            if (pos_[index_i][axis_] < bounding_bounds_.first_[axis_])
+            if (pos_[index_i][axis_] < bounding_bounds_.lower_[axis_])
                 pos_[index_i][axis_] += periodic_translation_[axis_];
         };
 
         virtual void checkUpperBound(size_t index_i, Real dt = 0.0)
         {
-            if (pos_[index_i][axis_] > bounding_bounds_.second_[axis_])
+            if (pos_[index_i][axis_] > bounding_bounds_.upper_[axis_])
                 pos_[index_i][axis_] -= periodic_translation_[axis_];
         };
 
