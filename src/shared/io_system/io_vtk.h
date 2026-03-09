@@ -34,6 +34,20 @@
 #include "dynamics_algorithms.h"
 #include "general_reduce.h"
 
+#ifdef SPHINXSYS_USE_VTK
+#include <vtkCellArray.h>
+#include <vtkDoubleArray.h>
+#include <vtkFieldData.h>
+#include <vtkFloatArray.h>
+#include <vtkIntArray.h>
+#include <vtkNew.h>
+#include <vtkPointData.h>
+#include <vtkPoints.h>
+#include <vtkPolyData.h>
+#include <vtkUnsignedIntArray.h>
+#include <vtkXMLPolyDataWriter.h>
+#endif
+
 using VtuStringData = std::map<std::string, std::string>;
 
 namespace SPH
@@ -54,6 +68,9 @@ class BodyStatesRecordingToVtp : public BodyStatesRecording
     virtual void writeWithFileName(const std::string &sequence) override;
     template <typename OutStreamType>
     void writeParticlesToVtk(OutStreamType &output_stream, BaseParticles &particles);
+#ifdef SPHINXSYS_USE_VTK
+    void addParticlesToVtkPolyData(vtkPolyData *polydata, BaseParticles &particles);
+#endif
 };
 
 /**
