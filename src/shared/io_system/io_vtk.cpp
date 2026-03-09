@@ -57,6 +57,10 @@ void BodyStatesRecordingToVtp::writeWithFileName(const std::string &sequence)
                 vtkNew<vtkXMLPolyDataWriter> writer;
                 writer->SetInputData(polydata);
                 writer->SetFileName(filefullpath.c_str());
+                if (binary_output_)
+                    writer->SetDataModeToBinary();
+                else
+                    writer->SetDataModeToAscii();
                 writer->Write();
             }
         }
