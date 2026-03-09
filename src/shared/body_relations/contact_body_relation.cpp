@@ -270,7 +270,7 @@ void MaxSmoothingLengthContactRelation::updateConfiguration()
     {
         Mesh &mesh = target_cell_linked_lists_[k]->getMesh();
         target_cell_linked_lists_[k]->searchNeighborsByMesh(
-            mesh, 0, sph_body_, contact_configuration_[k],
+            mesh, sph_body_, contact_configuration_[k],
             *get_search_depths_[k], *get_contact_neighbors_[k]);
     }
 }

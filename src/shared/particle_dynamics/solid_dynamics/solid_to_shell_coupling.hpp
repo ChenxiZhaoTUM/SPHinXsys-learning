@@ -12,7 +12,7 @@ TotalWeightComputation<DynamicsIdentifier>::
     TotalWeightComputation(DynamicsIdentifier &identifier, BaseContactRelation &contact_relation)
     : BaseLocalDynamics<DynamicsIdentifier>(identifier),
       DataDelegateContact(contact_relation),
-      total_weight_(this->particles_->template registerStateVariable<Real>("TotalWeight"))
+      total_weight_(this->particles_->template registerStateVariableData<Real>("TotalWeight"))
 {
     for (auto *contact_particle : contact_particles_)
         contact_Vol_.emplace_back(contact_particle->template getVariableDataByName<Real>("VolumetricMeasure"));
@@ -44,7 +44,7 @@ ConsistentMapping<DynamicsIdentifier, DataType>::
                       const std::string &contact_variable_name)
     : BaseLocalDynamics<DynamicsIdentifier>(identifier),
       DataDelegateContact(contact_relation),
-      interpolated_quantities_(this->particles_->template registerStateVariable<DataType>(variable_name)),
+      interpolated_quantities_(this->particles_->template registerStateVariableData<DataType>(variable_name)),
       total_weight_(this->particles_->template getVariableDataByName<Real>("TotalWeight"))
 {
     for (auto *contact_particle : contact_particles_)
@@ -85,7 +85,7 @@ ConservativeMapping<DynamicsIdentifier, DataType>::
                         const std::string &contact_variable_name)
     : BaseLocalDynamics<DynamicsIdentifier>(identifier),
       DataDelegateContact(contact_relation),
-      interpolated_quantities_(this->particles_->template registerStateVariable<DataType>(variable_name)),
+      interpolated_quantities_(this->particles_->template registerStateVariableData<DataType>(variable_name)),
       Vol_(this->particles_->template getVariableDataByName<Real>("VolumetricMeasure"))
 {
     for (auto *contact_particle : contact_particles_)

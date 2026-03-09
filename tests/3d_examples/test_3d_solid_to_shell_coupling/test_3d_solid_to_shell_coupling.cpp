@@ -143,11 +143,11 @@ class ParticleGenerator<SurfaceParticles, ShellDirectGenerator> : public Particl
   private:
     Real dp_;
     Real thickness_;
-    StdLargeVec<Vecd> pos_;
-    StdLargeVec<Vecd> n_;
+    StdVec<Vecd> pos_;
+    StdVec<Vecd> n_;
 
   public:
-    ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, const StdLargeVec<Vecd> &pos, const StdLargeVec<Vecd> &n, Real dp, Real thickness)
+    ParticleGenerator(SPHBody &sph_body, SurfaceParticles &surface_particles, const StdVec<Vecd> &pos, const StdVec<Vecd> &n, Real dp, Real thickness)
         : ParticleGenerator<SurfaceParticles>(sph_body, surface_particles),
           dp_(dp),
           thickness_(thickness),
@@ -234,7 +234,7 @@ class ForcePartByParticle : public BaseForcePrior<BodyPartByParticle>
     ForcePartByParticle(BodyPartByParticle &body_part, const std::string &force_name, const Vecd &acc)
         : BaseForcePrior<BodyPartByParticle>(body_part, force_name),
           acc_(acc),
-          mass_(particles_->registerStateVariable<Real>("Mass")) {}
+          mass_(particles_->registerStateVariableData<Real>("Mass")) {}
 
     void update(size_t index_i, Real dt = 0.0)
     {
@@ -274,8 +274,8 @@ void run_solid_to_shell_coupling(size_t res_factor_solid, size_t res_factor_shel
         "cube");
 
     // shell positions
-    StdLargeVec<Vecd> shell_pos;
-    StdLargeVec<Vecd> shell_n;
+    StdVec<Vecd> shell_pos;
+    StdVec<Vecd> shell_n;
     {
         Real x = -0.5 * shell_length + 0.5 * dp_shell;
         Real y = 0.5 * dp_shell;
@@ -313,12 +313,12 @@ void run_solid_to_shell_coupling(size_t res_factor_solid, size_t res_factor_shel
         std::string path = "./output_resv_x" + std::to_string(res_factor_solid) + "_ress_x" + std::to_string(res_factor_shell) + "_relax" + std::to_string(run_relax);
         fs::remove_all(path);
         fs::create_directory(path);
-        io_environment.output_folder_ = path;
+        io_environment.resetOutputFolder(path);
     }
 
     // Create objects
     SolidBody cube_body(system, cube_mesh, "Cube");
-    cube_body.defineBodyLevelSetShape()->cleanLevelSet(0);
+    cube_body.defineBodyLevelSetShape().cleanLevelSet();
     cube_body.defineMaterial<NeoHookeanSolid>(rho, youngs_modulus_solid, poisson_ratio);
     cube_body.generateParticles<BaseParticles, Lattice>();
 
@@ -473,7 +473,7 @@ void run_solid_to_shell_coupling(size_t res_factor_solid, size_t res_factor_shel
     }
 
     // write restart file
-    restart_io.writeToFile();
+    restart_io.writeToFile(ite);
 
     // Output results
     Real deflection = disp_recorder.getObservedQuantity()[0].y();
@@ -541,12 +541,12 @@ void run_solid(size_t res_factor, Real stiffness_ratio, bool run_relax)
         std::string path = "./single_output_resv_x" + std::to_string(res_factor) + "_relax" + std::to_string(run_relax);
         fs::remove_all(path);
         fs::create_directory(path);
-        io_environment.output_folder_ = path;
+        io_environment.resetOutputFolder(path);
     }
 
     // Create objects
     SolidBody body(system, mesh, "solid");
-    body.defineBodyLevelSetShape()->cleanLevelSet(0);
+    body.defineBodyLevelSetShape().cleanLevelSet();
     body.defineMaterial<CompositeSolid>(rho);
     body.generateParticles<BaseParticles, Lattice>();
     auto &material = *dynamic_cast<CompositeSolid *>(&body.getBaseMaterial());
@@ -677,7 +677,7 @@ void run_solid(size_t res_factor, Real stiffness_ratio, bool run_relax)
     }
 
     // write restart file
-    restart_io.writeToFile();
+    restart_io.writeToFile(ite);
 
     // Output results
     std::cout << "Deflection: " << disp_recorder.getObservedQuantity()[0].y() << std::endl;
