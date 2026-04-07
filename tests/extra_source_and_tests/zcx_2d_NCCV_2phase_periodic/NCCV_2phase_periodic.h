@@ -25,15 +25,15 @@ const Real Pr = 0.71;
 const Real nu  = sqrt(Pr / Ra);
 const Real kappa  = 1.0 / sqrt(Pr * Ra);  // thermal diffusivity
 const Real g = 9.81;
-Real rho0_f = 1.0;                  /**< Reference density of fluid. */
-Real mu_f = rho0_f * nu;               /**< Dynamics viscosity. */
-Real mu_f_one = mu_f * 10;
-Real mu_f_two = mu_f * 0.1;
-//Real mu_f_one = mu_f;
-//Real mu_f_two = mu_f;
+Real rho0_f_one = 1000.0;                  /**< Reference density of fluid. */
+Real rho0_f_two = 1.0;                  /**< Reference density of fluid. */
+//Real mu_f = rho0_f * nu;               /**< Dynamics viscosity. */
+Real mu_f_one = rho0_f_one * nu;
+Real mu_f_two = rho0_f_two * nu;
 Real C_p = 1.0; 
 Real diffusion_coeff = kappa;
-Real k = diffusion_coeff * (rho0_f * C_p);
+Real k_one = diffusion_coeff * (rho0_f_one * C_p);
+Real k_two = diffusion_coeff * (rho0_f_two * C_p);
 std::string diffusion_species_name = "Phi";
 //----------------------------------------------------------------------
 //	Initial and boundary conditions.
@@ -43,7 +43,7 @@ Real down_temperature = 2.0;
 Real thermal_expansion_coeff = 1/ (g * (down_temperature - up_temperature) * pow(H, 3));
 Real heat_flux = 0;
 Real U_f = sqrt(g * thermal_expansion_coeff * (down_temperature - up_temperature) * H);   /**< Characteristic velocity. */
-Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
+Real c_f = 20.0 * U_f;              /**< Reference sound speed. */
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
 //----------------------------------------------------------------------

@@ -22,12 +22,12 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     FluidBody PhaseOne_diffusion_body(sph_system, makeShared<PhaseOneDiffusionBody>("PhaseOneDiffusionBody"));
     PhaseOne_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicThermalDiffusion>(
-        ConstructArgs(rho0_f, c_f), mu_f_one, ConstructArgs(diffusion_species_name, k, rho0_f, C_p));
+        ConstructArgs(rho0_f_one, c_f), mu_f_one, ConstructArgs(diffusion_species_name, k_one, rho0_f_one, C_p));
     PhaseOne_diffusion_body.generateParticles<BaseParticles, Lattice>();
 
     FluidBody PhaseTwo_diffusion_body(sph_system, makeShared<PhaseTwoDiffusionBody>("PhaseTwoDiffusionBody"));
     PhaseTwo_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicThermalDiffusion>(
-        ConstructArgs(rho0_f, c_f), mu_f_two, ConstructArgs(diffusion_species_name, k, rho0_f, C_p));
+        ConstructArgs(rho0_f_two, c_f), mu_f_two, ConstructArgs(diffusion_species_name, k_two, rho0_f_two, C_p));
     PhaseTwo_diffusion_body.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("EntireWallBoundary"));
