@@ -25,25 +25,36 @@ const Real Pr = 0.71;
 const Real nu  = sqrt(Pr / Ra);
 const Real kappa  = 1.0 / sqrt(Pr * Ra);  // thermal diffusivity
 const Real g = 9.81;
-Real rho0_f_one = 1000.0;                  /**< Reference density of fluid. */
-Real rho0_f_two = 1.0;                  /**< Reference density of fluid. */
-//Real mu_f = rho0_f * nu;               /**< Dynamics viscosity. */
-Real mu_f_one = rho0_f_one * nu;
-Real mu_f_two = rho0_f_two * nu;
-Real C_p = 1.0; 
 Real diffusion_coeff = kappa;
-Real k_one = diffusion_coeff * (rho0_f_one * C_p);
-Real k_two = diffusion_coeff * (rho0_f_two * C_p);
+
+// 相1：重流体（下层，高温）- 密度大
+Real rho0_f_one = 1000.0;                   /**< Reference density of heavy fluid phase 1. */
+Real nu_one = nu / 2;                           /**< Kinematic viscosity of phase 1. */
+Real mu_f_one = rho0_f_one * nu_one;        /**< Dynamic viscosity of phase 1. */
+Real C_p_one = 1.0;                         /**< Specific heat capacity of phase 1. */
+Real k_one = diffusion_coeff * (rho0_f_one * C_p_one);  /**< Thermal conductivity of phase 1. */
+
+// 相2：轻流体（上层，低温）- 密度小但不要太小，产生更强浮力
+Real rho0_f_two = 100.0;                    /**< Reference density of light fluid phase 2. */
+Real nu_two = nu;                     /**< Kinematic viscosity of phase 2 (higher viscosity). */
+Real mu_f_two = rho0_f_two * nu_two;        /**< Dynamic viscosity of phase 2. */
+Real C_p_two = 2.0;                         /**< Specific heat capacity of phase 2 (larger Cp). */
+Real k_two = diffusion_coeff * (rho0_f_two * C_p_two * 2.0);  /**< Thermal conductivity of phase 2 (enhanced). */
+
+Real up_temperature = 1.0;
+Real down_temperature = 2.0;
+
+// 不同的热膨胀系数 - 相2的膨胀系数更大（关键！）
+Real thermal_expansion_one = 1.0 / (g * (down_temperature - up_temperature) * pow(H, 3));    /**< Thermal expansion for phase 1. */
+Real thermal_expansion_two = thermal_expansion_one * 2.0;  /**< Thermal expansion for phase 2 - 4倍更强. */
+
 std::string diffusion_species_name = "Phi";
 //----------------------------------------------------------------------
 //	Initial and boundary conditions.
 //----------------------------------------------------------------------
-Real up_temperature = 1.0;
-Real down_temperature = 2.0;
-Real thermal_expansion_coeff = 1/ (g * (down_temperature - up_temperature) * pow(H, 3));
 Real heat_flux = 0;
-Real U_f = sqrt(g * thermal_expansion_coeff * (down_temperature - up_temperature) * H);   /**< Characteristic velocity. */
-Real c_f = 20.0 * U_f;              /**< Reference sound speed. */
+Real U_f = sqrt(g * thermal_expansion_two * (down_temperature - up_temperature) * H);   /**< Characteristic velocity. */
+Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
 //----------------------------------------------------------------------
@@ -51,8 +62,8 @@ std::vector<Vecd> createThermalDomainOne()
 {
     std::vector<Vecd> thermalDomainShape;
     thermalDomainShape.push_back(Vecd(0.0, -H/2));
-    thermalDomainShape.push_back(Vecd(0.0, 0.0));
-    thermalDomainShape.push_back(Vecd(L, 0.0));
+    thermalDomainShape.push_back(Vecd(0.0, -H/3));
+    thermalDomainShape.push_back(Vecd(L, -H/3));
     thermalDomainShape.push_back(Vecd(L, -H/2));
     thermalDomainShape.push_back(Vecd(0.0, -H/2));
 
@@ -62,11 +73,11 @@ std::vector<Vecd> createThermalDomainOne()
 std::vector<Vecd> createThermalDomainTwo()
 {
     std::vector<Vecd> thermalDomainShape;
-    thermalDomainShape.push_back(Vecd(0.0, 0.0));
+    thermalDomainShape.push_back(Vecd(0.0, -H/3));
     thermalDomainShape.push_back(Vecd(0.0, H/2));
     thermalDomainShape.push_back(Vecd(L, H/2));
-    thermalDomainShape.push_back(Vecd(L, 0.0));
-    thermalDomainShape.push_back(Vecd(0.0, 0.0));
+    thermalDomainShape.push_back(Vecd(L, -H/3));
+    thermalDomainShape.push_back(Vecd(0.0, -H/3));
 
     return thermalDomainShape;
 }

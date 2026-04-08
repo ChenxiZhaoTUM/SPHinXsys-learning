@@ -48,11 +48,11 @@ class SphBodyReloadEnvironment : public SphBasicSystemSetting
           diffusion_observer(sph_system, "DiffusionObserver")
     {
         PhaseOne_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicThermalDiffusion>(
-            ConstructArgs(rho0_f, c_f), mu_f_one, ConstructArgs(diffusion_species_name, k, rho0_f, C_p));
+        ConstructArgs(rho0_f_one, c_f), mu_f_one, ConstructArgs(diffusion_species_name, k_one, rho0_f_one, C_p_one));
         PhaseOne_diffusion_body.generateParticles<BaseParticles, Lattice>();
 
         PhaseTwo_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicThermalDiffusion>(
-            ConstructArgs(rho0_f, c_f), mu_f_two, ConstructArgs(diffusion_species_name, k, rho0_f, C_p));
+        ConstructArgs(rho0_f_two, c_f), mu_f_two, ConstructArgs(diffusion_species_name, k_two, rho0_f_two, C_p_two));
         PhaseTwo_diffusion_body.generateParticles<BaseParticles, Lattice>();
 
         wall_boundary.defineMaterial<Solid>();
@@ -244,8 +244,8 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           phase_2_viscous_force(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary),
 
           // extract flux
-          phase_1_buoyancy_force(PhaseOne_diffusion_body, thermal_expansion_coeff, (up_temperature + down_temperature) / 2.0),
-          phase_2_buoyancy_force(PhaseTwo_diffusion_body, thermal_expansion_coeff, (up_temperature + down_temperature) / 2.0),
+          phase_1_buoyancy_force(PhaseOne_diffusion_body, thermal_expansion_one, (up_temperature + down_temperature) / 2.0),
+          phase_2_buoyancy_force(PhaseTwo_diffusion_body, thermal_expansion_two, (up_temperature + down_temperature) / 2.0),
           phase_1_advection_time_step(PhaseOne_diffusion_body, U_f),
           phase_2_advection_time_step(PhaseTwo_diffusion_body, U_f),
           phase_1_acoustic_time_step(PhaseOne_diffusion_body),
