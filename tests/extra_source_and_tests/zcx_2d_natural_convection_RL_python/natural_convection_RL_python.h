@@ -23,9 +23,9 @@ class SphBasicGeometrySetting
     const Real nu  = sqrt(Pr / Ra);
     const Real kappa  = 1.0 / sqrt(Pr * Ra);  // thermal diffusivity
     const Real g = 9.81;
-    Real rho0_f = 1.0;                  /**< Reference density of fluid. */
+    Real rho0_f = 100.0;                  /**< Reference density of fluid. */
     Real mu_f = rho0_f * nu;               /**< Dynamics viscosity. */
-    Real C_p = 1.0;
+    Real C_p = 2.0;
     Real diffusion_coeff = kappa;
     std::string diffusion_species_name = "Phi";
     //----------------------------------------------------------------------

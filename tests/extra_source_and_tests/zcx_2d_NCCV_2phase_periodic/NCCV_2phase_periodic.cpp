@@ -127,10 +127,8 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> phase_2_viscous_force(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);
 
     // extract flux
-    SimpleDynamics<fluid_dynamics::BuoyancyForce> phase_1_buoyancy_force(
-        PhaseOne_diffusion_body, thermal_expansion_one, (up_temperature+down_temperature)/2.0);
-    SimpleDynamics<fluid_dynamics::BuoyancyForce> phase_2_buoyancy_force(
-        PhaseTwo_diffusion_body, thermal_expansion_two, (up_temperature+down_temperature)/2.0);
+    SimpleDynamics<fluid_dynamics::BuoyancyForce> phase_1_buoyancy_force(PhaseOne_diffusion_body, thermal_expansion_one, (up_temperature+down_temperature)/2.0);
+    SimpleDynamics<fluid_dynamics::BuoyancyForce> phase_2_buoyancy_force(PhaseTwo_diffusion_body, thermal_expansion_two, (up_temperature+down_temperature)/2.0);
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> phase_1_advection_time_step(PhaseOne_diffusion_body, U_f);
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> phase_2_advection_time_step(PhaseTwo_diffusion_body, U_f);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> phase_1_acoustic_time_step(PhaseOne_diffusion_body);

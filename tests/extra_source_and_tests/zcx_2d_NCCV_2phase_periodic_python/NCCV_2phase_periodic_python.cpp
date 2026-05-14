@@ -48,11 +48,11 @@ class SphBodyReloadEnvironment : public SphBasicSystemSetting
           diffusion_observer(sph_system, "DiffusionObserver")
     {
         PhaseOne_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicThermalDiffusion>(
-        ConstructArgs(rho0_f_one, c_f), mu_f_one, ConstructArgs(diffusion_species_name, k_one, rho0_f_one, C_p_one));
+            ConstructArgs(rho0_f_one, c_f), mu_f_one, ConstructArgs(diffusion_species_name, k_one, rho0_f_one, C_p_one));
         PhaseOne_diffusion_body.generateParticles<BaseParticles, Lattice>();
 
         PhaseTwo_diffusion_body.defineClosure<WeaklyCompressibleFluid, Viscosity, IsotropicThermalDiffusion>(
-        ConstructArgs(rho0_f_two, c_f), mu_f_two, ConstructArgs(diffusion_species_name, k_two, rho0_f_two, C_p_two));
+            ConstructArgs(rho0_f_two, c_f), mu_f_two, ConstructArgs(diffusion_species_name, k_two, rho0_f_two, C_p_two));
         PhaseTwo_diffusion_body.generateParticles<BaseParticles, Lattice>();
 
         wall_boundary.defineMaterial<Solid>();
@@ -120,9 +120,9 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_1_kernel_correction_complex;
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> phase_2_kernel_correction_complex;
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfCorrectionWithWallRiemann> phase_1_pressure_relaxation;
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallNoRiemann> phase_1_density_relaxation;
+    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> phase_1_density_relaxation;
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfCorrectionWithWallRiemann> phase_2_pressure_relaxation;
-    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallNoRiemann> phase_2_density_relaxation;
+    Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> phase_2_density_relaxation;
 
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>> phase_1_update_density_by_summation;
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>> phase_2_update_density_by_summation;

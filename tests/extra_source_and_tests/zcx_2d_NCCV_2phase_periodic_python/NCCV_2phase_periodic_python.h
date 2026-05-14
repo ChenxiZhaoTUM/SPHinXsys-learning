@@ -23,27 +23,26 @@ class SphBasicGeometrySetting
     const Real kappa  = 1.0 / sqrt(Pr * Ra);  // thermal diffusivity
     const Real g = 9.81;
     Real diffusion_coeff = kappa;
-    
+
     Real rho0_f_one = 1000.0;                   /**< Reference density of heavy fluid phase 1. */
-    Real nu_one = nu / 2;                           /**< Kinematic viscosity of phase 1. */
+    Real nu_one = nu / 2;                       /**< Kinematic viscosity of phase 1. */
     Real mu_f_one = rho0_f_one * nu_one;        /**< Dynamic viscosity of phase 1. */
     Real C_p_one = 1.0;                         /**< Specific heat capacity of phase 1. */
     Real k_one = diffusion_coeff * (rho0_f_one * C_p_one);  /**< Thermal conductivity of phase 1. */
 
     Real rho0_f_two = 100.0;                    /**< Reference density of light fluid phase 2. */
-    Real nu_two = nu;                     /**< Kinematic viscosity of phase 2 (higher viscosity). */
+    Real nu_two = nu;                           /**< Kinematic viscosity of phase 2. */
     Real mu_f_two = rho0_f_two * nu_two;        /**< Dynamic viscosity of phase 2. */
-    Real C_p_two = 2.0;                         /**< Specific heat capacity of phase 2 (larger Cp). */
-    Real k_two = diffusion_coeff * (rho0_f_two * C_p_two * 2.0);
+    Real C_p_two = 2.0;                         /**< Specific heat capacity of phase 2. */
+    Real k_two = diffusion_coeff * (rho0_f_two * C_p_two * 2.0);  /**< Thermal conductivity of phase 2. */
 
-    
     std::string diffusion_species_name = "Phi";
     //----------------------------------------------------------------------
     //	Initial and boundary conditions.
     //----------------------------------------------------------------------
     Real up_temperature = 1.0;
     Real down_temperature = 2.0;
-    Real thermal_expansion_one = 1.0 / (g * (down_temperature - up_temperature) * pow(H, 3));    /**< Thermal expansion for phase 1. */
+    Real thermal_expansion_one = 1.0 / (g * (down_temperature - up_temperature) * pow(H, 3));  /**< Thermal expansion for phase 1. */
     Real thermal_expansion_two = thermal_expansion_one * 2.0;
     Real heat_flux = 0;
     Real U_f = sqrt(g * thermal_expansion_two * (down_temperature - up_temperature) * H);                     /**< Characteristic velocity. */
@@ -58,8 +57,8 @@ class SphBasicGeometrySetting
     {
         std::vector<Vecd> thermalDomainShape;
         thermalDomainShape.push_back(Vecd(0.0, -H/2));
-        thermalDomainShape.push_back(Vecd(0.0, -H/3));
-        thermalDomainShape.push_back(Vecd(L, -H/3));
+        thermalDomainShape.push_back(Vecd(0.0, 0.0));
+        thermalDomainShape.push_back(Vecd(L, 0.0));
         thermalDomainShape.push_back(Vecd(L, -H/2));
         thermalDomainShape.push_back(Vecd(0.0, -H/2));
 
@@ -69,11 +68,11 @@ class SphBasicGeometrySetting
     std::vector<Vecd> createThermalDomainTwo()
     {
         std::vector<Vecd> thermalDomainShape;
-        thermalDomainShape.push_back(Vecd(0.0, -H/3));
+        thermalDomainShape.push_back(Vecd(0.0, 0.0));
         thermalDomainShape.push_back(Vecd(0.0, H/2));
         thermalDomainShape.push_back(Vecd(L, H/2));
-        thermalDomainShape.push_back(Vecd(L, -H/3));
-        thermalDomainShape.push_back(Vecd(0.0, -H/3));
+        thermalDomainShape.push_back(Vecd(L, 0.0));
+        thermalDomainShape.push_back(Vecd(0.0, 0.0));
 
         return thermalDomainShape;
     }
