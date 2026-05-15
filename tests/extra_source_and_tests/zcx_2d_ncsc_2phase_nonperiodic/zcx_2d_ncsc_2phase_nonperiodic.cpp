@@ -142,12 +142,6 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> phase_1_acoustic_time_step(PhaseOne_diffusion_body);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> phase_2_acoustic_time_step(PhaseTwo_diffusion_body);
 
-    BoundingBox bounding_box(Vec2d(0.0, - H/2), Vec2d(L, H/2));
-    PeriodicAlongAxis phase_1_periodic_along_x(bounding_box, xAxis);
-    PeriodicConditionUsingCellLinkedList phase_1_periodic_condition(PhaseOne_diffusion_body, phase_1_periodic_along_x);
-    PeriodicAlongAxis phase_2_periodic_along_x(bounding_box, xAxis);
-    PeriodicConditionUsingCellLinkedList phase_2_periodic_condition(PhaseTwo_diffusion_body, phase_2_periodic_along_x);
-
     InteractionWithUpdate<fluid_dynamics::TargetFluidParticles> phase_1_target_fluid_particles(phase_1_contact_wall_boundary);
     InteractionWithUpdate<fluid_dynamics::TargetFluidParticles> phase_2_target_fluid_particles(phase_2_contact_wall_boundary);
     SimpleDynamics<solid_dynamics::FirstLayerFromFluids> target_up_solid_particles(up_Dirichlet, PhaseOne_diffusion_body, PhaseTwo_diffusion_body);
@@ -216,8 +210,6 @@ int main(int ac, char *av[])
     //	and case specified initial condition if necessary.
     //----------------------------------------------------------------------
     sph_system.initializeSystemCellLinkedLists();
-    phase_1_periodic_condition.update_cell_linked_list_.exec();
-    phase_2_periodic_condition.update_cell_linked_list_.exec();
     sph_system.initializeSystemConfigurations();
     phase_1_initial_condition.exec();
     phase_2_initial_condition.exec();
@@ -307,9 +299,6 @@ int main(int ac, char *av[])
             }
             number_of_iterations++;
 
-            phase_1_periodic_condition.bounding_.exec();
-            phase_2_periodic_condition.bounding_.exec();
-
             if (number_of_iterations % 100 == 0 && number_of_iterations != 1)
             {
                 phase_1_particle_sorting.exec();
@@ -318,8 +307,6 @@ int main(int ac, char *av[])
 
             PhaseOne_diffusion_body.updateCellLinkedList();
             PhaseTwo_diffusion_body.updateCellLinkedList();
-            phase_1_periodic_condition.update_cell_linked_list_.exec();
-            phase_2_periodic_condition.update_cell_linked_list_.exec();
             phase_1_complex.updateConfiguration();
             phase_2_complex.updateConfiguration();
             up_Dirichlet_contacts.updateConfiguration();
