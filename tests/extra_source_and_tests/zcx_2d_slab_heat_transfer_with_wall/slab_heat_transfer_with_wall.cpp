@@ -169,25 +169,6 @@ namespace SPH
         Real* phi_;
     };
 
-    class NeumannWallBoundaryInitialCondition : public LocalDynamics
-    {
-    public:
-        explicit NeumannWallBoundaryInitialCondition(SPHBody& sph_body)
-            : LocalDynamics(sph_body),
-            pos_(particles_->getVariableDataByName<Vecd>("Position")),
-            phi_(particles_->registerStateVariable<Real>(diffusion_species_name)),
-            phi_flux_(particles_->getVariableDataByName<Real>(diffusion_species_name + "Flux")) {}
-
-        void update(size_t index_i, Real dt)
-        {
-            phi_flux_[index_i] = heat_flux;
-        }
-
-    protected:
-        Vecd* pos_;
-        Real* phi_, * phi_flux_;
-    };
-
     class LocalDiffusivityDefinition : public LocalDynamics
     {
     public:
@@ -213,19 +194,19 @@ namespace SPH
     //	Specify diffusion relaxation method.
     //----------------------------------------------------------------------
     using DiffusionBodyRelaxation = DiffusionBodyRelaxationComplex<
-        IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet, Neumann>;
+        IsotropicDiffusion, KernelGradientInner, KernelGradientContact, Dirichlet, Dirichlet>;
 
     StdVec<Vecd> createObservationPoints()
     {
         StdVec<Vecd> observation_points;
         /** A line of measuring points at the middle line. */
-        size_t number_of_observation_points = 51;
+        size_t number_of_observation_points = 50;
         Real range_of_measure = L;
-        Real start_of_measure = 0;
 
         for (size_t i = 0; i < number_of_observation_points; ++i)
         {
-            Vec2d point_coordinate(range_of_measure * Real(i) / Real(number_of_observation_points - 1) +start_of_measure, 0.5 * H);
+            Real x = resolution_ref / 2 + (range_of_measure - 2.0 * resolution_ref / 2) * Real(i) / Real(number_of_observation_points - 1);
+            Vec2d point_coordinate(x, 0.5 * H);
             observation_points.push_back(point_coordinate);
         }
         return observation_points;
@@ -254,10 +235,6 @@ int main(int ac, char* av[])
     SolidBody right_wall_Dirichlet(sph_system, makeShared<RightDirichletWallBoundary>("RightDirichletWallBoundary"));
     right_wall_Dirichlet.defineMaterial<Solid>();
     right_wall_Dirichlet.generateParticles<BaseParticles, Lattice>();
-
-    SolidBody wall_Neumann(sph_system, makeShared<NeumannWallBoundary>("NeumannWallBoundary"));
-    wall_Neumann.defineMaterial<Solid>();
-    wall_Neumann.generateParticles<BaseParticles, Lattice>();
     //----------------------------------------------------------------------
     //	Particle and body creation of temperature observers.
     //----------------------------------------------------------------------
@@ -271,7 +248,6 @@ int main(int ac, char* av[])
     InnerRelation diffusion_body_inner(diffusion_body);
     ContactRelation left_diffusion_body_contact_Dirichlet(diffusion_body, {&left_wall_Dirichlet});
     ContactRelation right_diffusion_body_contact_Dirichlet(diffusion_body, {&right_wall_Dirichlet});
-    ContactRelation diffusion_body_contact_Neumann(diffusion_body, {&wall_Neumann});
     ContactRelation temperature_observer_contact(temperature_observer, {&diffusion_body});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
@@ -280,15 +256,13 @@ int main(int ac, char* av[])
     SimpleDynamics<NormalDirectionFromBodyShape> diffusion_body_normal_direction(diffusion_body);
     SimpleDynamics<NormalDirectionFromBodyShape> left_wall_normal_direction(left_wall_Dirichlet);
     SimpleDynamics<NormalDirectionFromBodyShape> right_wall_normal_direction(right_wall_Dirichlet);
-    SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_Neumann);
 
     DiffusionBodyRelaxation temperature_relaxation(
-        diffusion_body_inner, left_diffusion_body_contact_Dirichlet, right_diffusion_body_contact_Dirichlet, diffusion_body_contact_Neumann);
+        diffusion_body_inner, left_diffusion_body_contact_Dirichlet, right_diffusion_body_contact_Dirichlet);
     GetDiffusionTimeStepSize get_time_step_size(diffusion_body);
     SimpleDynamics<DiffusionInitialCondition> setup_diffusion_initial_condition(diffusion_body);
     SimpleDynamics<LeftDirichletWallBoundaryInitialCondition> setup_left_boundary_condition_Dirichlet(left_wall_Dirichlet);
     SimpleDynamics<RightDirichletWallBoundaryInitialCondition> setup_right_boundary_condition_Dirichlet(right_wall_Dirichlet);
-    SimpleDynamics<NeumannWallBoundaryInitialCondition> setup_boundary_condition_Neumann(wall_Neumann);
     SimpleDynamics<LocalDiffusivityDefinition> local_diffusivity(diffusion_body, diffusion_coeff_bg, thermal_conductivity_ref);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations and observations of the simulation.
@@ -309,9 +283,7 @@ int main(int ac, char* av[])
     setup_diffusion_initial_condition.exec();
     setup_left_boundary_condition_Dirichlet.exec();
     setup_right_boundary_condition_Dirichlet.exec();
-    setup_boundary_condition_Neumann.exec();
     diffusion_body_normal_direction.exec();
-    wall_boundary_normal_direction.exec();
     left_wall_normal_direction.exec();
     right_wall_normal_direction.exec();
     local_diffusivity.exec();
