@@ -134,6 +134,11 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> phase_1_viscous_force(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary);
     InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> phase_2_viscous_force(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);
 
+    InteractionDynamics<fluid_dynamics::SurfaceTensionStress> water_surface_tension_stress(phase_1_contact_two, StdVec<Real>{Real(9000)});
+    InteractionDynamics<fluid_dynamics::SurfaceTensionStress> air_surface_tension_stress(phase_2_contact_one, StdVec<Real>{Real(3000)});
+    InteractionWithUpdate<fluid_dynamics::SurfaceStressForceComplex> water_surface_tension_force(phase_1_inner, phase_1_contact_two);
+    InteractionWithUpdate<fluid_dynamics::SurfaceStressForceComplex> air_surface_tension_force(phase_2_inner, phase_2_contact_one);
+
     // extract flux
     SimpleDynamics<fluid_dynamics::BuoyancyForce> phase_1_buoyancy_force(PhaseOne_diffusion_body, thermal_expansion_one, (up_temperature+down_temperature)/2.0);
     SimpleDynamics<fluid_dynamics::BuoyancyForce> phase_2_buoyancy_force(PhaseTwo_diffusion_body, thermal_expansion_two, (up_temperature+down_temperature)/2.0);
@@ -261,6 +266,11 @@ int main(int ac, char *av[])
             phase_2_viscous_force.exec();
             phase_1_transport_correction.exec();
             phase_2_transport_correction.exec();
+
+            water_surface_tension_stress.exec();
+            air_surface_tension_stress.exec();
+            water_surface_tension_force.exec();
+            air_surface_tension_force.exec();
 
             size_t inner_ite_dt = 0;
             Real relaxation_time = 0.0;

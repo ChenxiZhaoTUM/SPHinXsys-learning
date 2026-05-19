@@ -12,32 +12,54 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real L = Pi;
+Real L = 4;
 Real H = 2;
-Real resolution_ref = H / 80;
+Real resolution_ref = H / 50;
 Real BW = resolution_ref * 3.0;
 BoundingBox system_domain_bounds(Vec2d(-BW, - H/2 -BW), Vec2d(L + BW, H/2 + BW));
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
-const Real Ra = 1.0e4;
-const Real Pr = 0.71;
-const Real nu  = sqrt(Pr / Ra);
-const Real kappa  = 1.0 / sqrt(Pr * Ra);  // thermal diffusivity
-const Real g = 9.81;
+const Real Ra = 8.0e4;      // use 8e4 first; 1e5 also OK
+const Real Pr = 0.71;       // keep your original value; use 1.0 if matching paper figures more strictly
+const Real g  = 9.81;
+
+const Real epsilon = 0.15;  // epsilon = beta * delta_T, literature validation value
+const Real Ca = 4.6e-4;     // literature validation value
+
+Real thermal_expansion_one = epsilon / 1.0;
+Real thermal_expansion_two = thermal_expansion_one; 
+// If upper-layer circulation is still too weak, try:
+// Real thermal_expansion_two = 1.2 * thermal_expansion_one;
+// but for matching the paper, keep them equal.
+
+// Recompute nu and kappa from the actual beta, instead of using sqrt(Pr/Ra)
+// Ra = g * beta * delta_T * H^3 / (nu * kappa), Pr = nu / kappa
+Real nu = sqrt(g * thermal_expansion_one * 1.0 * pow(H, 3) * Pr / Ra);
+Real kappa = nu / Pr;
 Real diffusion_coeff = kappa;
 
-Real rho0_f_one = 1000.0;                   /**< Reference density of heavy fluid phase 1. */
-Real nu_one = nu / 2;                       /**< Kinematic viscosity of phase 1. */
-Real mu_f_one = rho0_f_one * nu_one;        /**< Dynamic viscosity of phase 1. */
-Real C_p_one = 1.0;                         /**< Specific heat capacity of phase 1. */
-Real k_one = diffusion_coeff * (rho0_f_one * C_p_one);  /**< Thermal conductivity of phase 1. */
+//----------------------------------------------------------------------
+//  Material properties
+//  Literature-like density ratio: rho_upper / rho_lower = 0.33
+//----------------------------------------------------------------------
 
-Real rho0_f_two = 100.0;                    /**< Reference density of light fluid phase 2. */
-Real nu_two = nu;                           /**< Kinematic viscosity of phase 2. */
-Real mu_f_two = rho0_f_two * nu_two;        /**< Dynamic viscosity of phase 2. */
-Real C_p_two = 2.0;                         /**< Specific heat capacity of phase 2. */
-Real k_two = diffusion_coeff * (rho0_f_two * C_p_two * 2.0);  /**< Thermal conductivity of phase 2. */
+Real rho0_f_one = 1000.0;     // lower heavy phase
+Real rho0_f_two = 330.0;      // upper light phase, density ratio = 0.33
+
+Real nu_one = nu;
+Real nu_two = nu;             // keep same kinematic viscosity first
+
+Real mu_f_one = rho0_f_one * nu_one;
+Real mu_f_two = rho0_f_two * nu_two;
+
+Real C_p_one = 1.0;
+Real C_p_two = 1.0;
+
+// Keep the same thermal diffusivity in both phases:
+// alpha_i = k_i / (rho_i * Cp_i) = kappa
+Real k_one = rho0_f_one * C_p_one * kappa;
+Real k_two = rho0_f_two * C_p_two * kappa;
 
 std::string diffusion_species_name = "Phi";
 //----------------------------------------------------------------------
@@ -45,8 +67,6 @@ std::string diffusion_species_name = "Phi";
 //----------------------------------------------------------------------
 Real up_temperature = 1.0;
 Real down_temperature = 2.0;
-Real thermal_expansion_one = 1.0 / (g * (down_temperature - up_temperature) * pow(H, 3));  /**< Thermal expansion for phase 1. */
-Real thermal_expansion_two = thermal_expansion_one * 2.0;
 Real heat_flux = 0;
 Real U_f = sqrt(g * thermal_expansion_two * (down_temperature - up_temperature) * H);   /**< Characteristic velocity. */
 Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
