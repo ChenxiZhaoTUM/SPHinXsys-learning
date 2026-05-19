@@ -588,7 +588,7 @@ void ProjectionForNu::interaction(size_t index_i, Real dt)
     {
         Real *Vol_k = contact_Vol_[k];
         Real *fluid_nu = contact_nu_[k];
-        int *fluid_indicator_1st = contact_first_layer_indicator_[k];
+        int *fluid_indicator_1st = contact_second_layer_indicator_[k];
         int *fluid_indicator_2nd = contact_second_layer_indicator_[k];
         Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
         for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
