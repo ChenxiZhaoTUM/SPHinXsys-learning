@@ -95,6 +95,55 @@ class SurfaceStressForce<Contact<>> : public SurfaceStressForce<DataDelegateCont
 };
 
 using SurfaceStressForceComplex = ComplexInteraction<SurfaceStressForce<Inner<>, Contact<>>>;
+
+template <typename... T>
+class InterfaceSharpnessForce;
+
+template <class DataDelegationType>
+class InterfaceSharpnessForce<DataDelegationType>
+    : public ForcePrior, public DataDelegationType
+{
+  public:
+    template <class BaseRelationType>
+    explicit InterfaceSharpnessForce(BaseRelationType &base_relation,
+                                     Real sharpness_strength = Real(0.08));
+    virtual ~InterfaceSharpnessForce(){};
+
+  protected:
+    Real sharpness_strength_;
+
+    Real *rho_, *mass_, *Vol_, *p_;
+    Vecd *interface_sharpness_force_;
+};
+
+template <>
+class InterfaceSharpnessForce<Inner<>>
+    : public InterfaceSharpnessForce<DataDelegateInner>
+{
+  public:
+    explicit InterfaceSharpnessForce(BaseInnerRelation &inner_relation,
+                                     Real sharpness_strength = Real(0.08));
+    virtual ~InterfaceSharpnessForce(){};
+
+    void interaction(size_t index_i, Real dt = 0.0);
+};
+
+template <>
+class InterfaceSharpnessForce<Contact<>>
+    : public InterfaceSharpnessForce<DataDelegateContact>
+{
+  public:
+    explicit InterfaceSharpnessForce(BaseContactRelation &contact_relation,
+                                     Real sharpness_strength = Real(0.08));
+    virtual ~InterfaceSharpnessForce(){};
+
+    void interaction(size_t index_i, Real dt = 0.0);
+
+  protected:
+    StdVec<Real *> contact_Vol_, contact_p_;
+};
+
+using InterfaceSharpnessForceComplex = ComplexInteraction<InterfaceSharpnessForce<Inner<>, Contact<>>>;
 } // namespace fluid_dynamics
 } // namespace SPH
 #endif // SURFACE_TENSION_H

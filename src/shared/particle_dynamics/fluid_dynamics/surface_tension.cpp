@@ -99,7 +99,8 @@ void SurfaceStressForce<Contact<>>::interaction(size_t index_i, Real dt)
             size_t index_j = contact_neighborhood.j_[n];
             Real r_ij = contact_neighborhood.r_ij_[n];
             Vecd e_ij = contact_neighborhood.e_ij_[n];
-            Real mismatch = 1.0 - 0.5 * (color_gradient_[index_i] + contact_color_gradient_k[index_j]).dot(e_ij) * r_ij;
+            //Real mismatch = 1.0 - 0.5 * (color_gradient_[index_i] + contact_color_gradient_k[index_j]).dot(e_ij) * r_ij;
+            Real mismatch = 0.;
             summation += mass_[index_i] * contact_neighborhood.dW_ij_[n] * Vol_k[index_j] *
                          (-0.1 * mismatch * Matd::Identity() +
                           (Real(1) - contact_fraction_k) * surface_tension_stress_[index_i] +
@@ -108,6 +109,97 @@ void SurfaceStressForce<Contact<>>::interaction(size_t index_i, Real dt)
         }
     }
     surface_tension_force_[index_i] += summation / rho_[index_i];
+}
+//=================================================================================================//
+InterfaceSharpnessForce<Inner<>>::InterfaceSharpnessForce(
+    BaseInnerRelation &inner_relation, Real sharpness_strength)
+    : InterfaceSharpnessForce<DataDelegateInner>(
+          inner_relation, sharpness_strength)
+{
+}
+//=================================================================================================//
+void InterfaceSharpnessForce<Inner<>>::interaction(size_t index_i, Real dt)
+{
+    Vecd summation = ZeroData<Vecd>::value;
+    interface_sharpness_force_[index_i] = ZeroData<Vecd>::value;
+    Real rho_i = rho_[index_i];
+    Real mass_i = mass_[index_i];
+    Real Vol_i = Vol_[index_i];
+    Real abs_p_i = std::fabs(p_[index_i]);
+
+    const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+
+    for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+    {
+        size_t index_j = inner_neighborhood.j_[n];
+
+        Real Vol_j = Vol_[index_j];
+        Real abs_p_j = std::fabs(p_[index_j]);
+
+        Real pair_pressure_measure =
+            abs_p_i * Vol_i * Vol_i +
+            abs_p_j * Vol_j * Vol_j;
+
+        summation += pair_pressure_measure *
+                     inner_neighborhood.dW_ij_[n] *
+                     inner_neighborhood.e_ij_[n];
+    }
+
+    interface_sharpness_force_[index_i] = -sharpness_strength_ * summation / (rho_i * Vol_i) * mass_i;
+}
+//=================================================================================================//
+InterfaceSharpnessForce<Contact<>>::InterfaceSharpnessForce(
+    BaseContactRelation &contact_relation, Real sharpness_strength)
+    : InterfaceSharpnessForce<DataDelegateContact>(
+          contact_relation, sharpness_strength)
+{
+    for (size_t k = 0; k != contact_particles_.size(); ++k)
+    {
+        contact_Vol_.push_back(
+            contact_particles_[k]->getVariableDataByName<Real>(
+                "VolumetricMeasure"));
+
+        contact_p_.push_back(
+            contact_particles_[k]->getVariableDataByName<Real>(
+                "Pressure"));
+    }
+}
+//=================================================================================================//
+void InterfaceSharpnessForce<Contact<>>::interaction(size_t index_i, Real dt)
+{
+    Vecd summation = ZeroData<Vecd>::value;
+
+    Real rho_i = rho_[index_i];
+    Real mass_i = mass_[index_i];
+    Real Vol_i = Vol_[index_i];
+    Real abs_p_i = std::fabs(p_[index_i]);
+
+    for (size_t k = 0; k != contact_configuration_.size(); ++k)
+    {
+        Real *Vol_k = contact_Vol_[k];
+        Real *p_k = contact_p_[k];
+
+        const Neighborhood &contact_neighborhood =
+            (*contact_configuration_[k])[index_i];
+
+        for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = contact_neighborhood.j_[n];
+
+            Real Vol_j = Vol_k[index_j];
+            Real abs_p_j = std::fabs(p_k[index_j]);
+
+            Real pair_pressure_measure =
+                abs_p_i * Vol_i * Vol_i +
+                abs_p_j * Vol_j * Vol_j;
+
+            summation += pair_pressure_measure *
+                         contact_neighborhood.dW_ij_[n] *
+                         contact_neighborhood.e_ij_[n];
+        }
+    }
+
+    interface_sharpness_force_[index_i] += -sharpness_strength_ * summation / (rho_i * Vol_i) * mass_i;
 }
 //=================================================================================================//
 } // namespace fluid_dynamics
