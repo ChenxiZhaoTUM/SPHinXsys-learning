@@ -314,6 +314,194 @@ StdVec<Vecd> createObservationPoints()
     return observation_points;
 }
 
+struct BubbleControlMetrics
+{
+    Real center_x = 0.0;
+    Real center_y = 0.0;
+    Real center_u = 0.0;
+    Real center_v = 0.0;
+
+    Real x_min = 0.0;
+    Real x_max = 0.0;
+    Real y_min = 0.0;
+    Real y_max = 0.0;
+
+    Real bubble_width = 0.0;
+    Real bubble_height = 0.0;
+    Real deformation_index = 0.0;
+    Real aspect_ratio = 1.0;
+
+    Real bubble_area = 0.0;
+    Real area_ratio = 1.0;
+
+    Vecd left_particle = ZeroData<Vecd>::value;
+    Vecd right_particle = ZeroData<Vecd>::value;
+    Vecd bottom_particle = ZeroData<Vecd>::value;
+    Vecd top_particle = ZeroData<Vecd>::value;
+
+    int centroid_in_target = 0;
+    int reached_target_height = 0;
+
+    int left_particle_in_target = 0;
+    int right_particle_in_target = 0;
+    int bottom_particle_in_target = 0;
+    int top_particle_in_target = 0;
+
+    int all_extreme_particles_in_target = 0;
+};
+
+class BubbleControlMetricsCalculator
+{
+  public:
+    explicit BubbleControlMetricsCalculator(SPHBody &bubble_body)
+        : particles_(bubble_body.getBaseParticles()),
+          pos_(particles_.getVariableDataByName<Vecd>("Position")),
+          vel_(particles_.getVariableDataByName<Vecd>("Velocity")),
+          Vol_(particles_.getVariableDataByName<Real>("VolumetricMeasure")),
+          initial_bubble_area_(Pi * bubble_radius * bubble_radius)
+    {
+    }
+
+    BubbleControlMetrics compute()
+    {
+        BubbleControlMetrics metrics;
+
+        Real total_volume = 0.0;
+        Vecd volume_weighted_position = ZeroData<Vecd>::value;
+        Vecd volume_weighted_velocity = ZeroData<Vecd>::value;
+
+        Real x_min = std::numeric_limits<Real>::max();
+        Real x_max = -std::numeric_limits<Real>::max();
+        Real y_min = std::numeric_limits<Real>::max();
+        Real y_max = -std::numeric_limits<Real>::max();
+
+        Vecd left_particle = ZeroData<Vecd>::value;
+        Vecd right_particle = ZeroData<Vecd>::value;
+        Vecd bottom_particle = ZeroData<Vecd>::value;
+        Vecd top_particle = ZeroData<Vecd>::value;
+
+        const size_t total_real_particles = particles_.TotalRealParticles();
+
+        for (size_t i = 0; i != total_real_particles; ++i)
+        {
+            const Vecd &pos_i = pos_[i];
+            const Vecd &vel_i = vel_[i];
+            const Real Vol_i = Vol_[i];
+
+            total_volume += Vol_i;
+            volume_weighted_position += Vol_i * pos_i;
+            volume_weighted_velocity += Vol_i * vel_i;
+
+            if (pos_i[0] < x_min)
+            {
+                x_min = pos_i[0];
+                left_particle = pos_i;
+            }
+            if (pos_i[0] > x_max)
+            {
+                x_max = pos_i[0];
+                right_particle = pos_i;
+            }
+            if (pos_i[1] < y_min)
+            {
+                y_min = pos_i[1];
+                bottom_particle = pos_i;
+            }
+            if (pos_i[1] > y_max)
+            {
+                y_max = pos_i[1];
+                top_particle = pos_i;
+            }
+        }
+
+        if (total_volume <= Eps)
+        {
+            return metrics;
+        }
+
+        Vecd center = volume_weighted_position / total_volume;
+        Vecd center_velocity = volume_weighted_velocity / total_volume;
+
+        Real bubble_width = x_max - x_min;
+        Real bubble_height = y_max - y_min;
+
+        metrics.center_x = center[0];
+        metrics.center_y = center[1];
+        metrics.center_u = center_velocity[0];
+        metrics.center_v = center_velocity[1];
+
+        metrics.x_min = x_min;
+        metrics.x_max = x_max;
+        metrics.y_min = y_min;
+        metrics.y_max = y_max;
+
+        metrics.bubble_width = bubble_width;
+        metrics.bubble_height = bubble_height;
+
+        /**
+         * Deformation index:
+         * 0 means nearly circular/square-like bounding box.
+         * Larger value means stronger deformation.
+         */
+        metrics.deformation_index =
+            std::abs(bubble_width - bubble_height) /
+            (bubble_width + bubble_height + Eps);
+
+        metrics.aspect_ratio =
+            bubble_height / (bubble_width + Eps);
+
+        metrics.bubble_area = total_volume;
+        metrics.area_ratio = total_volume / initial_bubble_area_;
+
+        metrics.left_particle = left_particle;
+        metrics.right_particle = right_particle;
+        metrics.bottom_particle = bottom_particle;
+        metrics.top_particle = top_particle;
+
+        metrics.centroid_in_target =
+            isInTargetRegion(center[0], center[1]) ? 1 : 0;
+
+        metrics.reached_target_height =
+            center[1] >= DH / 3.0 ? 1 : 0;
+
+        metrics.left_particle_in_target =
+            isInTargetRegion(left_particle[0], left_particle[1]) ? 1 : 0;
+
+        metrics.right_particle_in_target =
+            isInTargetRegion(right_particle[0], right_particle[1]) ? 1 : 0;
+
+        metrics.bottom_particle_in_target =
+            isInTargetRegion(bottom_particle[0], bottom_particle[1]) ? 1 : 0;
+
+        metrics.top_particle_in_target =
+            isInTargetRegion(top_particle[0], top_particle[1]) ? 1 : 0;
+
+        metrics.all_extreme_particles_in_target =
+            metrics.left_particle_in_target &&
+            metrics.right_particle_in_target &&
+            metrics.bottom_particle_in_target &&
+            metrics.top_particle_in_target;
+
+        return metrics;
+    }
+
+  protected:
+    BaseParticles &particles_;
+    Vecd *pos_;
+    Vecd *vel_;
+    Real *Vol_;
+
+    Real initial_bubble_area_;
+
+    bool isInTargetRegion(Real x, Real y) const
+    {
+        return x >= DL / 3.0 &&
+               x <= 2.0 * DL / 3.0 &&
+               y >= DH / 3.0 &&
+               y <= 2.0 * DH / 3.0;
+    }
+};
+
 } // namespace SPH
 
 #endif // BUBBLE_RISING_HEAT_H

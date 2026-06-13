@@ -270,6 +270,21 @@ int main(int ac, char *av[])
     ParticleSorting liquid_particle_sorting(liquid_body);
     ParticleSorting bubble_particle_sorting(bubble_body);
 
+    BubbleControlMetricsCalculator bubble_metrics_calculator(bubble_body);
+
+    std::ofstream bubble_metrics_file("output\\bubble_control_metrics.csv");
+
+    bubble_metrics_file
+        << "time,"
+        << "center_x,center_y,center_u,center_v,"
+        << "x_min,x_max,y_min,y_max,"
+        << "bubble_width,bubble_height,deformation_index,aspect_ratio,"
+        << "bubble_area,area_ratio,"
+        << "centroid_in_target,reached_target_height,"
+        << "left_particle_in_target,right_particle_in_target,"
+        << "bottom_particle_in_target,top_particle_in_target,"
+        << "all_extreme_particles_in_target\n";
+
     //----------------------------------------------------------------------
     // I/O operations and observations.
     //----------------------------------------------------------------------
@@ -277,13 +292,9 @@ int main(int ac, char *av[])
 
     write_states.addToWrite<Real>(liquid_body, "Pressure");
     write_states.addToWrite<Real>(liquid_body, diffusion_species_name);
-    write_states.addToWrite<Vecd>(liquid_body, "BuoyancyForce");
-    write_states.addToWrite<Vecd>(liquid_body, "InterfaceSharpnessForce");
 
     write_states.addToWrite<Real>(bubble_body, "Pressure");
     write_states.addToWrite<Real>(bubble_body, diffusion_species_name);
-    write_states.addToWrite<Vecd>(bubble_body, "BuoyancyForce");
-    write_states.addToWrite<Vecd>(bubble_body, "InterfaceSharpnessForce");
 
     write_states.addToWrite<Vecd>(wall_boundary, "NormalDirection");
     write_states.addToWrite<Real>(left_Dirichlet, diffusion_species_name);
@@ -443,6 +454,33 @@ int main(int ac, char *av[])
         write_recorded_bubble_velocity.writeToFile(number_of_iterations);
         write_liquid_kinetic_energy.writeToFile(number_of_iterations);
         write_bubble_kinetic_energy.writeToFile(number_of_iterations);
+
+        BubbleControlMetrics bubble_metrics = bubble_metrics_calculator.compute();
+
+        bubble_metrics_file
+            << physical_time << ","
+            << bubble_metrics.center_x << ","
+            << bubble_metrics.center_y << ","
+            << bubble_metrics.center_u << ","
+            << bubble_metrics.center_v << ","
+            << bubble_metrics.x_min << ","
+            << bubble_metrics.x_max << ","
+            << bubble_metrics.y_min << ","
+            << bubble_metrics.y_max << ","
+            << bubble_metrics.bubble_width << ","
+            << bubble_metrics.bubble_height << ","
+            << bubble_metrics.deformation_index << ","
+            << bubble_metrics.aspect_ratio << ","
+            << bubble_metrics.bubble_area << ","
+            << bubble_metrics.area_ratio << ","
+            << bubble_metrics.centroid_in_target << ","
+            << bubble_metrics.reached_target_height << ","
+            << bubble_metrics.left_particle_in_target << ","
+            << bubble_metrics.right_particle_in_target << ","
+            << bubble_metrics.bottom_particle_in_target << ","
+            << bubble_metrics.top_particle_in_target << ","
+            << bubble_metrics.all_extreme_particles_in_target
+            << "\n";
 
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
