@@ -12,64 +12,82 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real L = 4;
-Real H = 2;
-Real resolution_ref = H / 50;
+Real L = 2.0;
+Real H = 1.0;
+
+Real resolution_ref = H / 50.0;
 Real BW = resolution_ref * 3.0;
-BoundingBox system_domain_bounds(Vec2d(-BW, - H/2 -BW), Vec2d(L + BW, H/2 + BW));
+
+BoundingBox system_domain_bounds(
+    Vec2d(-BW, -H / 2.0 - BW),
+    Vec2d(L + BW,  H / 2.0 + BW)
+);
 //----------------------------------------------------------------------
-//	Basic parameters for material properties.
+// Temperature
 //----------------------------------------------------------------------
-const Real Ra = 8.0e4;      // use 8e4 first; 1e5 also OK
-const Real Pr = 0.71;       // keep your original value; use 1.0 if matching paper figures more strictly
-const Real g  = 9.81;
+Real up_temperature   = 1.0;
+Real down_temperature = 2.0;
+Real delta_T = down_temperature - up_temperature;
+//----------------------------------------------------------------------
+// Literature-like non-dimensional parameters
+//----------------------------------------------------------------------
+const Real g = 9.81;
 
-const Real epsilon = 0.15;  // epsilon = beta * delta_T, literature validation value
-const Real Ca = 4.6e-4;     // literature validation value
+const Real Ra1 = 8.0e4;
+const Real Pr1 = 1.0;          
+const Real epsilon1 = 0.15;    // epsilon1 = beta1 * delta_T
+const Real Ca1 = 4.6e-4;
 
-Real thermal_expansion_one = epsilon / 1.0;
-Real thermal_expansion_two = thermal_expansion_one; 
-// If upper-layer circulation is still too weak, try:
-// Real thermal_expansion_two = 1.2 * thermal_expansion_one;
-// but for matching the paper, keep them equal.
-
-// Recompute nu and kappa from the actual beta, instead of using sqrt(Pr/Ra)
-// Ra = g * beta * delta_T * H^3 / (nu * kappa), Pr = nu / kappa
-Real nu = sqrt(g * thermal_expansion_one * 1.0 * pow(H, 3) * Pr / Ra);
-Real kappa = nu / Pr;
-Real diffusion_coeff = kappa;
+// Property ratios from Chang & Alexander
+const Real rho_ratio  = 0.33;  // rho2 / rho1
+const Real beta_ratio = 2.0;   // beta2 / beta1
+const Real k_ratio    = 0.7;   // k2 / k1
+const Real cp_ratio   = 0.4;   // cv2 / cv1
+const Real nu_ratio   = 1.0;   // nu2 / nu1
 
 //----------------------------------------------------------------------
-//  Material properties
-//  Literature-like density ratio: rho_upper / rho_lower = 0.33
+// Phase 1: lower heavy fluid
+// Phase 2: upper light fluid
 //----------------------------------------------------------------------
 
-Real rho0_f_one = 1000.0;     // lower heavy phase
-Real rho0_f_two = 330.0;      // upper light phase, density ratio = 0.33
+Real rho0_f_one = 1000.0;
+Real rho0_f_two = rho_ratio * rho0_f_one;  // 0.33
 
-Real nu_one = nu;
-Real nu_two = nu;             // keep same kinematic viscosity first
+Real thermal_expansion_one = epsilon1 / delta_T;                 // 0.15
+Real thermal_expansion_two = beta_ratio * thermal_expansion_one; // 0.30
+
+// Literature Rayleigh number based on total height H
+// Ra1 = g * beta1 * delta_T * H^3 / (nu1 * kappa1)
+// Pr1 = nu1 / kappa1
+Real nu_one = sqrt(g * thermal_expansion_one * delta_T * pow(H, 3) * Pr1 / Ra1);
+Real kappa_one = nu_one / Pr1;
+
+Real nu_two = nu_ratio * nu_one;
 
 Real mu_f_one = rho0_f_one * nu_one;
 Real mu_f_two = rho0_f_two * nu_two;
 
 Real C_p_one = 1.0;
-Real C_p_two = 1.0;
+Real C_p_two = cp_ratio * C_p_one;
 
-// Keep the same thermal diffusivity in both phases:
-// alpha_i = k_i / (rho_i * Cp_i) = kappa
-Real k_one = rho0_f_one * C_p_one * kappa;
-Real k_two = rho0_f_two * C_p_two * kappa;
+// Thermal conductivity ratio from paper: k2 / k1 = 0.7
+Real k_one = rho0_f_one * C_p_one * kappa_one;
+Real k_two = k_ratio * k_one;
+
+// For reference only:
+Real kappa_two = k_two / (rho0_f_two * C_p_two);
+
+// If your diffusion solver still needs a scalar diffusion_coeff,
+// use the lower-layer thermal diffusivity as reference.
+Real diffusion_coeff = kappa_one;
 
 std::string diffusion_species_name = "Phi";
-//----------------------------------------------------------------------
-//	Initial and boundary conditions.
-//----------------------------------------------------------------------
-Real up_temperature = 1.0;
-Real down_temperature = 2.0;
-Real heat_flux = 0;
-Real U_f = sqrt(g * thermal_expansion_two * (down_temperature - up_temperature) * H);   /**< Characteristic velocity. */
-Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
+Real heat_flux = 0.0;
+
+// Characteristic velocity used in Ca definition
+Real U_f = sqrt(g * thermal_expansion_one * delta_T * H);
+Real c_f = 10.0 * U_f;
+
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
 //----------------------------------------------------------------------

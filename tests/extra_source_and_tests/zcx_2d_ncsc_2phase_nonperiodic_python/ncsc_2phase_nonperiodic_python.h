@@ -10,43 +10,66 @@ class SphBasicGeometrySetting
     //------------------------------------------------------------------------------
     // global parameters for the case
     //------------------------------------------------------------------------------
-    Real L = Pi;
-    Real H = 2;
-    Real particle_spacing_ref = H / 80.0;
+    Real L = 2.0;
+    Real H = 1.0;
+    Real particle_spacing_ref = H / 50.0;
     Real BW = particle_spacing_ref * 3.0;
+    //----------------------------------------------------------------------
+    // Temperature
+    //----------------------------------------------------------------------
+    Real up_temperature   = 1.0;
+    Real down_temperature = 2.0;
+    Real delta_T = down_temperature - up_temperature;
     //----------------------------------------------------------------------
     //	Basic parameters for material properties.
     //----------------------------------------------------------------------
-    const Real Ra = 1.0e4;
-    const Real Pr = 0.71;
-    const Real nu  = sqrt(Pr / Ra);
-    const Real kappa  = 1.0 / sqrt(Pr * Ra);  // thermal diffusivity
     const Real g = 9.81;
-    Real diffusion_coeff = kappa;
+    const Real Ra1 = 8.0e4;
+    const Real Pr1 = 1.0;          
+    const Real epsilon1 = 0.15;    // epsilon1 = beta1 * delta_T
+    const Real Ca1 = 4.6e-4;
+    // Property ratios from Chang & Alexander
+    const Real rho_ratio  = 0.33;  // rho2 / rho1
+    const Real beta_ratio = 2.0;   // beta2 / beta1
+    const Real k_ratio    = 0.7;   // k2 / k1
+    const Real cp_ratio   = 0.4;   // cv2 / cv1
+    const Real nu_ratio   = 1.0;   // nu2 / nu1
 
-    Real rho0_f_one = 1000.0;                   /**< Reference density of heavy fluid phase 1. */
-    Real nu_one = nu / 2;                       /**< Kinematic viscosity of phase 1. */
-    Real mu_f_one = rho0_f_one * nu_one;        /**< Dynamic viscosity of phase 1. */
-    Real C_p_one = 1.0;                         /**< Specific heat capacity of phase 1. */
-    Real k_one = diffusion_coeff * (rho0_f_one * C_p_one);  /**< Thermal conductivity of phase 1. */
+    Real rho0_f_one = 1000.0;
+    Real rho0_f_two = rho_ratio * rho0_f_one;  // 0.33
 
-    Real rho0_f_two = 100.0;                    /**< Reference density of light fluid phase 2. */
-    Real nu_two = nu;                           /**< Kinematic viscosity of phase 2. */
-    Real mu_f_two = rho0_f_two * nu_two;        /**< Dynamic viscosity of phase 2. */
-    Real C_p_two = 2.0;                         /**< Specific heat capacity of phase 2. */
-    Real k_two = diffusion_coeff * (rho0_f_two * C_p_two * 2.0);  /**< Thermal conductivity of phase 2. */
+    Real thermal_expansion_one = epsilon1 / delta_T;                 // 0.15
+    Real thermal_expansion_two = beta_ratio * thermal_expansion_one; // 0.30
+
+    Real nu_one = sqrt(g * thermal_expansion_one * delta_T * pow(H, 3) * Pr1 / Ra1);
+    Real kappa_one = nu_one / Pr1;
+
+    Real nu_two = nu_ratio * nu_one;
+
+    Real mu_f_one = rho0_f_one * nu_one;
+    Real mu_f_two = rho0_f_two * nu_two;
+
+    Real C_p_one = 1.0;
+    Real C_p_two = cp_ratio * C_p_one;
+
+    // Thermal conductivity ratio from paper: k2 / k1 = 0.7
+    Real k_one = rho0_f_one * C_p_one * kappa_one;
+    Real k_two = k_ratio * k_one;
+
+    // For reference only:
+    Real kappa_two = k_two / (rho0_f_two * C_p_two);
+
+    // If your diffusion solver still needs a scalar diffusion_coeff,
+    // use the lower-layer thermal diffusivity as reference.
+    Real diffusion_coeff = kappa_one;
 
     std::string diffusion_species_name = "Phi";
-    //----------------------------------------------------------------------
-    //	Initial and boundary conditions.
-    //----------------------------------------------------------------------
-    Real up_temperature = 1.0;
-    Real down_temperature = 2.0;
-    Real thermal_expansion_one = 1.0 / (g * (down_temperature - up_temperature) * pow(H, 3));  /**< Thermal expansion for phase 1. */
-    Real thermal_expansion_two = thermal_expansion_one * 2.0;
-    Real heat_flux = 0;
-    Real U_f = sqrt(g * thermal_expansion_two * (down_temperature - up_temperature) * H);                     /**< Characteristic velocity. */
-    Real c_f = 10.0 * U_f;              /**< Reference sound speed. */
+    Real heat_flux = 0.0;
+
+    // Characteristic velocity used in Ca definition
+    Real U_f = sqrt(g * thermal_expansion_one * delta_T * H);
+    Real c_f = 10.0 * U_f;
+
 
     size_t n_seg = 4;
     inline static StdVec<Real> down_wall_segment_T = StdVec<Real>(4, 2.0);

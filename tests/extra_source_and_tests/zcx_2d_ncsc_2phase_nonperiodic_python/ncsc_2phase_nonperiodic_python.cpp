@@ -137,6 +137,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> phase_1_viscous_force;
     InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> phase_2_viscous_force;
 
+    InteractionDynamics<fluid_dynamics::SurfaceTensionStress> water_surface_tension_stress;
+    InteractionDynamics<fluid_dynamics::SurfaceTensionStress> air_surface_tension_stress;
+    InteractionWithUpdate<fluid_dynamics::SurfaceStressForceComplex> water_surface_tension_force;
+    InteractionWithUpdate<fluid_dynamics::SurfaceStressForceComplex> air_surface_tension_force;
+
     // extract flux
     SimpleDynamics<fluid_dynamics::BuoyancyForce> phase_1_buoyancy_force;
     SimpleDynamics<fluid_dynamics::BuoyancyForce> phase_2_buoyancy_force;
@@ -179,7 +184,7 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
     //----------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     int ite = 0;
-    Real output_interval = 1.0;
+    Real output_interval = 0.25;
     int number_of_iterations;
     int screen_output_interval = 100;
     int restart_output_interval = screen_output_interval * 10;
@@ -246,6 +251,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
           phase_2_transport_correction(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary),
           phase_1_viscous_force(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary),
           phase_2_viscous_force(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary),
+
+          water_surface_tension_stress(phase_1_contact_two, StdVec<Real>{Real(4000)}),
+          air_surface_tension_stress(phase_2_contact_one, StdVec<Real>{Real(1300)}),
+          water_surface_tension_force(phase_1_inner, phase_1_contact_two),
+          air_surface_tension_force(phase_2_inner, phase_2_contact_one),
 
           // extract flux
           phase_1_buoyancy_force(PhaseOne_diffusion_body, thermal_expansion_one, (up_temperature + down_temperature) / 2.0),
@@ -526,6 +536,11 @@ class SphNaturalConvection : public SphBodyReloadEnvironment
                 phase_2_viscous_force.exec();
                 phase_1_transport_correction.exec();
                 phase_2_transport_correction.exec();
+
+                water_surface_tension_stress.exec();
+                air_surface_tension_stress.exec();
+                water_surface_tension_force.exec();
+                air_surface_tension_force.exec();
 
                 size_t inner_ite_dt = 0;
                 Real relaxation_time = 0.0;

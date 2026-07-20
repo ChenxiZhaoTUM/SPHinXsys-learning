@@ -134,8 +134,8 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> phase_1_viscous_force(phase_1_inner, phase_1_contact_two, phase_1_contact_wall_boundary);
     InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> phase_2_viscous_force(phase_2_inner, phase_2_contact_one, phase_2_contact_wall_boundary);
 
-    InteractionDynamics<fluid_dynamics::SurfaceTensionStress> water_surface_tension_stress(phase_1_contact_two, StdVec<Real>{Real(9000)});
-    InteractionDynamics<fluid_dynamics::SurfaceTensionStress> air_surface_tension_stress(phase_2_contact_one, StdVec<Real>{Real(3000)});
+    InteractionDynamics<fluid_dynamics::SurfaceTensionStress> water_surface_tension_stress(phase_1_contact_two, StdVec<Real>{Real(1000)});
+    InteractionDynamics<fluid_dynamics::SurfaceTensionStress> air_surface_tension_stress(phase_2_contact_one, StdVec<Real>{Real(330)});
     InteractionWithUpdate<fluid_dynamics::SurfaceStressForceComplex> water_surface_tension_force(phase_1_inner, phase_1_contact_two);
     InteractionWithUpdate<fluid_dynamics::SurfaceStressForceComplex> air_surface_tension_force(phase_2_inner, phase_2_contact_one);
 
